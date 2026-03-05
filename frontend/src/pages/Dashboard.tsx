@@ -779,7 +779,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     <p className="text-slate-400 text-xs mb-4 leading-relaxed">
                       {lang === 'fr'
                         ? 'Quota de 5 scans épuisé — réinitialisé demain. Passez Starter pour analyser sans limite.'
-                        : '5-scan quota used up — resets Monday. Upgrade to Starter for unlimited scans.'}
+                        : '5-scan quota used up — resets tomorrow. Upgrade to Starter for unlimited scans.'}
                     </p>
                     <button onClick={() => openPricing('scan_limit')}
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all"
@@ -880,7 +880,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     <Lock size={28} className="text-orange-400" />
                   </div>
                   <h3 className="text-white font-bold text-lg mb-2">
-                    {lang === 'fr' ? 'Limite hebdomadaire atteinte' : 'Weekly limit reached'}
+                    {lang === 'fr' ? 'Limite journalière atteinte' : 'Daily limit reached'}
                   </h3>
                   <p className="text-slate-400 text-sm mb-4">{scanner.error}</p>
 
