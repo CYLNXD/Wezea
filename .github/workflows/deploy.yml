@@ -47,6 +47,7 @@ jobs:
       - name: 🐍 Deploy backend
         run: |
           sudo rsync -a --delete \
+            --exclude='.venv/' \
             --exclude='venv/' \
             --exclude='__pycache__/' \
             --exclude='.env' \
@@ -57,7 +58,7 @@ jobs:
       # ── 6. Mise à jour des dépendances Python ─────────────────────────────
       - name: 📚 Update Python dependencies
         run: |
-          sudo -u cyberhealth /home/cyberhealth/app/backend/venv/bin/pip install \
+          sudo -u cyberhealth /home/cyberhealth/app/backend/.venv/bin/pip install \
             --quiet -r /home/cyberhealth/app/backend/requirements.txt
           echo "✓ Dépendances Python à jour"
 
