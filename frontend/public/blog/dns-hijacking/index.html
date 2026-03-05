@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DNS Hijacking : comment votre domaine peut être détourné (2026) | Wezea</title>
+  <meta name="description" content="Le DNS hijacking redirige vos visiteurs vers des sites malveillants sans toucher à votre serveur. Découvrez comment fonctionne cette attaque et comment protéger votre domaine." />
+  <meta name="keywords" content="DNS hijacking, détournement DNS, attaque DNS, sécurité DNS, DNSSEC, DNS spoofing, cache poisoning DNS" />
+  <link rel="canonical" href="https://wezea.net/blog/dns-hijacking/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type"        content="article" />
+  <meta property="og:title"       content="DNS Hijacking : comment votre domaine peut être détourné" />
+  <meta property="og:description" content="Le DNS hijacking redirige vos visiteurs sans toucher à votre serveur. Voici comment ça fonctionne et comment s'en protéger." />
+  <meta property="og:url"         content="https://wezea.net/blog/dns-hijacking/" />
+  <meta property="og:image"       content="https://wezea.net/og-image.png" />
+  <meta property="og:site_name"   content="Wezea Security Scanner" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+  <link rel="stylesheet" href="../blog.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "DNS Hijacking : comment votre domaine peut être détourné",
+    "description": "Le DNS hijacking redirige vos visiteurs vers des sites malveillants sans toucher à votre serveur. Voici comment se protéger.",
+    "datePublished": "2026-03-05",
+    "dateModified": "2026-03-05",
+    "author": { "@type": "Organization", "name": "Wezea" },
+    "publisher": { "@type": "Organization", "name": "Wezea", "url": "https://wezea.net" },
+    "mainEntityOfPage": "https://wezea.net/blog/dns-hijacking/"
+  }
+  </script>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main class="page">
+
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">DNS</span>
+      <span class="read-time">7 min de lecture</span>
+      <time datetime="2026-03-05">5 mars 2026</time>
+    </div>
+    <h1>DNS Hijacking : comment votre domaine peut être détourné</h1>
+    <p class="article-intro">
+      Imaginez que vos visiteurs tapent votre URL et arrivent sur un faux site identique au vôtre — sans que vous ayez touché à votre serveur. C'est le DNS hijacking. Une attaque discrète, souvent indétectable par le propriétaire du domaine pendant des heures ou des jours.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Sommaire</strong>
+    <ol>
+      <li><a href="#fonctionnement">Comment fonctionne le DNS</a></li>
+      <li><a href="#types">Les types de DNS hijacking</a></li>
+      <li><a href="#consequences">Conséquences pour votre business</a></li>
+      <li><a href="#detection">Comment détecter une attaque</a></li>
+      <li><a href="#protection">Se protéger</a></li>
+      <li><a href="#dnssec">DNSSEC : la solution technique</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="fonctionnement">Comment fonctionne le DNS (en 30 secondes)</h2>
+    <p>
+      Le DNS (Domain Name System) est l'annuaire d'Internet. Quand quelqu'un tape <code>votredomaine.com</code>, son navigateur interroge un serveur DNS pour obtenir l'adresse IP correspondante — par exemple <code>192.0.2.1</code>. C'est seulement après cette résolution que la connexion à votre serveur est établie.
+    </p>
+    <p>
+      Le DNS hijacking consiste à corrompre ou intercepter cette résolution pour pointer vers une IP différente — celle d'un serveur contrôlé par l'attaquant.
+    </p>
+
+    <h2 id="types">Les types de DNS hijacking</h2>
+
+    <h3>1. Compromission du compte registrar</h3>
+    <p>
+      C'est le scénario le plus courant pour les PME. Un attaquant accède à votre compte chez OVH, Namecheap ou GoDaddy (via phishing, credential stuffing ou fuite de données) et modifie les enregistrements DNS pour pointer vers ses serveurs.
+    </p>
+    <p>
+      Le changement peut être subtil : uniquement les enregistrements MX (pour intercepter vos emails) ou uniquement certains sous-domaines, pour rester discret.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Attaque réelle 2023</strong><br/>
+        Des centaines de domaines hébergés chez des registrars populaires ont été compromis via des attaques de type "account takeover". Les attaquants modifient les nameservers pour prendre le contrôle total de la résolution DNS.
+      </div>
+    </div>
+
+    <h3>2. Cache poisoning (empoisonnement du cache)</h3>
+    <p>
+      Les serveurs DNS mettent en cache les résolutions pour réduire les temps de réponse. Une attaque de cache poisoning consiste à injecter de fausses réponses dans ce cache — toutes les requêtes passant par ce serveur DNS reçoivent alors la fausse IP, même si votre configuration est correcte.
+    </p>
+
+    <h3>3. Compromission du serveur DNS autoritaire</h3>
+    <p>
+      Si vous gérez vos propres serveurs DNS (bind, PowerDNS), une vulnérabilité non patchée peut permettre à un attaquant de modifier directement les zones DNS. C'est rare pour les PME, mais fréquent dans les grandes infrastructures.
+    </p>
+
+    <h3>4. BGP hijacking</h3>
+    <p>
+      À un niveau plus bas, les routes Internet (protocole BGP) peuvent être manipulées pour rediriger le trafic d'une IP entière. C'est une attaque sophistiquée, plutôt ciblant les grandes plateformes.
+    </p>
+
+    <h3>5. DNS local (routeur compromis)</h3>
+    <p>
+      Un routeur Wi-Fi compromis peut empoisonner les résolutions DNS pour tous les appareils du réseau. Classique dans les attaques contre les réseaux d'entreprise ou les fournisseurs d'accès.
+    </p>
+
+    <h2 id="consequences">Conséquences pour votre business</h2>
+
+    <ul>
+      <li><strong>Vos clients arrivent sur un faux site</strong> — pages de phishing collectant identifiants et données bancaires</li>
+      <li><strong>Vos emails sont interceptés</strong> — modification des MX pour capturer tous les emails entrants</li>
+      <li><strong>Vos certificats SSL peuvent être volés</strong> — un attaquant qui contrôle votre DNS peut valider un certificat SSL à votre place (Let's Encrypt utilise des défis DNS)</li>
+      <li><strong>Perte de confiance durable</strong> — vos clients associent l'incident à votre marque, même si vous êtes victime</li>
+      <li><strong>Impact RGPD</strong> — interception de données personnelles avec votre domaine = violation de données à notifier</li>
+    </ul>
+
+    <h2 id="detection">Comment détecter une attaque DNS hijacking</h2>
+
+    <h3>Surveillance des changements DNS</h3>
+    <p>
+      Comparez régulièrement les enregistrements DNS actuels avec vos valeurs connues. Tout changement non initié par vous est un signal d'alarme.
+    </p>
+
+    <div class="code-block">
+      <pre><code># Vérifier les enregistrements A, MX, NS actuels
+dig votredomaine.com A
+dig votredomaine.com MX
+dig votredomaine.com NS
+
+# Comparer avec plusieurs serveurs DNS pour détecter le cache poisoning
+dig @8.8.8.8 votredomaine.com A    # Google DNS
+dig @1.1.1.1 votredomaine.com A    # Cloudflare DNS</code></pre>
+    </div>
+
+    <h3>Alertes de monitoring</h3>
+    <p>
+      Un outil de monitoring surveille vos enregistrements DNS en continu et vous alerte immédiatement en cas de changement. Un changement non autorisé détecté en 5 minutes = dégâts limités. Un changement détecté 48h plus tard = catastrophe.
+    </p>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">INFO</span>
+      <div class="callout-body">
+        <strong>Vérifiez aussi vos logs registrar</strong><br/>
+        La plupart des registrars conservent un historique des modifications de zone DNS. En cas de suspicion, consultez ce log pour identifier quand et depuis quelle IP la modification a eu lieu.
+      </div>
+    </div>
+
+    <h2 id="protection">Se protéger contre le DNS hijacking</h2>
+
+    <h3>Sécuriser votre compte registrar</h3>
+    <ul>
+      <li>Activer l'authentification à deux facteurs (2FA) sur votre compte registrar — c'est la mesure numéro un</li>
+      <li>Utiliser un mot de passe unique et fort</li>
+      <li>Activer le "Registry Lock" ou "Domain Lock" si votre registrar le propose — empêche toute modification DNS sans processus d'authentification renforcé</li>
+      <li>Restreindre l'accès par IP si possible</li>
+      <li>Utiliser une adresse email de récupération dédiée et sécurisée</li>
+    </ul>
+
+    <h3>Monitoring continu</h3>
+    <ul>
+      <li>Configurer des alertes sur tout changement DNS</li>
+      <li>Surveiller les certificats SSL émis pour votre domaine (Certificate Transparency logs)</li>
+      <li>Vérifier régulièrement que vos IPs n'ont pas changé</li>
+    </ul>
+
+    <h2 id="dnssec">DNSSEC : la solution technique de fond</h2>
+    <p>
+      DNSSEC (DNS Security Extensions) est une extension du protocole DNS qui ajoute une signature cryptographique à chaque enregistrement DNS. Cela permet aux résolveurs de vérifier l'authenticité des réponses et de détecter toute modification.
+    </p>
+    <p>
+      DNSSEC protège contre le cache poisoning et les attaques man-in-the-middle, mais ne protège pas contre la compromission de votre compte registrar (car l'attaquant peut modifier les clés DNSSEC elles-mêmes).
+    </p>
+
+    <div class="code-block">
+      <pre><code># Vérifier si DNSSEC est activé pour votre domaine
+dig votredomaine.com DNSKEY
+dig votredomaine.com DS
+
+# Ou utiliser un outil en ligne
+# https://dnsviz.net/</code></pre>
+    </div>
+
+    <div class="callout callout-ok">
+      <span class="callout-icon">OK</span>
+      <div class="callout-body">
+        <strong>Activation chez votre registrar</strong><br/>
+        La plupart des registrars (OVH, Cloudflare, Gandi...) permettent d'activer DNSSEC en un clic. C'est gratuit et prend effet en quelques heures. À activer sans attendre pour les domaines critiques.
+      </div>
+    </div>
+
+    <div class="cta-block">
+      <p>Vérifiez la sécurité DNS de votre domaine en 60 secondes :</p>
+      <a href="https://wezea.net" class="btn-cta">→ Analyser mon domaine gratuitement</a>
+    </div>
+
+
+    <div class="related">
+      <p class="related-title">Lire aussi</p>
+      <div class="related-grid">
+      <a href="/blog/sous-domaines-risques-securite/" class="related-card">Sous-domaines oubliés : un vecteur d'attaque méconnu</a>
+      <a href="/blog/protection-phishing-domaine/" class="related-card">Protéger son domaine contre le phishing</a>
+      <a href="/blog/expiration-nom-domaine/" class="related-card">Nom de domaine expiré : conséquences et dangers</a>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="/footer.js"></script>
+</body>
+</html>

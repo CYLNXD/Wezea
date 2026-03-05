@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Usurpation de domaine : comment des hackers envoient des emails à votre place | Wezea</title>
+  <meta name="description" content="L'email spoofing permet d'envoyer des emails en se faisant passer pour votre domaine. Comment ça fonctionne, comment détecter si vous êtes ciblé, et comment s'en protéger efficacement." />
+  <meta name="keywords" content="usurpation domaine email, email spoofing, phishing domaine, spear phishing protection, anti-spoofing PME, DMARC protection" />
+  <link rel="canonical" href="https://wezea.net/blog/usurpation-domaine-email/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type"        content="article" />
+  <meta property="og:title"       content="Usurpation de domaine : comment des hackers envoient des emails à votre place" />
+  <meta property="og:description" content="L'email spoofing permet d'envoyer des emails en se faisant passer pour votre domaine sans pirater quoi que ce soit. Voici comment ça marche et comment s'en protéger." />
+  <meta property="og:url"         content="https://wezea.net/blog/usurpation-domaine-email/" />
+  <meta property="og:image"       content="https://wezea.net/og-image.png" />
+  <meta property="og:site_name"   content="Wezea Security Scanner" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+  <link rel="stylesheet" href="../blog.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Usurpation de domaine : comment des hackers envoient des emails à votre place",
+    "description": "L'email spoofing permet d'envoyer des emails en se faisant passer pour votre domaine. Comment ça fonctionne et comment s'en protéger.",
+    "datePublished": "2026-03-05",
+    "dateModified": "2026-03-05",
+    "author": { "@type": "Organization", "name": "Wezea" },
+    "publisher": { "@type": "Organization", "name": "Wezea", "url": "https://wezea.net" },
+    "mainEntityOfPage": "https://wezea.net/blog/usurpation-domaine-email/"
+  }
+  </script>
+</head>
+<body>
+<script src="/nav.js"></script>
+<!-- Article -->
+<main class="page">
+  <header class="article-header">
+    <div class="article-tag">Menaces & protection</div>
+    <h1 class="article-title">Usurpation de domaine : comment des hackers envoient des emails à votre place (sans pirater votre boîte)</h1>
+    <div class="article-meta">
+      <span>5 mars 2026</span>
+      <span>7 min de lecture</span>
+      <span class="article-tag">Phishing & spoofing</span>
+    </div>
+    <p class="article-intro">
+      Imaginez recevoir un appel de votre banque vous disant que vos clients ont reçu des emails frauduleux soi-disant envoyés par vous, vous demandant un virement. Ce scénario arrive chaque jour à des centaines d'entreprises françaises — sans que leur boîte email ou leur serveur ait été piraté. Voici comment ça fonctionne et comment s'en protéger.
+    </p>
+  </header>
+
+  <nav class="toc" aria-label="Sommaire">
+    <div class="toc-title">Sommaire</div>
+    <ol>
+      <li><a href="#comment">Comment l'usurpation d'email fonctionne techniquement</a></li>
+      <li><a href="#types">Les différents types de spoofing</a></li>
+      <li><a href="#cibles">Qui est ciblé et pourquoi</a></li>
+      <li><a href="#detecter">Comment savoir si votre domaine est usurpé</a></li>
+      <li><a href="#proteger">Les trois couches de protection</a></li>
+      <li><a href="#si-ca-arrive">Si vous êtes déjà victime</a></li>
+    </ol>
+  </nav>
+
+  <article class="article-body">
+
+    <h2 id="comment">Comment l'usurpation d'email fonctionne techniquement</h2>
+
+    <p>Le protocole SMTP (Simple Mail Transfer Protocol) qui gouverne l'envoi d'emails a été créé en 1982. À cette époque, internet était un réseau académique fermé et la confiance était implicite. Le résultat : <strong>SMTP ne vérifie pas l'identité de l'expéditeur</strong>.</p>
+
+    <p>Concrètement, envoyer un email avec n'importe quelle adresse en expéditeur est aussi simple que d'écrire une lettre papier avec le nom et l'adresse de quelqu'un d'autre dans le champ "De". Le facteur (ici, le serveur email destinataire) ne vérifie pas que l'expéditeur est vraiment celui qu'il prétend être.</p>
+
+    <div class="code-block"><pre><span class="cm"># Ce qu'un attaquant peut envoyer depuis n'importe quel serveur :</span>
+<span class="hl">From: contact@votre-entreprise.fr</span>
+<span class="ok">To: client@destination.fr</span>
+<span class="ok">Subject: Facture urgente à régler</span>
+
+<span class="cm"># L'email arrive dans la boîte du client avec votre nom et logo.</span>
+<span class="cm"># Votre serveur email n'a RIEN été piraté.</span></pre></div>
+
+    <p>Sans SPF, DKIM et DMARC configurés sur votre domaine, le serveur de messagerie du destinataire n'a aucun moyen de distinguer un email légitime d'un email usurpé.</p>
+
+    <h2 id="types">Les différents types de spoofing</h2>
+
+    <h3>1. Le spoofing exact (Direct Domain Spoofing)</h3>
+    <p>L'attaquant utilise exactement votre adresse email (<code>contact@votre-domaine.fr</code>) dans le champ <code>From:</code>. C'est le plus simple à détecter et à bloquer avec DMARC.</p>
+
+    <h3>2. Le lookalike domain</h3>
+    <p>L'attaquant enregistre un domaine qui ressemble au vôtre et l'utilise pour envoyer des emails :</p>
+
+    <table>
+      <thead><tr><th>Domaine légitime</th><th>Domaine usurpé (exemples)</th></tr></thead>
+      <tbody>
+        <tr><td><code>votre-entreprise.fr</code></td><td><code>votre-entreprise.com</code>, <code>votre-enteprise.fr</code>, <code>vоtre-entreprise.fr</code> (caractère cyrillique)</td></tr>
+        <tr><td><code>dupont-conseil.fr</code></td><td><code>dupont-conseils.fr</code>, <code>dupontconseil.fr</code>, <code>dupont-consei1.fr</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>Ce type d'attaque ne peut pas être bloqué par votre DMARC (qui ne protège que votre domaine exact), mais il peut être surveillé via des services de monitoring de domaines.</p>
+
+    <h3>3. Le display name spoofing</h3>
+    <p>L'attaquant utilise un domaine différent mais affiche votre nom dans le champ "De" :</p>
+    <div class="code-block"><pre><span class="cm">Ce que l'utilisateur voit :</span>   <span class="hl">Marie Dupont &lt;contact@votre-entreprise.fr&gt;</span>
+<span class="cm">Ce que l'email contient :</span>    <span class="ok">Marie Dupont &lt;m.dupont@gmail-secure-mail.com&gt;</span></pre></div>
+    <p>Les clients de messagerie affichent souvent uniquement le nom, pas l'adresse complète, ce qui rend cette attaque particulièrement efficace sur mobile.</p>
+
+    <h2 id="cibles">Qui est ciblé et pourquoi</h2>
+
+    <p>Contrairement aux idées reçues, les PME sont <strong>plus souvent ciblées que les grandes entreprises</strong>. Pour deux raisons :</p>
+
+    <ul>
+      <li><strong>Moins bien protégées :</strong> les grands groupes ont des équipes sécurité et des configurations DMARC en <code>p=reject</code>. Les PME ont rarement DMARC configuré.</li>
+      <li><strong>Relations de confiance exploitables :</strong> une PME a des relations privilégiées avec ses fournisseurs, ses banques, ses clients. Ces relations sont des vecteurs d'attaque.</li>
+    </ul>
+
+    <p>Les scénarios les plus courants en France :</p>
+
+    <ul>
+      <li><strong>Fraude au fournisseur :</strong> un email soi-disant de votre fournisseur vous informe d'un changement de RIB. Vous virez sur le nouveau compte — qui appartient à l'attaquant.</li>
+      <li><strong>Fraude au président :</strong> un email soi-disant du dirigeant demande un virement urgent et confidentiel à la comptabilité.</li>
+      <li><strong>Phishing client :</strong> vos clients reçoivent de fausses factures ou demandes de paiement en votre nom.</li>
+    </ul>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body"><strong>Chiffres 2025 :</strong> selon Cybermalveillance.gouv.fr, la fraude au virement représente plus de 2 milliards d'euros de pertes annuelles pour les entreprises françaises. 80% de ces fraudes commencent par de l'usurpation d'identité par email.</div>
+    </div>
+
+    <h2 id="detecter">Comment savoir si votre domaine est usurpé</h2>
+
+    <p>Le problème avec l'usurpation : vous ne le saurez souvent qu'après que le mal est fait — quand un client vous appelle en vous demandant pourquoi vous lui avez réclamé un paiement urgent à une IBAN inconnue.</p>
+
+    <p>Pour détecter proactivement :</p>
+
+    <h3>1. Activer DMARC avec des rapports</h3>
+    <p>Un enregistrement DMARC avec <code>rua=mailto:dmarc@votre-domaine.fr</code> vous envoie quotidiennement des rapports listant tous les emails envoyés depuis votre domaine — légitimes ou frauduleux. C'est votre système d'alerte précoce.</p>
+
+    <h3>2. Surveiller avec le scanner Wezea</h3>
+    <p>Le scanner analyse votre domaine et détecte immédiatement l'absence ou la faiblesse de votre configuration anti-spoofing. Un monitoring régulier (hebdomadaire ou mensuel) vous alertera si votre configuration se dégrade.</p>
+
+    <h3>3. Surveiller les domaines similaires</h3>
+    <p>Des services comme <strong>DNSTwist</strong> ou <strong>Typosquatting Finder</strong> génèrent automatiquement les variantes de votre domaine et vérifient lesquelles sont enregistrées.</p>
+
+    <div class="cta-block">
+      <h3>Votre domaine peut-il être usurpé en ce moment ?</h3>
+      <p>Vérifiez votre configuration anti-spoofing en 60 secondes : présence de SPF, DKIM et DMARC, politique appliquée, niveau de protection réel.</p>
+      <a href="https://wezea.net" class="btn-cta">→ Vérifier mon domaine gratuitement</a>
+      <p class="cta-note">Sans compte · Résultats immédiats · Recommandations concrètes</p>
+    </div>
+
+    <h2 id="proteger">Les trois couches de protection</h2>
+
+    <h3>Couche 1 : SPF — déclarer vos serveurs légitimes</h3>
+    <p>SPF liste les serveurs autorisés à envoyer pour votre domaine. Un serveur non listé échoue la vérification SPF. Configurez SPF avec <code>-all</code> (rejet strict) une fois que vous avez listé tous vos services d'envoi.</p>
+
+    <h3>Couche 2 : DKIM — signer cryptographiquement vos emails</h3>
+    <p>DKIM ajoute une signature numérique à chaque email. Cette signature ne peut pas être falsifiée sans accès à votre clé privée. Même si un attaquant usurpe votre domaine, la signature DKIM sera absente ou invalide.</p>
+
+    <h3>Couche 3 : DMARC — forcer le rejet des imposteurs</h3>
+    <p>DMARC orchestre SPF et DKIM et indique quoi faire en cas d'échec. La progression recommandée :</p>
+
+    <div class="code-block"><pre><span class="cm"># Étape 1 — Surveillance (sans impact sur la délivrabilité)</span>
+<span class="hl">_dmarc.votre-domaine.fr</span>  TXT  <span class="ok">"v=DMARC1; p=none; rua=mailto:dmarc@votre-domaine.fr"</span>
+
+<span class="cm"># Étape 2 — Mise en quarantaine (emails suspects → spam)</span>
+<span class="hl">_dmarc.votre-domaine.fr</span>  TXT  <span class="ok">"v=DMARC1; p=quarantine; pct=100; rua=mailto:dmarc@votre-domaine.fr"</span>
+
+<span class="cm"># Étape 3 — Rejet strict (protection maximale)</span>
+<span class="hl">_dmarc.votre-domaine.fr</span>  TXT  <span class="ok">"v=DMARC1; p=reject; rua=mailto:dmarc@votre-domaine.fr"</span></pre></div>
+
+    <p>N'allez pas directement à <code>p=reject</code> sans avoir analysé les rapports. Vous risqueriez de bloquer vos propres emails si un service légitime n'est pas encore configuré.</p>
+
+    <h3>Protection complémentaire : surveiller les lookalikes</h3>
+    <p>DMARC ne protège pas contre les domaines similaires enregistrés par des attaquants. Pour ça :</p>
+    <ul>
+      <li>Enregistrez vous-même les extensions principales de votre domaine (<code>.com</code>, <code>.net</code>, <code>.eu</code>) si elles sont libres</li>
+      <li>Activez des alertes de monitoring de domaines similaires</li>
+      <li>Sensibilisez vos équipes et vos clients : une demande de changement de RIB par email doit toujours être confirmée par téléphone</li>
+    </ul>
+
+    <h2 id="si-ca-arrive">Si vous êtes déjà victime d'usurpation</h2>
+
+    <p>Si vous découvrez que votre domaine est usurpé :</p>
+
+    <ol>
+      <li><strong>Activez DMARC immédiatement</strong> avec <code>p=quarantine</code> ou <code>p=reject</code> pour limiter les dégâts en cours</li>
+      <li><strong>Prévenez vos contacts</strong> par un autre canal (téléphone, autre adresse email) que des emails frauduleux circulent</li>
+      <li><strong>Signalez</strong> à signal-spam.fr et aux autorités (cybermalveillance.gouv.fr, dépôt de plainte)</li>
+      <li><strong>Vérifiez vos propres systèmes</strong> — l'usurpation externe peut parfois indiquer un accès non autorisé à votre infrastructure</li>
+      <li><strong>Contactez votre banque</strong> si des demandes de virement sont suspectées</li>
+    </ol>
+
+    <div class="callout callout-ok">
+      <span class="callout-icon">OK</span>
+      <div class="callout-body">
+        <strong>Résumé : votre checklist anti-usurpation</strong>
+        <ul style="margin-top:0.5rem">
+          <li>SPF configuré avec <code>-all</code> et tous vos services listés</li>
+          <li>DKIM activé pour chaque service d'envoi email</li>
+          <li>DMARC en <code>p=reject</code> avec adresse de rapport active</li>
+          <li>Rapports DMARC lus régulièrement</li>
+          <li>Extensions principales de votre domaine enregistrées</li>
+          <li>Procédure interne : toute demande de virement par email doit être confirmée par téléphone</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cta-block">
+      <h3>Protégez votre domaine maintenant</h3>
+      <p>Le scanner Wezea analyse votre configuration anti-spoofing et vous donne un rapport clair avec les actions prioritaires. 60 secondes, gratuit, sans installation.</p>
+      <a href="https://wezea.net" class="btn-cta">→ Analyser mon domaine</a>
+      <p class="cta-note">Gratuit · Sans inscription · Rapport PDF exportable</p>
+    </div>
+
+
+    <div class="related">
+      <p class="related-title">Lire aussi</p>
+      <div class="related-grid">
+      <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM et DMARC : le guide complet</a>
+      <a href="/blog/dmarc-rapports-analyse/" class="related-card">Lire et analyser ses rapports DMARC</a>
+      <a href="/blog/protection-phishing-domaine/" class="related-card">Protéger son domaine contre le phishing</a>
+      </div>
+    </div>
+  </article>
+</main>
+<script src="/footer.js"></script>
+</body>
+</html>

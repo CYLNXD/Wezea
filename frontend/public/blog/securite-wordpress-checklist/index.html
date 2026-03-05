@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sécuriser WordPress : checklist complète 2026 | Wezea</title>
+  <meta name="description" content="WordPress représente 43% du web et est la cible numéro 1 des hackers. Suivez cette checklist complète pour sécuriser votre site WordPress : plugins, thèmes, accès, SSL, sauvegardes." />
+  <meta name="keywords" content="sécuriser WordPress, WordPress sécurité, checklist WordPress, WordPress hacké, plugin sécurité WordPress, WordPress audit" />
+  <link rel="canonical" href="https://wezea.net/blog/securite-wordpress-checklist/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type"        content="article" />
+  <meta property="og:title"       content="Sécuriser WordPress : checklist complète 2026" />
+  <meta property="og:description" content="43% du web tourne sur WordPress — c'est aussi la cible numéro 1 des attaques automatisées. Voici la checklist de sécurité complète." />
+  <meta property="og:url"         content="https://wezea.net/blog/securite-wordpress-checklist/" />
+  <meta property="og:image"       content="https://wezea.net/og-image.png" />
+  <meta property="og:site_name"   content="Wezea Security Scanner" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+  <link rel="stylesheet" href="../blog.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Sécuriser WordPress : checklist complète 2026",
+    "description": "WordPress est la cible numéro 1 des hackers. Suivez cette checklist pour sécuriser votre site en profondeur.",
+    "datePublished": "2026-03-05",
+    "dateModified": "2026-03-05",
+    "author": { "@type": "Organization", "name": "Wezea" },
+    "publisher": { "@type": "Organization", "name": "Wezea", "url": "https://wezea.net" },
+    "mainEntityOfPage": "https://wezea.net/blog/securite-wordpress-checklist/"
+  }
+  </script>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main class="page">
+
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">CMS</span>
+      <span class="read-time">8 min de lecture</span>
+      <time datetime="2026-03-05">5 mars 2026</time>
+    </div>
+    <h1>Sécuriser WordPress : checklist complète 2026</h1>
+    <p class="article-intro">
+      WordPress fait tourner 43% du web mondial — ce qui en fait aussi la cible numéro un des attaques automatisées. Un WordPress non maintenu est compromis en moyenne en moins de 72 heures après exposition. Cette checklist couvre tous les niveaux : accès, mises à jour, configuration, email et monitoring.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Sommaire</strong>
+    <ol>
+      <li><a href="#mises-a-jour">Mises à jour</a></li>
+      <li><a href="#acces">Contrôle des accès</a></li>
+      <li><a href="#fichiers">Sécurité des fichiers</a></li>
+      <li><a href="#ssl-https">SSL et HTTPS</a></li>
+      <li><a href="#email">Sécurité email du domaine</a></li>
+      <li><a href="#plugins">Plugins recommandés</a></li>
+      <li><a href="#sauvegardes">Sauvegardes</a></li>
+      <li><a href="#monitoring">Monitoring continu</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="mises-a-jour">1. Mises à jour — la base non négociable</h2>
+    <p>
+      Selon Sucuri, <strong>52% des sites WordPress compromis en 2025 avaient au moins un composant non mis à jour</strong> au moment de l'attaque. Les pirates exploitent les CVE publiées dans les heures qui suivent leur annonce.
+    </p>
+    <ul>
+      <li>Mettre à jour WordPress core dès chaque release</li>
+      <li>Mettre à jour tous les plugins actifs ET inactifs</li>
+      <li>Mettre à jour tous les thèmes installés (même ceux non utilisés)</li>
+      <li>Activer les mises à jour automatiques pour WordPress core</li>
+      <li>Supprimer les plugins et thèmes inutilisés — ils restent des vecteurs d'attaque</li>
+    </ul>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Plugins abandonnés</strong><br/>
+        Un plugin qui n'a pas été mis à jour depuis plus de 2 ans est probablement abandonné par son développeur. Les vulnérabilités ne seront jamais corrigées. Remplacez-le par une alternative active.
+      </div>
+    </div>
+
+    <h2 id="acces">2. Contrôle des accès</h2>
+
+    <h3>Page de connexion</h3>
+    <ul>
+      <li>Changer l'URL de connexion (par défaut <code>/wp-admin</code> ou <code>/wp-login.php</code> — trop prévisible)</li>
+      <li>Activer l'authentification à deux facteurs (2FA) pour tous les administrateurs</li>
+      <li>Limiter les tentatives de connexion (plugin Limit Login Attempts Reloaded)</li>
+      <li>Ne jamais utiliser "admin" comme identifiant</li>
+    </ul>
+
+    <h3>Gestion des utilisateurs</h3>
+    <ul>
+      <li>Appliquer le principe du moindre privilège : un rédacteur n'a pas besoin du rôle Administrateur</li>
+      <li>Supprimer les comptes inactifs et les comptes de test</li>
+      <li>Utiliser des mots de passe forts (minimum 16 caractères, générés aléatoirement)</li>
+      <li>Désactiver l'enregistrement public si vous n'en avez pas besoin</li>
+    </ul>
+
+    <h3>Accès serveur</h3>
+    <ul>
+      <li>Utiliser une clé SSH à la place d'un mot de passe FTP</li>
+      <li>Désactiver FTP — utiliser SFTP uniquement</li>
+      <li>Restreindre l'accès SSH par IP si possible</li>
+    </ul>
+
+    <h2 id="fichiers">3. Sécurité des fichiers</h2>
+
+    <h3>Permissions fichiers et dossiers</h3>
+    <div class="code-block">
+      <pre><code># Permissions recommandées
+Fichiers WordPress : 644
+Dossiers WordPress : 755
+wp-config.php : 440 ou 400
+.htaccess : 644</code></pre>
+    </div>
+
+    <h3>Protection wp-config.php</h3>
+    <p>Ce fichier contient les credentials de votre base de données. Déplacez-le un niveau au-dessus du dossier public ou ajoutez dans <code>.htaccess</code> :</p>
+    <div class="code-block">
+      <pre><code>&lt;files wp-config.php&gt;
+  order allow,deny
+  deny from all
+&lt;/files&gt;</code></pre>
+    </div>
+
+    <h3>Désactiver l'édition de fichiers depuis le dashboard</h3>
+    <p>Ajoutez dans <code>wp-config.php</code> :</p>
+    <div class="code-block">
+      <pre><code>define('DISALLOW_FILE_EDIT', true);</code></pre>
+    </div>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">INFO</span>
+      <div class="callout-body">
+        <strong>Désactiver l'exécution PHP dans uploads</strong><br/>
+        Un vecteur d'attaque classique : uploader un fichier PHP malveillant déguisé en image. Ajoutez un <code>.htaccess</code> dans <code>wp-content/uploads/</code> avec <code>php_flag engine off</code> pour empêcher l'exécution PHP dans ce dossier.
+      </div>
+    </div>
+
+    <h2 id="ssl-https">4. SSL et HTTPS</h2>
+    <ul>
+      <li>Certificat SSL valide et non expiré (vérifiez la date d'expiration)</li>
+      <li>Redirection automatique HTTP → HTTPS dans <code>.htaccess</code> ou <code>wp-config.php</code></li>
+      <li>HSTS activé pour éviter les attaques downgrade</li>
+      <li>Zéro mixed content (images, scripts en HTTP sur une page HTTPS)</li>
+      <li>Support TLS 1.2 minimum, TLS 1.3 recommandé</li>
+    </ul>
+
+    <h2 id="email">5. Sécurité email du domaine</h2>
+    <p>
+      Votre site WordPress envoie probablement des emails (notifications, réinitialisations de mot de passe, newsletters). Si SPF, DKIM et DMARC ne sont pas configurés, ces emails arrivent en spam — et votre domaine peut être usurpé pour du phishing.
+    </p>
+    <ul>
+      <li>Enregistrement SPF couvrant votre serveur d'envoi WordPress</li>
+      <li>DKIM signé pour votre domaine (via votre hébergeur ou outil d'envoi)</li>
+      <li>DMARC configuré au minimum en <code>p=none</code> avec adresse RUA</li>
+    </ul>
+
+    <div class="cta-block">
+      <p>Vérifiez SPF, DKIM et DMARC de votre domaine WordPress :</p>
+      <a href="https://wezea.net" class="btn-cta">→ Auditer mon domaine gratuitement</a>
+    </div>
+
+    <h2 id="plugins">6. Plugins de sécurité recommandés</h2>
+    <ul>
+      <li><strong>Wordfence</strong> — firewall applicatif, scanner malware, blocage par IP. Version gratuite très complète.</li>
+      <li><strong>WP Cerber</strong> — protection anti-brute-force et anti-spam robuste.</li>
+      <li><strong>iThemes Security</strong> — durcissement WordPress, détection de changements de fichiers.</li>
+      <li><strong>WP Activity Log</strong> — journal d'audit complet de toutes les actions sur le site.</li>
+      <li><strong>UpdraftPlus</strong> — sauvegardes automatiques vers cloud (pas un plugin de sécurité mais essentiel).</li>
+    </ul>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>N'installez pas plusieurs plugins de sécurité</strong><br/>
+        Deux pare-feux applicatifs simultanés créent des conflits, ralentissent le site et donnent une fausse impression de double protection. Choisissez-en un et configurez-le bien.
+      </div>
+    </div>
+
+    <h2 id="sauvegardes">7. Sauvegardes — votre dernier recours</h2>
+    <p>
+      Une bonne stratégie de sauvegarde WordPress suit la règle <strong>3-2-1</strong> : 3 copies, sur 2 supports différents, dont 1 hors site.
+    </p>
+    <ul>
+      <li>Sauvegarde automatique quotidienne de la base de données et des fichiers</li>
+      <li>Stockage hors serveur (S3, Google Drive, Dropbox)</li>
+      <li>Test de restauration au moins une fois par trimestre</li>
+      <li>Conserver 30 jours d'historique minimum</li>
+    </ul>
+
+    <h2 id="monitoring">8. Monitoring continu</h2>
+    <p>
+      La sécurité n'est pas un état, c'est un processus. Un site peut être compromis silencieusement (injection de code dans un plugin, redirection cachée) sans symptôme visible pendant des semaines.
+    </p>
+    <ul>
+      <li>Scanner régulièrement les malwares (Wordfence, Sucuri)</li>
+      <li>Monitorer les changements de fichiers critiques (<code>wp-config.php</code>, <code>functions.php</code>)</li>
+      <li>Suivre l'état du certificat SSL et l'expiration du domaine</li>
+      <li>Vérifier régulièrement la réputation IP et la présence en liste noire</li>
+      <li>Activer les alertes Google Search Console pour les problèmes de sécurité</li>
+    </ul>
+
+    <div class="callout callout-ok">
+      <span class="callout-icon">OK</span>
+      <div class="callout-body">
+        <strong>Audit rapide</strong><br/>
+        Un outil comme Wezea peut vérifier en 60 secondes l'état SSL, SPF/DKIM/DMARC, les ports exposés, les CVE connues et la présence en liste noire pour le domaine de votre site WordPress.
+      </div>
+    </div>
+
+
+    <div class="related">
+      <p class="related-title">Lire aussi</p>
+      <div class="related-grid">
+      <a href="/blog/certificat-ssl-expire/" class="related-card">Certificat SSL expiré : conséquences et renouvellement</a>
+      <a href="/blog/ports-reseau-dangereux/" class="related-card">Ports réseau dangereux : lesquels fermer</a>
+      <a href="/blog/audit-securite-site-web-checklist/" class="related-card">Checklist d'audit sécurité d'un site web (2026)</a>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="/footer.js"></script>
+</body>
+</html>

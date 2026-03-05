@@ -1,0 +1,66 @@
+# ===========================
+# Python / Backend
+# ===========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.egg-info/
+dist/
+build/
+
+# Base de données locale
+*.db
+*.sqlite
+*.sqlite3
+
+# ===========================
+# Node / Frontend
+# ===========================
+node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+frontend-latest/
+
+# ===========================
+# Fichiers de déploiement
+# (contiennent potentiellement des secrets)
+# ===========================
+dist_sku/
+
+# ===========================
+# Fichiers temporaires / OS
+# ===========================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+# ===========================
+# Fichiers de preview locaux
+# ===========================
+landing-preview.html
+preview-skeuomorphic.html
+preview_cta.html
+preview_navbar.html
+
+# ===========================
+# Patches one-shot (déjà appliqués)
+# ===========================
+patch_*.py
+brevo_service.py
+extra_checks.py
+create_admin.py
+diagnose.sh
+
+# Clés et certificats
+*.key
+*.pem
+*.p12

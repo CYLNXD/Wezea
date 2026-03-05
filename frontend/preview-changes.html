@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview — Wezea Security Scanner</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
+  .label { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: #64748b; margin-bottom: 16px; font-weight: 600; }
+  .change-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(34,211,238,0.15); color: #22d3ee; border: 1px solid rgba(34,211,238,0.3); margin-bottom: 8px; }
+  .section { max-width: 960px; margin: 0 auto; padding: 32px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .section:last-child { border-bottom: none; }
+  .section h2 { font-size: 13px; font-weight: 800; color: #f1f5f9; margin-bottom: 20px; letter-spacing: -0.01em; }
+
+  /* ── TITRE ── */
+  .browser-bar { background: #1e2430; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+  .browser-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .browser-url { flex: 1; background: #0d1117; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-family: monospace; color: #64748b; }
+  .browser-title { font-size: 12px; color: #94a3b8; }
+
+  /* ── TABS ── */
+  .tab-bar { display: flex; gap: 4px; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 4px; }
+  .tab { padding: 10px 16px; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; position: relative; display: flex; align-items: center; gap: 6px; border-radius: 4px 4px 0 0; }
+  .tab.active { color: #fff; }
+  .tab.active .tab-underline { position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: #22d3ee; border-radius: 999px; }
+  .tab-icon { font-size: 11px; }
+  .tab-count { font-size: 11px; }
+  .old { background: rgba(239,68,68,0.08); border: 1px dashed rgba(239,68,68,0.35); border-radius: 6px; padding: 10px 14px; position: relative; }
+  .new { background: rgba(34,211,238,0.05); border: 1px dashed rgba(34,211,238,0.3); border-radius: 6px; padding: 10px 14px; position: relative; }
+  .old::before { content: "AVANT"; position: absolute; top: -9px; left: 10px; font-size: 9px; font-weight: 700; color: #ef4444; background: #0d1117; padding: 0 4px; }
+  .new::before { content: "APRÈS"; position: absolute; top: -9px; left: 10px; font-size: 9px; font-weight: 700; color: #22d3ee; background: #0d1117; padding: 0 4px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .arrow { display: flex; align-items: center; justify-content: center; font-size: 20px; color: #334155; }
+
+  /* ── TOP BAND ── */
+  .top-band { background: #0f172a; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; overflow: hidden; display: flex; }
+  .score-col { padding: 24px; border-right: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 160px; }
+  .score-circle { width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(#22d3ee 0 270deg, #1e2d40 270deg); display: flex; align-items: center; justify-content: center; }
+  .score-num { font-size: 22px; font-weight: 900; color: #22d3ee; }
+  .score-label { font-size: 10px; color: #64748b; text-align: center; }
+  .right-col { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .stat-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 12px; }
+  .stat-label { font-size: 9px; color: #64748b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .06em; }
+  .stat-val { font-size: 18px; font-weight: 800; color: #f1f5f9; }
+  .stat-val.red { color: #f87171; }
+  .stat-val.orange { color: #fb923c; }
+  .stat-val.green { color: #4ade80; }
+
+  /* Port map */
+  .port-map { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; }
+  .port-map-title { font-size: 10px; color: #475569; font-family: monospace; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .ports { display: flex; flex-wrap: wrap; gap: 6px; }
+  .port-tag { font-size: 11px; font-family: monospace; padding: 3px 8px; border-radius: 5px; display: flex; align-items: center; gap: 5px; }
+  .port-tag.open-crit { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35); color: #fca5a5; }
+  .port-tag.open-ok { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); color: #93c5fd; }
+  .port-tag.closed { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); color: #475569; }
+  .port-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .port-dot.red { background: #ef4444; }
+  .port-dot.blue { background: #60a5fa; }
+  .port-dot.grey { background: #334155; }
+
+  /* Monitoring */
+  .monitoring-block { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden; }
+  .monitoring-header { padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; color: #cbd5e1; }
+  .monitoring-badge { font-size: 10px; background: rgba(34,211,238,0.15); color: #67e8f9; border: 1px solid rgba(34,211,238,0.25); padding: 1px 7px; border-radius: 999px; }
+  .monitoring-body { padding: 10px 14px 14px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; gap: 8px; }
+  .monitoring-input-row { display: flex; gap: 6px; }
+  .monitoring-input { flex: 1; background: #0d1117; border: 1px solid rgba(255,255,255,0.08); border-radius: 7px; padding: 6px 10px; font-size: 11px; color: #64748b; font-family: monospace; }
+  .monitoring-btn { font-size: 11px; padding: 6px 12px; border-radius: 7px; background: rgba(34,211,238,0.15); color: #67e8f9; border: 1px solid rgba(34,211,238,0.3); font-weight: 600; }
+  .monitoring-domains { display: flex; flex-direction: column; gap: 4px; }
+  .monitoring-domain { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 7px; padding: 6px 10px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-family: monospace; }
+  .domain-score { font-weight: 700; color: #4ade80; }
+  .monitoring-note { font-size: 10px; color: #334155; font-family: monospace; }
+
+  /* PDF button */
+  .pdf-btn { width: 100%; padding: 12px; border-radius: 10px; background: linear-gradient(135deg, rgba(8,75,97,0.7) 0%, rgba(30,58,138,0.6) 100%); border: 1px solid rgba(34,211,238,0.3); color: #a5f3fc; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+
+  /* Findings columns */
+  .findings-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .col-title { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .finding-group { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+  .finding-group-title { font-size: 11px; font-weight: 700; color: #94a3b8; margin-bottom: 8px; }
+  .finding-item { font-size: 11px; color: #64748b; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; align-items: center; gap: 8px; }
+  .finding-item:last-child { border-bottom: none; }
+  .sev-badge { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; }
+  .sev-badge.HIGH { background: rgba(249,115,22,0.15); color: #fb923c; border: 1px solid rgba(249,115,22,0.3); }
+  .sev-badge.MED { background: rgba(234,179,8,0.12); color: #facc15; border: 1px solid rgba(234,179,8,0.25); }
+  .sev-badge.CRIT { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+
+  /* Reputation positive card */
+  .rep-ok { background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.2); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+  .rep-ok-icon { width: 28px; height: 28px; border-radius: 50%; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .rep-ok-title { font-size: 12px; font-weight: 700; color: #4ade80; }
+  .rep-ok-sub { font-size: 11px; color: #475569; margin-top: 2px; }
+
+  /* annotation styles */
+  .annotation { margin: 20px 0 8px; }
+  .annotation-line { display: flex; align-items: center; gap: 8px; }
+  .num-badge { width: 22px; height: 22px; border-radius: 50%; background: rgba(34,211,238,0.2); color: #22d3ee; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid rgba(34,211,238,0.35); }
+  .annotation-text { font-size: 12px; color: #94a3b8; }
+  .highlight { color: #22d3ee; font-weight: 700; }
+
+  hr { border: none; border-top: 1px solid rgba(255,255,255,0.05); margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- ══ Header ══ -->
+<div style="background:#161c24; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 16px 24px; display:flex; align-items:center; gap:12px;">
+  <span style="font-size:18px; font-weight:900; letter-spacing:-.03em; color:#fff">We<span style="color:#22d3ee">zea</span></span>
+  <span style="font-size:9px; color:#475569; letter-spacing:.1em; text-transform:uppercase">Security Scanner</span>
+  <span style="margin-left:auto; font-size:12px; color:#475569;">Preview des modifications — 4 mars 2026</span>
+</div>
+
+<!-- ══ CHANGE 1 — Titre ══ -->
+<div class="section">
+  <div class="change-badge">① Titre de l'onglet navigateur</div>
+  <h2>Titre du site (HTML &lt;title&gt;)</h2>
+  <div class="row2">
+    <div class="old">
+      <div class="browser-bar">
+        <div class="browser-dot" style="background:#ef4444"></div>
+        <div class="browser-dot" style="background:#f59e0b"></div>
+        <div class="browser-dot" style="background:#22c55e"></div>
+        <div class="browser-url">wezea.io</div>
+      </div>
+      <div class="browser-title" style="margin-top:8px; padding: 6px 14px; font-size:11px; color:#475569;">
+        🔒 CyberHealth Scanner — Analysez la sécurité de votre domaine
+      </div>
+    </div>
+    <div class="new">
+      <div class="browser-bar">
+        <div class="browser-dot" style="background:#ef4444"></div>
+        <div class="browser-dot" style="background:#f59e0b"></div>
+        <div class="browser-dot" style="background:#22c55e"></div>
+        <div class="browser-url">wezea.io</div>
+      </div>
+      <div class="browser-title" style="margin-top:8px; padding: 6px 14px; font-size:11px; color:#22d3ee; font-weight:600;">
+        🔒 Wezea Security Scanner — Analysez la sécurité de votre domaine
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ══ CHANGE 2 — Tab label ══ -->
+<div class="section">
+  <div class="change-badge">② Renommage du tab</div>
+  <h2>Onglet "Findings" → "Vulnérabilités"</h2>
+  <div class="row2">
+    <div class="old">
+      <div class="tab-bar">
+        <div class="tab active">
+          📋 Résumé
+          <div class="tab-underline"></div>
+        </div>
+        <div class="tab">⚠️ <span style="color:#ef4444; text-decoration:line-through">Findings</span> (7)</div>
+        <div class="tab">🛡️ Avancé</div>
+      </div>
+    </div>
+    <div class="new">
+      <div class="tab-bar">
+        <div class="tab active">
+          📋 Résumé
+          <div class="tab-underline"></div>
+        </div>
+        <div class="tab">⚠️ <span style="color:#22d3ee; font-weight:700">Vulnérabilités</span> (7)</div>
+        <div class="tab">🛡️ Avancé</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ══ CHANGE 3+4 — Top band ══ -->
+<div class="section">
+  <div class="change-badge">③ Bloc supérieur — PortSummary + Monitoring intégrés</div>
+  <h2>Carte des ports réseau + Monitoring dans le bloc du haut</h2>
+
+  <p style="font-size:11px; color:#64748b; margin-bottom:16px;">Le bloc supérieur contient maintenant les ports scannés et le monitoring, entre les 4 stats et le bouton PDF.</p>
+
+  <div class="top-band">
+    <!-- Score -->
+    <div class="score-col">
+      <div class="score-circle">
+        <span class="score-num">75</span>
+      </div>
+      <div class="score-label">RISQUE MODÉRÉ<br>example.com</div>
+    </div>
+
+    <!-- Right column -->
+    <div class="right-col">
+      <!-- 4 stat cards -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Vulnérabilités</div>
+          <div class="stat-val red">7</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Ports critiques</div>
+          <div class="stat-val orange">2</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">DNS</div>
+          <div class="stat-val" style="font-size:14px; color:#facc15;">−15 pts</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">SSL</div>
+          <div class="stat-val green" style="font-size:14px;">−0 pts</div>
+        </div>
+      </div>
+
+      <!-- Port map — NEW -->
+      <div class="port-map">
+        <div class="port-map-title">
+          🌐 Carte des ports réseau scannés
+          <span style="margin-left:auto; color:#1e3a4a; font-size:10px;">5 ouverts · 5 fermés</span>
+        </div>
+        <div class="ports">
+          <div class="port-tag open-crit"><div class="port-dot red"></div>22 <span style="opacity:.7">SSH</span></div>
+          <div class="port-tag open-crit"><div class="port-dot red"></div>3306 <span style="opacity:.7">MySQL</span></div>
+          <div class="port-tag open-ok"><div class="port-dot blue"></div>80 <span style="opacity:.7">HTTP</span></div>
+          <div class="port-tag open-ok"><div class="port-dot blue"></div>443 <span style="opacity:.7">HTTPS</span></div>
+          <div class="port-tag open-ok"><div class="port-dot blue"></div>25 <span style="opacity:.7">SMTP</span></div>
+          <div class="port-tag closed"><div class="port-dot grey"></div>8080 <span style="opacity:.7">HTTP-alt</span></div>
+          <div class="port-tag closed"><div class="port-dot grey"></div>3389 <span style="opacity:.7">RDP</span></div>
+          <div class="port-tag closed"><div class="port-dot grey"></div>21 <span style="opacity:.7">FTP</span></div>
+        </div>
+      </div>
+
+      <!-- Monitoring — NEW -->
+      <div class="monitoring-block">
+        <div class="monitoring-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="color:#22d3ee;">🌐</span>
+            Monitoring hebdomadaire
+            <span class="monitoring-badge">2 domaines</span>
+          </div>
+          <span style="color:#475569; font-size:11px;">▶</span>
+        </div>
+        <div class="monitoring-body">
+          <div class="monitoring-input-row">
+            <div class="monitoring-input">exemple.com</div>
+            <button class="monitoring-btn">+ Ajouter</button>
+            <button class="monitoring-btn" style="background:rgba(255,255,255,0.04); color:#94a3b8; border-color:rgba(255,255,255,0.08);">+ example.com</button>
+          </div>
+          <div class="monitoring-domains">
+            <div class="monitoring-domain">
+              <span>example.com</span>
+              <span class="domain-score">83/100</span>
+            </div>
+            <div class="monitoring-domain">
+              <span style="color:#94a3b8;">myshop.fr</span>
+              <span style="color:#fb923c; font-weight:700;">61/100</span>
+            </div>
+          </div>
+          <div class="monitoring-note">Scan automatique chaque lundi à 06:00 UTC · Alerte email si baisse ≥ 10 pts</div>
+        </div>
+      </div>
+
+      <!-- PDF button -->
+      <div class="pdf-btn">⬇️ Télécharger le rapport PDF complet</div>
+
+      <p style="font-size:10px; color:#1e3a4a; text-align:center; font-family:monospace;">Scanné en 12.4s · 4 mars 2026, 14:32</p>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ══ CHANGE 5 — Columns ══ -->
+<div class="section">
+  <div class="change-badge">④ Onglet Vulnérabilités — Réputation déplacée col. gauche</div>
+  <h2>Réputation du domaine dans la colonne SSL/Ports</h2>
+
+  <div class="row2">
+    <!-- Old -->
+    <div class="old">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div>
+          <div class="col-title">🏗️ Infrastructure</div>
+          <div class="finding-group"><div class="finding-group-title">DNS & Mail</div></div>
+          <div class="finding-group"><div class="finding-group-title">SSL / HTTPS</div></div>
+          <div class="finding-group"><div class="finding-group-title">Ports</div></div>
+        </div>
+        <div>
+          <div class="col-title">⚙️ Configuration</div>
+          <div class="finding-group"><div class="finding-group-title">En-têtes HTTP</div></div>
+          <div class="finding-group"><div class="finding-group-title">Sécurité Email</div></div>
+          <div class="finding-group"><div class="finding-group-title">Technologies</div></div>
+          <div class="finding-group" style="border-color:rgba(34,211,238,0.2); background:rgba(34,211,238,0.03)"><div class="finding-group-title" style="color:#67e8f9;">Réputation du domaine ← ici</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- New -->
+    <div class="new">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div>
+          <div class="col-title">🏗️ Infrastructure</div>
+          <div class="finding-group"><div class="finding-group-title">DNS & Mail</div></div>
+          <div class="finding-group"><div class="finding-group-title">SSL / HTTPS</div></div>
+          <div class="finding-group"><div class="finding-group-title">Ports</div></div>
+          <!-- Reputation now here -->
+          <div class="finding-group" style="border-color:rgba(34,211,238,0.25); background:rgba(34,211,238,0.05)"><div class="finding-group-title" style="color:#22d3ee;">✅ Réputation du domaine ← ici maintenant</div></div>
+        </div>
+        <div>
+          <div class="col-title">⚙️ Configuration</div>
+          <div class="finding-group"><div class="finding-group-title">En-têtes HTTP</div></div>
+          <div class="finding-group"><div class="finding-group-title">Sécurité Email</div></div>
+          <div class="finding-group"><div class="finding-group-title">Technologies</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reputation positive card -->
+  <div class="annotation" style="margin-top:20px;">
+    <div class="annotation-line">
+      <div class="num-badge">→</div>
+      <div class="annotation-text">Si aucune issue de réputation — carte verte positive affichée :</div>
+    </div>
+  </div>
+  <div class="rep-ok" style="max-width:380px; margin-top:10px;">
+    <div class="rep-ok-icon">✓</div>
+    <div>
+      <div class="rep-ok-title">Réputation saine</div>
+      <div class="rep-ok-sub">Domaine absent des blacklists et DNSBL vérifiées.</div>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- Footer -->
+<div style="padding:20px; text-align:center; font-size:10px; color:#1e3a4a; font-family:monospace;">
+  Preview statique · Wezea Security Scanner · Build ✓ — prêt au déploiement
+</div>
+
+</body>
+</html>

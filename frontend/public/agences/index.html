@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wezea pour les agences web et MSP — Audit sécurité white-label pour vos clients</title>
+  <meta name="description" content="Proposez des audits de sécurité domaine professionnels à vos clients. Rapports PDF à votre marque, scans illimités, monitoring continu. Plan Pro dès 19,90€/mois." />
+  <meta name="keywords" content="audit sécurité agence web, scanner domaine white-label, outil cybersécurité MSP, rapport sécurité client PDF, revendeur sécurité domaine" />
+  <link rel="canonical" href="https://wezea.net/agences/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type"        content="website" />
+  <meta property="og:title"       content="Wezea pour les agences web et MSP — Audits sécurité à votre marque" />
+  <meta property="og:description" content="Proposez des audits de sécurité domaine professionnels à vos clients. Rapports PDF white-label, scans illimités, monitoring continu." />
+  <meta property="og:url"         content="https://wezea.net/agences/" />
+  <meta property="og:image"       content="https://wezea.net/og-image.png" />
+  <meta property="og:site_name"   content="Wezea Security Scanner" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Wezea pour les agences web et MSP",
+    "description": "Proposez des audits de sécurité domaine professionnels à vos clients avec des rapports PDF à votre marque.",
+    "url": "https://wezea.net/agences/",
+    "publisher": { "@type": "Organization", "name": "Wezea", "url": "https://wezea.net" }
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" />
+
+  <style>
+    :root {
+      --bg:      #020617;
+      --bg-card: #0d1117;
+      --bg-card2:#111827;
+      --border:  rgba(255,255,255,0.08);
+      --accent:  #22d3ee;
+      --text:    #e2e8f0;
+      --muted:   #64748b;
+      --muted2:  #94a3b8;
+      --emerald: #34d399;
+      --radius:  14px;
+      --font:    'Inter', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --font-display: -apple-system, 'SF Pro Display', 'SF Pro Text', BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 18px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.7; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Navbar — injectée par /nav.js ── */
+
+    /* ── Layout ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+    .container-narrow { max-width: 760px; margin: 0 auto; padding: 0 1.5rem; }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 5rem 0 4rem;
+      text-align: center;
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(34,211,238,0.07) 0%, transparent 70%);
+    }
+    .hero-badge {
+      display: inline-block; font-size: 10px; font-weight: 700; font-family: var(--font-mono) ;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--accent); background: rgba(34,211,238,0.08);
+      border: 1px solid rgba(34,211,238,0.22); padding: 0.3rem 0.85rem; border-radius: 6px;
+      margin-bottom: 1.5rem;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3rem); font-weight: 900; color: #fff;
+      letter-spacing: -0.03em; line-height: 1.15; margin-bottom: 1.25rem;
+      max-width: 760px; margin-left: auto; margin-right: auto;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero-sub {
+      font-size: 1.1rem; color: var(--muted2); max-width: 580px;
+      margin: 0 auto 2.5rem; line-height: 1.75;
+    }
+    .hero-ctas { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-size: 14px; font-weight: 700; color: #020617;
+      background: linear-gradient(135deg, #22d3ee, #3b82f6);
+      padding: 0.8rem 2rem; border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(34,211,238,0.25); transition: transform 0.15s, box-shadow 0.15s;
+      text-decoration: none;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(34,211,238,0.35); text-decoration: none; }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-size: 14px; font-weight: 600; color: var(--muted2);
+      border: 1px solid var(--border); padding: 0.8rem 1.75rem; border-radius: 10px;
+      transition: color 0.15s, border-color 0.15s; text-decoration: none;
+    }
+    .btn-secondary:hover { color: #fff; border-color: rgba(255,255,255,0.2); text-decoration: none; }
+
+    /* ── Logos / social proof ── */
+    .social-proof {
+      padding: 2rem 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+    .social-proof p { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; font-family: var(--font-mono) ; margin-bottom: 1.25rem; }
+    .proof-items { display: flex; justify-content: center; gap: 3rem; flex-wrap: wrap; }
+    .proof-item { text-align: center; }
+    .proof-num { font-size: 1.6rem; font-weight: 900; color: #fff; font-family: var(--font-mono) ; letter-spacing: -0.02em; }
+    .proof-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Section ── */
+    .section { padding: 5rem 0; }
+    .section-label {
+      font-size: 10px; font-weight: 700; font-family: var(--font-mono) ; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem;
+    }
+    .section-title { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 900; color: #fff; letter-spacing: -0.02em; margin-bottom: 1rem; line-height: 1.2; }
+    .section-sub { font-size: 1rem; color: var(--muted2); max-width: 560px; line-height: 1.75; }
+
+    /* ── Value props grid ── */
+    .props-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; margin-top: 3rem; }
+    .prop-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1.75rem; transition: border-color 0.15s;
+    }
+    .prop-card:hover { border-color: rgba(34,211,238,0.25); }
+    .prop-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border-radius: 9px; margin-bottom: 1rem;
+      font-family: var(--font-mono) ; font-size: 11px; font-weight: 900; letter-spacing: 0.05em;
+    }
+    .prop-icon-cyan  { color: #22d3ee; background: rgba(34,211,238,0.1);  border: 1px solid rgba(34,211,238,0.2); }
+    .prop-icon-green { color: #34d399; background: rgba(52,211,153,0.1);  border: 1px solid rgba(52,211,153,0.2); }
+    .prop-icon-blue  { color: #818cf8; background: rgba(129,140,248,0.1); border: 1px solid rgba(129,140,248,0.2); }
+    .prop-icon-amber { color: #fbbf24; background: rgba(251,191,36,0.1);  border: 1px solid rgba(251,191,36,0.2); }
+    .prop-card h3 { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+    .prop-card p  { font-size: 14px; color: var(--muted2); line-height: 1.65; }
+
+    /* ── How it works ── */
+    .steps { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0; margin-top: 3rem; }
+    .step { padding: 1.5rem 2rem; position: relative; }
+    .step:not(:last-child)::after {
+      content: '→'; position: absolute; right: -0.5rem; top: 50%;
+      transform: translateY(-50%); color: var(--muted); font-size: 1.2rem;
+    }
+    .step-num {
+      font-family: var(--font-mono) ; font-size: 10px; font-weight: 900; letter-spacing: 0.1em;
+      color: var(--accent); background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.2);
+      padding: 2px 8px; border-radius: 5px; display: inline-block; margin-bottom: 0.75rem;
+    }
+    .step h3 { font-size: 0.95rem; font-weight: 700; color: #fff; margin-bottom: 0.4rem; }
+    .step p  { font-size: 13px; color: var(--muted2); line-height: 1.6; }
+
+    /* ── Use cases ── */
+    .usecases { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 3rem; }
+    .usecase {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1.75rem;
+    }
+    .usecase-tag {
+      font-size: 10px; font-weight: 700; font-family: var(--font-mono) ; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted2); background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border); padding: 0.2rem 0.6rem; border-radius: 5px;
+      display: inline-block; margin-bottom: 0.85rem;
+    }
+    .usecase h3 { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 0.6rem; }
+    .usecase p  { font-size: 13.5px; color: var(--muted2); line-height: 1.65; }
+    .usecase ul { margin: 0.75rem 0 0 1.25rem; color: var(--muted2); font-size: 13.5px; }
+    .usecase ul li { margin: 0.3rem 0; }
+
+    /* ── Pricing highlight ── */
+    .pricing-block {
+      background: linear-gradient(135deg, rgba(34,211,238,0.06), rgba(59,130,246,0.04));
+      border: 1px solid rgba(34,211,238,0.18); border-radius: 20px;
+      padding: 3rem; margin-top: 3rem; text-align: center;
+    }
+    .pricing-tag {
+      display: inline-block; font-size: 10px; font-weight: 700; font-family: var(--font-mono) ;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--accent); background: rgba(34,211,238,0.08);
+      border: 1px solid rgba(34,211,238,0.2); padding: 0.25rem 0.75rem; border-radius: 6px;
+      margin-bottom: 1.25rem;
+    }
+    .pricing-block h2 { font-size: 1.6rem; font-weight: 900; color: #fff; margin-bottom: 0.5rem; letter-spacing: -0.02em; }
+    .price { font-size: 3rem; font-weight: 900; color: #fff; font-family: var(--font-mono) ; letter-spacing: -0.03em; margin: 1.25rem 0 0.25rem; }
+    .price span { font-size: 1rem; font-weight: 500; color: var(--muted); }
+    .pricing-sub { font-size: 13px; color: var(--muted); margin-bottom: 2rem; }
+    .features-list {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem 2rem;
+      text-align: left; max-width: 500px; margin: 0 auto 2rem;
+    }
+    .feature-item { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 13.5px; color: var(--muted2); }
+    .feature-item::before { content: '✓'; color: var(--emerald); font-weight: 900; flex-shrink: 0; margin-top: 0.1rem; }
+
+    /* ── FAQ ── */
+    .faq-list { margin-top: 2.5rem; display: flex; flex-direction: column; gap: 1rem; }
+    .faq-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem 1.75rem; }
+    .faq-item h3 { font-size: 0.95rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+    .faq-item p  { font-size: 14px; color: var(--muted2); line-height: 1.65; }
+
+    /* ── CTA final ── */
+    .cta-final {
+      padding: 5rem 0; text-align: center;
+      background: radial-gradient(ellipse 60% 40% at 50% 100%, rgba(34,211,238,0.06) 0%, transparent 70%);
+    }
+    .cta-final h2 { font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 900; color: #fff; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .cta-final p  { font-size: 1rem; color: var(--muted2); margin-bottom: 2.5rem; }
+
+    /* ── Footer ── */
+    /* ── Footer — injecté par /nav.js ── */
+
+    /* ── Responsive ── */
+    @media (max-width: 700px) {
+      .usecases { grid-template-columns: 1fr; }
+      .features-list { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+      .step:not(:last-child)::after { display: none; }
+      .hero { padding: 3rem 0 2.5rem; }
+      /* responsive nav géré dans /nav.js */
+    }
+  </style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<!-- Hero -->
+<section class="hero">
+  <div class="container-narrow">
+    <div class="hero-badge">Pour les agences web &amp; MSP</div>
+    <h1>Proposez des audits sécurité<br><span>à votre marque</span> à vos clients</h1>
+    <p class="hero-sub">
+      Scannez les domaines de vos clients en 60 secondes. Générez des rapports PDF professionnels à votre logo. Surveillez leurs domaines en continu et alertez-les avant qu'il ne soit trop tard.
+    </p>
+    <div class="hero-ctas">
+      <a href="https://wezea.net" class="btn-primary">Démarrer gratuitement →</a>
+      <a href="#fonctionnalites" class="btn-secondary">Voir les fonctionnalités</a>
+    </div>
+  </div>
+</section>
+
+<!-- Social proof -->
+<section class="social-proof">
+  <div class="container">
+    <p>Wezea analyse en une passe</p>
+    <div class="proof-items">
+      <div class="proof-item">
+        <div class="proof-num">SPF</div>
+        <div class="proof-label">Sécurité email</div>
+      </div>
+      <div class="proof-item">
+        <div class="proof-num">DKIM</div>
+        <div class="proof-label">Signature email</div>
+      </div>
+      <div class="proof-item">
+        <div class="proof-num">DMARC</div>
+        <div class="proof-label">Anti-spoofing</div>
+      </div>
+      <div class="proof-item">
+        <div class="proof-num">SSL</div>
+        <div class="proof-label">Certificat HTTPS</div>
+      </div>
+      <div class="proof-item">
+        <div class="proof-num">Ports</div>
+        <div class="proof-label">Surface d'attaque</div>
+      </div>
+      <div class="proof-item">
+        <div class="proof-num">CVE</div>
+        <div class="proof-label">Vulnérabilités</div>
+      </div>
+      <div class="proof-item">
+        <div class="proof-num">Blacklist</div>
+        <div class="proof-label">Réputation IP</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Valeur pour les agences -->
+<section class="section" id="fonctionnalites">
+  <div class="container">
+    <div class="section-label">Fonctionnalités Pro</div>
+    <h2 class="section-title">Tout ce dont votre agence a besoin</h2>
+    <p class="section-sub">Du scan rapide au rapport client livrable en quelques minutes — sans compétences techniques avancées.</p>
+
+    <div class="props-grid">
+
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-cyan">PDF</div>
+        <h3>Rapport PDF à votre marque</h3>
+        <p>Générez des rapports de sécurité professionnels avec votre logo, vos couleurs et le nom de votre agence. Un livrable client clé en main pour chaque audit.</p>
+      </div>
+
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-green">MON</div>
+        <h3>Monitoring continu multi-domaines</h3>
+        <p>Surveillez automatiquement tous les domaines de vos clients. Soyez alerté en cas de dégradation du score, d'expiration SSL imminente ou d'apparition sur une blacklist.</p>
+      </div>
+
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-blue">∞</div>
+        <h3>Scans illimités</h3>
+        <p>Scannez autant de domaines clients que vous le souhaitez, sans quota journalier. Idéal pour les audits d'onboarding ou les revues de sécurité périodiques.</p>
+      </div>
+
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-amber">CVE</div>
+        <h3>Détection CVE et technologies</h3>
+        <p>Identifiez les versions logicielles exposées (CMS, serveurs, frameworks) et les vulnérabilités connues associées. Un argument fort dans vos recommandations client.</p>
+      </div>
+
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-cyan">SUB</div>
+        <h3>Analyse des sous-domaines</h3>
+        <p>Découvrez tous les sous-domaines actifs d'un domaine et évaluez leur surface d'attaque. Les sous-domaines oubliés sont souvent le maillon faible.</p>
+      </div>
+
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-green">API</div>
+        <h3>Score de sécurité quantifié</h3>
+        <p>Chaque domaine reçoit un score de 0 à 100. Facile à présenter à un client non technique pour justifier vos recommandations et suivre l'évolution dans le temps.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Comment ça marche -->
+<section class="section" style="background: linear-gradient(180deg, transparent, rgba(255,255,255,0.015), transparent); padding: 4rem 0;">
+  <div class="container">
+    <div class="section-label">Workflow agence</div>
+    <h2 class="section-title">De l'audit au rapport en 3 étapes</h2>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>Saisissez le domaine client</h3>
+        <p>Entrez le domaine à auditer. Le scan démarre en quelques secondes et analyse l'ensemble de la surface d'exposition.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Analysez le score de sécurité</h3>
+        <p>Consultez les résultats détaillés — score global, points critiques, recommandations priorisées. Tout est interprétable en un coup d'œil.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Générez le rapport PDF client</h3>
+        <p>Exportez un rapport PDF à votre marque prêt à être envoyé au client. Professionnel, structuré, et convaincant sans effort supplémentaire.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <h3>Activez le monitoring</h3>
+        <p>Ajoutez le domaine au monitoring pour recevoir des alertes automatiques si la situation se dégrade — et facturer un service de surveillance récurrent.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Cas d'usage -->
+<section class="section">
+  <div class="container">
+    <div class="section-label">Cas d'usage</div>
+    <h2 class="section-title">Adapté à votre type de structure</h2>
+
+    <div class="usecases">
+
+      <div class="usecase">
+        <div class="usecase-tag">Agence web</div>
+        <h3>Intégrez la sécurité dans chaque livraison</h3>
+        <p>Proposez un audit de sécurité systématique à chaque mise en ligne ou refonte. Différenciez-vous avec un rapport PDF professionnel inclus dans votre offre.</p>
+        <ul>
+          <li>Audit pré-lancement inclus dans le devis</li>
+          <li>Rapport PDF livré avec le site</li>
+          <li>Monitoring mensuel en option récurrente</li>
+        </ul>
+      </div>
+
+      <div class="usecase">
+        <div class="usecase-tag">MSP / IT Manager</div>
+        <h3>Surveillez votre parc client en continu</h3>
+        <p>Centralisez le monitoring de tous vos domaines gérés. Identifiez les risques avant qu'ils ne deviennent des incidents et justifiez vos prestations de maintenance.</p>
+        <ul>
+          <li>Vue d'ensemble multi-domaines</li>
+          <li>Alertes automatiques sur dégradations</li>
+          <li>Rapports périodiques pour vos contrats</li>
+        </ul>
+      </div>
+
+      <div class="usecase">
+        <div class="usecase-tag">Consultant cybersécurité</div>
+        <h3>Accélérez vos audits et livrables</h3>
+        <p>Réduisez le temps de collecte d'informations techniques. Concentrez-vous sur l'analyse et les recommandations plutôt que sur les vérifications manuelles répétitives.</p>
+        <ul>
+          <li>Collecte automatisée en 60 secondes</li>
+          <li>Rapport structuré comme base de travail</li>
+          <li>Score objectif pour prioriser les actions</li>
+        </ul>
+      </div>
+
+      <div class="usecase">
+        <div class="usecase-tag">Hébergeur / Revendeur</div>
+        <h3>Ajoutez la sécurité à votre catalogue</h3>
+        <p>Proposez des audits de sécurité domaine comme service additionnel à vos clients hébergement. Un upsell naturel qui apporte une valeur concrète et mesurable.</p>
+        <ul>
+          <li>Service en marque blanche</li>
+          <li>Aucune compétence technique requise</li>
+          <li>Facturable en option mensuelle</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section class="section">
+  <div class="container-narrow">
+    <div class="pricing-block">
+      <div class="pricing-tag">Plan Pro — recommandé pour les agences</div>
+      <h2>Tout inclus pour votre agence</h2>
+      <p style="color: var(--muted2); font-size: 14px; margin-top: 0.5rem;">Scans illimités · Rapport PDF white-label · Monitoring · CVE · Sous-domaines</p>
+      <div class="price">19,90€ <span>/ mois · résiliable à tout moment</span></div>
+      <p class="pricing-sub">Paiement sécurisé via Stripe · Aucun engagement</p>
+
+      <div class="features-list">
+        <div class="feature-item">Scans illimités</div>
+        <div class="feature-item">Rapport PDF à votre marque</div>
+        <div class="feature-item">Logo, couleurs, nom agence</div>
+        <div class="feature-item">Monitoring continu</div>
+        <div class="feature-item">Alertes email automatiques</div>
+        <div class="feature-item">Analyse des sous-domaines</div>
+        <div class="feature-item">Détection CVE et versions</div>
+        <div class="feature-item">Vérification blacklists</div>
+        <div class="feature-item">Score de sécurité 0-100</div>
+        <div class="feature-item">Support prioritaire</div>
+      </div>
+
+      <a href="https://wezea.net" class="btn-primary" style="font-size: 15px; padding: 0.9rem 2.5rem;">
+        Démarrer avec le plan Pro →
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" style="padding-top: 3rem;">
+  <div class="container-narrow">
+    <div class="section-label">Questions fréquentes</div>
+    <h2 class="section-title">Ce que les agences demandent souvent</h2>
+
+    <div class="faq-list">
+      <div class="faq-item">
+        <h3>Le rapport PDF affiche-t-il vraiment mon logo et mes couleurs ?</h3>
+        <p>Oui. Depuis votre espace client (plan Pro), vous renseignez le nom de votre agence, l'URL de votre logo et une couleur principale. Chaque rapport généré intègre ces éléments — sans mention de Wezea visible par votre client.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Puis-je gérer plusieurs clients depuis un seul compte ?</h3>
+        <p>Absolument. Il n'y a pas de limite de domaines à scanner ou à surveiller. Vous gérez l'ensemble de votre portefeuille client depuis un seul tableau de bord, avec l'historique complet des scans.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Mes clients peuvent-ils voir l'outil ou accéder aux rapports directement ?</h3>
+        <p>Non. Wezea est un outil interne à votre agence. Vous générez les rapports PDF et les transmettez à vos clients comme vous le souhaitez — par email, dans votre espace client propriétaire, ou intégré dans un compte-rendu.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Comment fonctionne le monitoring ? Est-ce automatique ?</h3>
+        <p>Une fois un domaine ajouté au monitoring, Wezea le scanne automatiquement chaque semaine. Si le score de sécurité se dégrade ou si un problème critique apparaît (SSL, blacklist, nouveau port ouvert), vous recevez une alerte email immédiatement.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Puis-je annuler à tout moment ?</h3>
+        <p>Oui, l'abonnement est mensuel et résiliable en un clic depuis votre espace client, sans frais ni préavis. Aucun engagement de durée.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA final -->
+<section class="cta-final">
+  <div class="container-narrow">
+    <h2>Prêt à proposer la sécurité en service ?</h2>
+    <p>Commencez gratuitement — aucune carte bancaire requise. Passez Pro quand vous êtes convaincu.</p>
+    <div class="hero-ctas">
+      <a href="https://wezea.net" class="btn-primary">Créer un compte gratuit →</a>
+      <a href="/blog/" class="btn-secondary">Lire nos guides sécurité</a>
+    </div>
+  </div>
+</section>
+<script src="/footer.js"></script>
+</body>
+</html>

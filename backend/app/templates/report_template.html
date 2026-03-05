@@ -1,0 +1,1746 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>{% if wb_active %}{{ wb_company }} — {% endif %}Rapport {{ domain }}</title>
+<style>
+/* ── White-label custom properties ── */
+:root {
+  --wb-color: {{ wb_color }};
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   VARIABLES & RESET
+   ════════════════════════════════════════════════════════════════════════════ */
+:root {
+  --navy:      #0f2544;
+  --navy-mid:  #1e3a5f;
+  --navy-light:#2d5282;
+  --slate:     #475569;
+  --slate-mid: #64748b;
+  --slate-light:#94a3b8;
+  --border:    #e2e8f0;
+  --bg-light:  #f8fafc;
+  --bg-card:   #ffffff;
+  --red:       #dc2626;
+  --orange:    #ea580c;
+  --amber:     #d97706;
+  --green:     #16a34a;
+  --cyan:      #0891b2;
+  --font:      'Inter', 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  font-size: 10pt;
+  color: #1e293b;
+  line-height: 1.6;
+  background: white;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   @PAGE — Mise en page A4 avec en-têtes / pieds de page WeasyPrint
+   ════════════════════════════════════════════════════════════════════════════ */
+@page {
+  size: A4;
+  margin: 22mm 18mm 18mm 18mm;
+
+  @bottom-left {
+    content: "{{ strings.footer_brand }}";
+    font-family: var(--font);
+    font-size: 7.5pt;
+    color: var(--slate-light);
+    border-top: 0.5pt solid var(--border);
+    padding-top: 4mm;
+  }
+
+  @bottom-right {
+    content: "Page " counter(page) " / " counter(pages);
+    font-family: var(--font);
+    font-size: 7.5pt;
+    color: var(--slate-light);
+    border-top: 0.5pt solid var(--border);
+    padding-top: 4mm;
+  }
+
+  @top-right {
+    content: string(domain-running);
+    font-family: var(--font);
+    font-size: 7.5pt;
+    color: var(--slate-mid);
+    border-bottom: 0.5pt solid var(--border);
+    padding-bottom: 3mm;
+  }
+}
+
+/* Page de couverture : sans marges ni en-têtes */
+@page cover {
+  margin: 0;
+  @bottom-left  { content: none; }
+  @bottom-right { content: none; }
+  @top-right    { content: none; }
+}
+
+/* Pages section : petite marge haut pour l'en-tête */
+@page section {
+  margin-top: 28mm;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UTILITAIRES
+   ════════════════════════════════════════════════════════════════════════════ */
+.page-break   { page-break-after: always; }
+.no-break     { page-break-inside: avoid; }
+.keep-with    { page-break-after: avoid;  }
+
+/* Couleurs sévérité */
+.sev-critical { color: var(--red);    }
+.sev-high     { color: var(--orange); }
+.sev-medium   { color: var(--amber);  }
+.sev-low      { color: var(--green);  }
+.sev-info     { color: var(--cyan);   }
+
+.badge {
+  display: inline-block;
+  padding: 1.5pt 6pt;
+  border-radius: 3pt;
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: 0.5pt;
+  text-transform: uppercase;
+}
+.badge-critical { background: #fef2f2; color: var(--red);    border: 0.5pt solid #fecaca; }
+.badge-high     { background: #fff7ed; color: var(--orange); border: 0.5pt solid #fed7aa; }
+.badge-medium   { background: #fffbeb; color: var(--amber);  border: 0.5pt solid #fde68a; }
+.badge-low      { background: #f0fdf4; color: var(--green);  border: 0.5pt solid #bbf7d0; }
+.badge-info     { background: #ecfeff; color: var(--cyan);   border: 0.5pt solid #a5f3fc; }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ① COUVERTURE
+   ════════════════════════════════════════════════════════════════════════════ */
+.cover {
+  page: cover;
+  width: 210mm;
+  height: 297mm;
+  position: relative;
+  background: white;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Bande supérieure navy */
+.cover-header {
+  background: var(--navy);
+  padding: 14mm 18mm 10mm;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8pt;
+}
+.brand-icon {
+  width: 34pt;
+  height: 34pt;
+}
+.brand-name {
+  font-size: 22pt;
+  font-weight: 900;
+  color: white;
+  letter-spacing: -0.8pt;
+  line-height: 1;
+}
+.brand-name span { color: #22d3ee; }
+.brand-tagline {
+  font-size: 7.5pt;
+  color: #64748b;
+  margin-top: 2pt;
+  letter-spacing: 1.2pt;
+  text-transform: uppercase;
+}
+
+.cover-label {
+  font-size: 7.5pt;
+  color: #94a3b8;
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+/* Corps de la couverture */
+.cover-body {
+  flex: 1;
+  background: var(--bg-light);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16mm 22mm;
+}
+
+.cover-report-type {
+  font-size: 9pt;
+  font-weight: 600;
+  letter-spacing: 3pt;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 8pt;
+}
+
+.cover-title {
+  font-size: 26pt;
+  font-weight: 900;
+  color: var(--navy);
+  text-align: center;
+  line-height: 1.2;
+  margin-bottom: 6pt;
+}
+
+.cover-domain {
+  font-family: var(--font-mono);
+  font-size: 13pt;
+  color: var(--navy-light);
+  background: white;
+  border: 1pt solid var(--border);
+  padding: 5pt 14pt;
+  border-radius: 4pt;
+  margin-bottom: 20pt;
+}
+
+/* Jauge score SVG sur la couverture */
+.cover-score-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20pt;
+}
+
+.cover-score-label {
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 2pt;
+  text-transform: uppercase;
+  color: var(--slate-mid);
+  margin-bottom: 8pt;
+}
+
+.cover-risk-badge {
+  display: inline-block;
+  margin-top: 10pt;
+  padding: 4pt 16pt;
+  border-radius: 20pt;
+  font-size: 10pt;
+  font-weight: 800;
+  letter-spacing: 1pt;
+  text-transform: uppercase;
+}
+
+/* Ligne d'infos en bas de couverture */
+.cover-meta {
+  display: flex;
+  gap: 0;
+  width: 100%;
+  background: white;
+  border: 1pt solid var(--border);
+  border-radius: 6pt;
+  overflow: hidden;
+}
+.cover-meta-item {
+  flex: 1;
+  padding: 8pt 12pt;
+  text-align: center;
+  border-right: 1pt solid var(--border);
+}
+.cover-meta-item:last-child { border-right: none; }
+.cover-meta-value {
+  font-size: 11pt;
+  font-weight: 700;
+  color: var(--navy);
+  display: block;
+}
+.cover-meta-key {
+  font-size: 7pt;
+  color: var(--slate-light);
+  text-transform: uppercase;
+  letter-spacing: 0.8pt;
+}
+
+/* Pied de couverture */
+.cover-footer {
+  background: var(--navy);
+  padding: 8mm 18mm;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cover-footer p {
+  font-size: 7.5pt;
+  color: #64748b;
+}
+.cover-footer strong { color: #94a3b8; }
+
+/* String caché pour WeasyPrint running header */
+.domain-running {
+  position: fixed;
+  left: -9999pt;
+  string-set: domain-running content();
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ② SECTIONS INTERNES (pages 2+)
+   ════════════════════════════════════════════════════════════════════════════ */
+.section {
+  page: section;
+  margin-bottom: 0;
+}
+
+/* En-tête de section */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8pt;
+  margin-bottom: 14pt;
+  padding-bottom: 8pt;
+  border-bottom: 2pt solid var(--navy);
+}
+
+.section-number {
+  width: 22pt;
+  height: 22pt;
+  background: var(--navy);
+  color: white;
+  border-radius: 50%;
+  font-size: 9pt;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-title {
+  font-size: 14pt;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.section-subtitle {
+  font-size: 8pt;
+  color: var(--slate-mid);
+  margin-top: 1pt;
+}
+
+h2.section-inner {
+  font-size: 11pt;
+  font-weight: 700;
+  color: var(--navy-mid);
+  margin: 14pt 0 8pt;
+  padding-left: 8pt;
+  border-left: 3pt solid var(--cyan);
+}
+
+h3.sub {
+  font-size: 9.5pt;
+  font-weight: 600;
+  color: var(--slate);
+  margin: 10pt 0 6pt;
+}
+
+p.lead {
+  font-size: 10.5pt;
+  color: var(--slate);
+  line-height: 1.7;
+  margin-bottom: 10pt;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ③ SYNTHÈSE — Score card + KPIs
+   ════════════════════════════════════════════════════════════════════════════ */
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8pt;
+  margin-bottom: 14pt;
+}
+
+.kpi-card {
+  background: var(--bg-light);
+  border: 1pt solid var(--border);
+  border-radius: 6pt;
+  padding: 10pt 12pt;
+  text-align: center;
+}
+.kpi-card.alert {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.kpi-value {
+  font-size: 22pt;
+  font-weight: 900;
+  line-height: 1;
+  margin-bottom: 3pt;
+}
+.kpi-label {
+  font-size: 7.5pt;
+  color: var(--slate-mid);
+  text-transform: uppercase;
+  letter-spacing: 0.8pt;
+}
+
+/* Score bar (alternative à la jauge SVG en inline) */
+.score-bar-wrap {
+  margin: 10pt 0 6pt;
+}
+.score-bar-track {
+  height: 10pt;
+  background: var(--border);
+  border-radius: 5pt;
+  overflow: hidden;
+  position: relative;
+}
+.score-bar-fill {
+  height: 100%;
+  border-radius: 5pt;
+  transition: width 0s;
+}
+.score-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 7pt;
+  color: var(--slate-light);
+  margin-top: 2pt;
+}
+
+/* Alerte synthèse */
+.alert-box {
+  border-radius: 6pt;
+  padding: 10pt 14pt;
+  margin: 10pt 0;
+  display: flex;
+  gap: 10pt;
+  align-items: flex-start;
+}
+.alert-box.danger  { background: #fef2f2; border: 1pt solid #fca5a5; }
+.alert-box.warning { background: #fff7ed; border: 1pt solid #fdba74; }
+.alert-box.ok      { background: #f0fdf4; border: 1pt solid #86efac; }
+
+.alert-icon { font-size: 14pt; line-height: 1; margin-top: 1pt; }
+.alert-title { font-weight: 700; font-size: 10pt; margin-bottom: 2pt; }
+.alert-text  { font-size: 9pt; line-height: 1.5; color: var(--slate); }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ④ ANALYSE FINANCIÈRE
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Formule mathématique stylisée */
+.formula-block {
+  background: var(--navy);
+  color: white;
+  border-radius: 8pt;
+  padding: 14pt 18pt;
+  margin: 12pt 0;
+  text-align: center;
+}
+.formula-title {
+  font-size: 7.5pt;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 1.5pt;
+  margin-bottom: 8pt;
+}
+.formula-equation {
+  font-family: var(--font-mono);
+  font-size: 11pt;
+  line-height: 1.8;
+  color: white;
+}
+.formula-var {
+  color: #67e8f9;
+  font-weight: 700;
+}
+.formula-op {
+  color: #94a3b8;
+  padding: 0 4pt;
+}
+.formula-result {
+  color: #fbbf24;
+  font-size: 13pt;
+  font-weight: 800;
+}
+
+/* Table financière */
+.fin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10pt 0;
+  font-size: 9.5pt;
+}
+.fin-table th {
+  background: var(--navy);
+  color: white;
+  padding: 7pt 10pt;
+  text-align: left;
+  font-size: 8pt;
+  font-weight: 600;
+  letter-spacing: 0.5pt;
+  text-transform: uppercase;
+}
+.fin-table th:last-child { text-align: right; }
+.fin-table td {
+  padding: 7pt 10pt;
+  border-bottom: 0.5pt solid var(--border);
+  vertical-align: top;
+}
+.fin-table td:last-child { text-align: right; font-weight: 600; font-family: var(--font-mono); }
+.fin-table tr:nth-child(even) td { background: var(--bg-light); }
+.fin-table .total-row td {
+  background: #eff6ff;
+  font-weight: 800;
+  font-size: 10.5pt;
+  border-top: 1.5pt solid var(--navy-light);
+}
+.fin-table .total-row td:last-child {
+  color: var(--navy);
+  font-size: 13pt;
+}
+
+.fin-note {
+  font-size: 7.5pt;
+  color: var(--slate-light);
+  font-style: italic;
+  margin-top: 4pt;
+  padding: 0 4pt;
+}
+
+/* Comparaison sectorielle */
+.risk-context {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10pt;
+  margin-top: 12pt;
+}
+.risk-context-card {
+  background: var(--bg-light);
+  border: 1pt solid var(--border);
+  border-radius: 6pt;
+  padding: 10pt;
+}
+.risk-context-card h4 {
+  font-size: 8.5pt;
+  font-weight: 700;
+  color: var(--navy-mid);
+  margin-bottom: 5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.5pt;
+}
+.risk-context-card p {
+  font-size: 9pt;
+  color: var(--slate);
+  line-height: 1.5;
+}
+.risk-context-card .stat {
+  font-size: 16pt;
+  font-weight: 900;
+  color: var(--red);
+  display: block;
+  margin-bottom: 2pt;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ⑤ FINDINGS — Cartes de vulnérabilités
+   ════════════════════════════════════════════════════════════════════════════ */
+.finding-card {
+  border: 1pt solid var(--border);
+  border-radius: 6pt;
+  overflow: hidden;
+  margin-bottom: 10pt;
+  page-break-inside: avoid;
+}
+
+.finding-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8pt;
+  padding: 9pt 12pt;
+}
+.finding-header.critical { background: #fef2f2; border-left: 3pt solid var(--red);    }
+.finding-header.high     { background: #fff7ed; border-left: 3pt solid var(--orange); }
+.finding-header.medium   { background: #fffbeb; border-left: 3pt solid var(--amber);  }
+.finding-header.low      { background: #f0fdf4; border-left: 3pt solid var(--green);  }
+.finding-header.info     { background: #ecfeff; border-left: 3pt solid var(--cyan);   }
+
+.finding-title-block { flex: 1; }
+.finding-title {
+  font-size: 9.5pt;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 1pt;
+}
+.finding-category {
+  font-size: 7.5pt;
+  color: var(--slate-mid);
+  font-family: var(--font-mono);
+}
+
+.finding-penalty {
+  font-family: var(--font-mono);
+  font-size: 9pt;
+  font-weight: 700;
+  color: var(--red);
+  white-space: nowrap;
+  padding-top: 2pt;
+}
+
+.finding-body {
+  padding: 9pt 12pt;
+  background: white;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10pt;
+}
+.finding-section-label {
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8pt;
+  color: var(--slate-light);
+  margin-bottom: 3pt;
+}
+.finding-plain {
+  font-size: 9pt;
+  line-height: 1.55;
+  color: var(--slate);
+}
+.finding-reco {
+  font-size: 9pt;
+  line-height: 1.55;
+  color: #0f4c75;
+  background: #eff6ff;
+  border-radius: 4pt;
+  padding: 6pt 8pt;
+}
+
+.finding-tech {
+  grid-column: span 2;
+  font-family: var(--font-mono);
+  font-size: 8pt;
+  color: var(--slate-mid);
+  background: var(--bg-light);
+  border: 0.5pt solid var(--border);
+  border-radius: 4pt;
+  padding: 5pt 8pt;
+  word-break: break-all;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ⑥ PLAN D'ACTION — 3 phases
+   ════════════════════════════════════════════════════════════════════════════ */
+.action-phases {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10pt;
+  margin: 14pt 0;
+}
+.action-phase {
+  border-radius: 6pt;
+  overflow: hidden;
+  border: 1pt solid var(--border);
+  page-break-inside: avoid;
+}
+.phase-header {
+  padding: 8pt 10pt;
+  color: white;
+  font-weight: 700;
+}
+.phase-header.urgent  { background: var(--red);         }
+.phase-header.important { background: var(--orange);    }
+.phase-header.optimize  { background: var(--navy-light); }
+.phase-deadline {
+  font-size: 7pt;
+  font-weight: 400;
+  opacity: 0.85;
+  display: block;
+  margin-top: 1pt;
+}
+.phase-body {
+  padding: 8pt 10pt;
+  background: var(--bg-light);
+}
+.phase-item {
+  font-size: 8.5pt;
+  color: var(--slate);
+  padding: 3pt 0;
+  border-bottom: 0.5pt solid var(--border);
+  display: flex;
+  gap: 6pt;
+  line-height: 1.4;
+}
+.phase-item:last-child { border-bottom: none; }
+.phase-bullet {
+  width: 12pt;
+  height: 12pt;
+  border-radius: 50%;
+  color: white;
+  font-size: 6.5pt;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1pt;
+}
+.phase-bullet.urgent    { background: var(--red);          }
+.phase-bullet.important { background: var(--orange);       }
+.phase-bullet.optimize  { background: var(--navy-light);   }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ⑦ ANNEXES — Ports, SSL, DNS
+   ════════════════════════════════════════════════════════════════════════════ */
+.annex-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  margin-bottom: 12pt;
+}
+.annex-table th {
+  background: var(--bg-light);
+  padding: 6pt 10pt;
+  text-align: left;
+  font-size: 7.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5pt;
+  color: var(--slate);
+  border-bottom: 1pt solid var(--border);
+}
+.annex-table td {
+  padding: 6pt 10pt;
+  border-bottom: 0.5pt solid var(--border);
+  vertical-align: middle;
+  font-family: var(--font-mono);
+  font-size: 8.5pt;
+}
+.annex-table tr:last-child td { border-bottom: none; }
+
+.port-open   { color: var(--red);   font-weight: 700; }
+.port-closed { color: var(--green); }
+
+.dns-ok      { color: var(--green); font-weight: 600; }
+.dns-missing { color: var(--red);   font-weight: 600; }
+.dns-error   { color: var(--amber); }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ⑧ PAGE DE CTA FINALE
+   ════════════════════════════════════════════════════════════════════════════ */
+.cta-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20pt;
+}
+.cta-logo-block {
+  width: 56pt;
+  height: 56pt;
+  background: var(--navy);
+  border-radius: 12pt;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12pt;
+}
+.cta-heading {
+  font-size: 18pt;
+  font-weight: 900;
+  color: var(--navy);
+  line-height: 1.2;
+  margin-bottom: 8pt;
+}
+.cta-heading span { color: var(--cyan); }
+.cta-subtext {
+  font-size: 10pt;
+  color: var(--slate);
+  max-width: 340pt;
+  line-height: 1.6;
+  margin-bottom: 18pt;
+}
+.cta-button {
+  display: inline-block;
+  background: var(--navy);
+  color: white;
+  padding: 9pt 24pt;
+  border-radius: 6pt;
+  font-size: 10pt;
+  font-weight: 700;
+  text-decoration: none;
+  margin-bottom: 10pt;
+}
+.cta-phone {
+  font-size: 9pt;
+  color: var(--slate-mid);
+}
+.cta-disclaimer {
+  font-size: 7.5pt;
+  color: var(--slate-light);
+  border-top: 0.5pt solid var(--border);
+  margin-top: 20pt;
+  padding-top: 10pt;
+  max-width: 400pt;
+  line-height: 1.5;
+}
+
+/* Séparateur horizontal */
+.divider {
+  border: none;
+  border-top: 0.5pt solid var(--border);
+  margin: 12pt 0;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     STRING pour l'en-tête courant (WeasyPrint)
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="domain-running">{{ domain }} — {{ strings.running_audit }}</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ① PAGE DE COUVERTURE
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="cover">
+
+  <!-- Bandeau supérieur navy -->
+  <div class="cover-header">
+    <div class="brand">
+      <div>
+        {% if wb_active and wb_logo %}
+          <img src="{{ wb_logo }}" alt="{{ wb_company }}" style="max-height:36pt; max-width:160pt; object-fit:contain; margin-bottom:4pt;" />
+          <div class="brand-tagline" style="color:#94a3b8;">{{ strings.report_type }}</div>
+        {% elif wb_active %}
+          <div class="brand-name" style="color:#ffffff;">{{ wb_company }}</div>
+          <div class="brand-tagline">Security Report · {{ strings.report_type }}</div>
+        {% else %}
+          <div class="brand-name">We<span>zea</span></div>
+          <div class="brand-tagline">Security Scanner · {{ strings.report_type }}</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="cover-label">
+      {% if lang == 'en' %}Generated on{% else %}Généré le{% endif %} {{ report_date }}<br>
+      Ref. {{ scan_id[:8] | upper }}
+    </div>
+  </div>
+
+  <!-- Corps -->
+  <div class="cover-body">
+    <div class="cover-report-type">{{ strings.report_type }}</div>
+
+    <div class="cover-title">
+      {{ strings.report_title_1 }}<br>{{ strings.report_title_2 }}
+    </div>
+
+    <div class="cover-domain">{{ domain }}</div>
+
+    <!-- Jauge SVG -->
+    <div class="cover-score-block">
+      <div class="cover-score-label">{{ strings.score_label }}</div>
+
+      {# Cercle SVG : circumference ≈ 534 pour r=85, arc 270° = 400pt #}
+      {% set arc_fill = (security_score / 100 * 400) | round(1) %}
+      {% set arc_gap  = (534 - arc_fill) | round(1) %}
+      <svg viewBox="0 0 200 200" width="150" height="150">
+        <!-- Arc fond -->
+        <circle cx="100" cy="100" r="85"
+                fill="none" stroke="#e2e8f0" stroke-width="14"
+                stroke-dasharray="400 134"
+                transform="rotate(135 100 100)"
+                stroke-linecap="round"/>
+        <!-- Arc score -->
+        <circle cx="100" cy="100" r="85"
+                fill="none" stroke="{{ score_color }}" stroke-width="14"
+                stroke-dasharray="{{ arc_fill }} {{ 534 - arc_fill }}"
+                transform="rotate(135 100 100)"
+                stroke-linecap="round"/>
+        <!-- Texte central -->
+        <text x="100" y="92"
+              text-anchor="middle"
+              font-family="Inter, Helvetica, sans-serif"
+              font-size="36" font-weight="900"
+              fill="{{ score_color }}">{{ security_score }}</text>
+        <text x="100" y="113"
+              text-anchor="middle"
+              font-family="Inter, Helvetica, sans-serif"
+              font-size="12" fill="#94a3b8">{{ strings.out_of }}</text>
+        <text x="100" y="130"
+              text-anchor="middle"
+              font-family="Inter, Helvetica, sans-serif"
+              font-size="10" font-weight="700"
+              fill="{{ risk_color }}">{{ risk_label | upper }}</text>
+      </svg>
+
+      <span class="cover-risk-badge"
+            style="background:{{ risk_color }}22; color:{{ risk_color }}; border: 1pt solid {{ risk_color }}55;">
+        {{ strings.risk_prefix }} {{ risk_label }}
+      </span>
+    </div>
+
+    <!-- Méta-informations -->
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <span class="cover-meta-value">{{ findings | length }}</span>
+        <span class="cover-meta-key">{{ strings.meta_vulns }}</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-value" style="color:{{ score_color }}">{{ security_score }}/100</span>
+        <span class="cover-meta-key">{{ strings.meta_score }}</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-value">{{ report_date }}</span>
+        <span class="cover-meta-key">{{ strings.meta_date }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pied couverture -->
+  <div class="cover-footer">
+    <p><strong>{{ strings.confidential }}</strong> — {{ strings.cover_footer_1 }} {{ domain }}</p>
+    {% if wb_active %}
+      <p>{{ wb_company }}</p>
+    {% else %}
+      <p>Wezea Security Scanner · scan.wezea.net</p>
+    {% endif %}
+  </div>
+</div><!-- /cover -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ② SYNTHÈSE DÉCISIONNELLE
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="section page-break">
+
+  <div class="section-header">
+    <div class="section-number">1</div>
+    <div>
+      <div class="section-title">{% if lang == 'en' %}Executive Summary{% else %}Synthèse Décisionnelle{% endif %}</div>
+      <div class="section-subtitle">{% if lang == 'en' %}What every executive needs to know in 2 minutes{% else %}Ce que tout dirigeant doit savoir en 2 minutes{% endif %}</div>
+    </div>
+  </div>
+
+  <!-- Alerte principale -->
+  {% if security_score < 40 %}
+  <div class="alert-box danger">
+    <div class="alert-icon">🚨</div>
+    <div>
+      <div class="alert-title" style="color: #991b1b;">{% if lang == 'en' %}Infrastructure under immediate threat{% else %}Infrastructure en danger immédiat{% endif %}</div>
+      <div class="alert-text">
+        {% if lang == 'en' %}
+        With a score of <strong>{{ security_score }}/100</strong>, the public infrastructure of <strong>{{ domain }}</strong>
+        has critical vulnerabilities exploitable by opportunistic attackers.
+        The risk of a cyberattack in the next 6 months is <strong>very high</strong>.
+        Corrective action within the next 7 days is imperative.
+        {% else %}
+        Avec un score de <strong>{{ security_score }}/100</strong>, l'infrastructure publique de <strong>{{ domain }}</strong>
+        présente des vulnérabilités critiques exploitables par des attaquants opportunistes.
+        Le risque de cyberattaque dans les 6 prochains mois est <strong>très élevé</strong>.
+        Une intervention corrective dans les 7 prochains jours est impérative.
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% elif security_score < 60 %}
+  <div class="alert-box warning">
+    <div class="alert-icon">⚠️</div>
+    <div>
+      <div class="alert-title" style="color: #92400e;">{% if lang == 'en' %}Significant security risks detected{% else %}Risques de sécurité significatifs détectés{% endif %}</div>
+      <div class="alert-text">
+        {% if lang == 'en' %}
+        The score of <strong>{{ security_score }}/100</strong> for <strong>{{ domain }}</strong>
+        reveals exploitable weaknesses, particularly in email security and network exposure.
+        These gaps facilitate phishing and intrusions. A correction within 30 days is recommended.
+        {% else %}
+        Le score de <strong>{{ security_score }}/100</strong> de <strong>{{ domain }}</strong>
+        révèle des faiblesses exploitables, notamment au niveau de la messagerie et de l'exposition réseau.
+        Ces lacunes facilitent le phishing et les intrusions. Une correction sous 30 jours est recommandée.
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert-box ok">
+    <div class="alert-icon">✅</div>
+    <div>
+      <div class="alert-title" style="color: #166534;">{% if lang == 'en' %}Good public security hygiene{% else %}Bonne hygiène de sécurité publique{% endif %}</div>
+      <div class="alert-text">
+        {% if lang == 'en' %}
+        The score of <strong>{{ security_score }}/100</strong> for <strong>{{ domain }}</strong>
+        indicates a satisfactory public configuration. Optimizations are still possible
+        to achieve excellence and reduce the residual attack surface.
+        {% else %}
+        Le score de <strong>{{ security_score }}/100</strong> de <strong>{{ domain }}</strong>
+        indique une configuration publique satisfaisante. Des optimisations restent possibles
+        pour atteindre l'excellence et réduire la surface d'attaque résiduelle.
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- KPIs -->
+  <div class="summary-grid" style="margin-top: 14pt;">
+    <div class="kpi-card {% if critical_count > 0 %}alert{% endif %}">
+      <div class="kpi-value" style="color: {% if critical_count > 0 %}{{ risk_color }}{% else %}#22c55e{% endif %}">
+        {{ critical_count }}
+      </div>
+      <div class="kpi-label">{% if lang == 'en' %}Critical vuln.{% else %}Vuln. critiques{% endif %}</div>
+    </div>
+    <div class="kpi-card {% if high_count > 0 %}alert{% endif %}">
+      <div class="kpi-value" style="color: {% if high_count > 0 %}#ea580c{% else %}#22c55e{% endif %}">
+        {{ high_count }}
+      </div>
+      <div class="kpi-label">{% if lang == 'en' %}High vuln.{% else %}Vuln. élevées{% endif %}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value" style="color: {{ score_color }}">{{ security_score }}<span style="font-size: 11pt; font-weight: 500; color: #94a3b8">/100</span></div>
+      <div class="kpi-label">Security Score</div>
+    </div>
+  </div>
+
+  <!-- Barre de score -->
+  <h3 class="sub">{% if lang == 'en' %}Score Positioning{% else %}Positionnement du score{% endif %}</h3>
+  <div class="score-bar-wrap">
+    <div class="score-bar-track">
+      <div class="score-bar-fill"
+           style="width: {{ security_score }}%; background: {{ score_color }};"></div>
+    </div>
+    <div class="score-bar-labels">
+      <span style="color: #dc2626; font-weight: 600;">● {% if lang == 'en' %}Critical{% else %}Critique{% endif %} 0–39</span>
+      <span style="color: #ea580c; font-weight: 600;">● {% if lang == 'en' %}High{% else %}Élevé{% endif %} 40–59</span>
+      <span style="color: #d97706; font-weight: 600;">● {% if lang == 'en' %}Moderate{% else %}Modéré{% endif %} 60–79</span>
+      <span style="color: #16a34a; font-weight: 600;">● {% if lang == 'en' %}Low{% else %}Faible{% endif %} 80–100</span>
+    </div>
+  </div>
+
+  <!-- Top 3 risques -->
+  {% if findings %}
+  <h2 class="section-inner" style="margin-top: 16pt;">{% if lang == 'en' %}Top 3 Priority Risks{% else %}Top 3 des risques prioritaires{% endif %}</h2>
+  <table class="annex-table">
+    <thead>
+      <tr>
+        <th style="width:5%;">#</th>
+        <th style="width:20%;">{% if lang == 'en' %}Category{% else %}Catégorie{% endif %}</th>
+        <th style="width:40%;">{% if lang == 'en' %}Vulnerability{% else %}Vulnérabilité{% endif %}</th>
+        <th style="width:15%;">{% if lang == 'en' %}Severity{% else %}Sévérité{% endif %}</th>
+        <th style="width:10%; text-align:right;">{% if lang == 'en' %}Impact score{% else %}Impact score{% endif %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in findings[:3] %}
+      <tr>
+        <td style="text-align:center; font-weight:700; color: #94a3b8;">{{ loop.index }}</td>
+        <td>{{ f.category }}</td>
+        <td style="font-family: var(--font); font-size: 9pt; font-weight: 600;">{{ f.title }}</td>
+        <td>
+          <span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span>
+        </td>
+        <td style="text-align:right; color: #dc2626; font-weight: 700;">−{{ f.penalty }} pts</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+</div><!-- /synthèse -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ③ DÉTAIL DES VULNÉRABILITÉS
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="section page-break">
+
+  <div class="section-header">
+    <div class="section-number">3</div>
+    <div>
+      <div class="section-title">{% if lang == 'en' %}Vulnerability Details{% else %}Détail des Vulnérabilités{% endif %}</div>
+      <div class="section-subtitle">{{ findings | length }} finding(s) — {% if lang == 'en' %}sorted by criticality{% else %}classés par ordre de criticité{% endif %}</div>
+    </div>
+  </div>
+
+  {% if findings %}
+
+    {# ── DNS & Mail ──────────────────────────────────────────────────────── #}
+    {% if dns_findings %}
+    <h2 class="section-inner keep-with">📧 DNS &amp; {% if lang == 'en' %}Email Security{% else %}Sécurité Email{% endif %}</h2>
+    {% for f in dns_findings %}
+    <div class="finding-card no-break">
+      <div class="finding-header {{ f.severity | lower }}">
+        <div class="finding-title-block">
+          <div class="finding-title">{{ f.title }}</div>
+          <div class="finding-category">{{ f.category }} · {% if lang == 'en' %}Ref.{% else %}Réf.{% endif %} DNS-{{ loop.index }}</div>
+        </div>
+        <span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span>
+        {% if f.penalty > 0 %}
+        <div class="finding-penalty">−{{ f.penalty }} pts</div>
+        {% endif %}
+      </div>
+      <div class="finding-body">
+        <div>
+          <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
+          <div class="finding-plain">{{ f.plain_explanation }}</div>
+        </div>
+        <div>
+          <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
+          <div class="finding-reco">{{ f.recommendation }}</div>
+        </div>
+        <div class="finding-tech">{{ f.technical_detail }}</div>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {# ── SSL / HTTPS ─────────────────────────────────────────────────────── #}
+    {% if ssl_findings %}
+    <h2 class="section-inner keep-with">🔒 SSL / HTTPS</h2>
+    {% for f in ssl_findings %}
+    <div class="finding-card no-break">
+      <div class="finding-header {{ f.severity | lower }}">
+        <div class="finding-title-block">
+          <div class="finding-title">{{ f.title }}</div>
+          <div class="finding-category">{{ f.category }} · {% if lang == 'en' %}Ref.{% else %}Réf.{% endif %} SSL-{{ loop.index }}</div>
+        </div>
+        <span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span>
+        {% if f.penalty > 0 %}
+        <div class="finding-penalty">−{{ f.penalty }} pts</div>
+        {% endif %}
+      </div>
+      <div class="finding-body">
+        <div>
+          <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
+          <div class="finding-plain">{{ f.plain_explanation }}</div>
+        </div>
+        <div>
+          <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
+          <div class="finding-reco">{{ f.recommendation }}</div>
+        </div>
+        <div class="finding-tech">{{ f.technical_detail }}</div>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {# ── Ports réseau ────────────────────────────────────────────────────── #}
+    {% if port_findings %}
+    <h2 class="section-inner keep-with">🌐 {% if lang == 'en' %}Network Exposure{% else %}Exposition Réseau{% endif %}</h2>
+    {% for f in port_findings %}
+    <div class="finding-card no-break">
+      <div class="finding-header {{ f.severity | lower }}">
+        <div class="finding-title-block">
+          <div class="finding-title">{{ f.title }}</div>
+          <div class="finding-category">{{ f.category }} · {% if lang == 'en' %}Ref.{% else %}Réf.{% endif %} NET-{{ loop.index }}</div>
+        </div>
+        <span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span>
+        {% if f.penalty > 0 %}
+        <div class="finding-penalty">−{{ f.penalty }} pts</div>
+        {% endif %}
+      </div>
+      <div class="finding-body">
+        <div>
+          <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
+          <div class="finding-plain">{{ f.plain_explanation }}</div>
+        </div>
+        <div>
+          <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
+          <div class="finding-reco">{{ f.recommendation }}</div>
+        </div>
+        <div class="finding-tech">{{ f.technical_detail }}</div>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+  {% else %}
+    <div class="alert-box ok">
+      <div class="alert-icon">✅</div>
+      <div>
+        <div class="alert-title" style="color: #166534;">{% if lang == 'en' %}No vulnerability detected{% else %}Aucune vulnérabilité détectée{% endif %}</div>
+        <div class="alert-text">{% if lang == 'en' %}The passive scan identified no vulnerabilities on the public footprint of {{ domain }}.{% else %}Le scan passif n'a identifié aucune vulnérabilité sur l'empreinte publique de {{ domain }}.{% endif %}</div>
+      </div>
+    </div>
+  {% endif %}
+
+</div><!-- /findings -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ⑤ PLAN D'ACTION IMMÉDIAT
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="section page-break">
+
+  <div class="section-header">
+    <div class="section-number">4</div>
+    <div>
+      <div class="section-title">{% if lang == 'en' %}Immediate Action Plan{% else %}Plan d'Action Immédiat{% endif %}</div>
+      <div class="section-subtitle">{% if lang == 'en' %}3-phase remediation roadmap{% else %}Feuille de route de remédiation en 3 phases{% endif %}</div>
+    </div>
+  </div>
+
+  <p class="lead">
+    {% if lang == 'en' %}
+    The actions below are sorted by decreasing urgency. Phase 1 covers immediate risks
+    (ransomware, phishing, exposed data) that can be exploited within hours.
+    {% else %}
+    Les actions ci-dessous sont classées par urgence décroissante. La phase 1 concerne les risques immédiats
+    (ransomware, phishing, données exposées) qui peuvent être exploités en quelques heures.
+    {% endif %}
+  </p>
+
+  <div class="action-phases no-break">
+    <!-- Phase 1 : Urgences (J+7) -->
+    <div class="action-phase">
+      <div class="phase-header urgent">
+        🚨 Phase 1 — {% if lang == 'en' %}Urgent{% else %}Urgences{% endif %}
+        <span class="phase-deadline">{% if lang == 'en' %}Complete within D+7{% else %}À réaliser avant J+7{% endif %}</span>
+      </div>
+      <div class="phase-body">
+        {% for action in actions.urgent %}
+        <div class="phase-item">
+          <div class="phase-bullet urgent">!</div>
+          <div>{{ action }}</div>
+        </div>
+        {% endfor %}
+        {% if not actions.urgent %}
+        <div class="phase-item" style="color: #16a34a;">
+          <div class="phase-bullet" style="background: #16a34a;">✓</div>
+          <div>{% if lang == 'en' %}No critical urgency identified{% else %}Aucune urgence critique identifiée{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Phase 2 : Corrections importantes (J+30) -->
+    <div class="action-phase">
+      <div class="phase-header important">
+        ⚠️ Phase 2 — {% if lang == 'en' %}Corrections{% else %}Corrections{% endif %}
+        <span class="phase-deadline">{% if lang == 'en' %}Complete within D+30{% else %}À réaliser avant J+30{% endif %}</span>
+      </div>
+      <div class="phase-body">
+        {% for action in actions.important %}
+        <div class="phase-item">
+          <div class="phase-bullet important">2</div>
+          <div>{{ action }}</div>
+        </div>
+        {% endfor %}
+        {% if not actions.important %}
+        <div class="phase-item" style="color: #16a34a;">
+          <div class="phase-bullet" style="background: #16a34a;">✓</div>
+          <div>{% if lang == 'en' %}No urgent correction required{% else %}Aucune correction urgente requise{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Phase 3 : Optimisations (J+90) -->
+    <div class="action-phase">
+      <div class="phase-header optimize">
+        🔧 Phase 3 — {% if lang == 'en' %}Optimizations{% else %}Optimisations{% endif %}
+        <span class="phase-deadline">{% if lang == 'en' %}Plan within D+90{% else %}Planifier sous J+90{% endif %}</span>
+      </div>
+      <div class="phase-body">
+        {% for action in actions.optimize %}
+        <div class="phase-item">
+          <div class="phase-bullet optimize">3</div>
+          <div>{{ action }}</div>
+        </div>
+        {% endfor %}
+        <div class="phase-item">
+          <div class="phase-bullet optimize">→</div>
+          <div>{% if lang == 'en' %}Full audit + penetration test{% else %}Audit complet + test d'intrusion (pentest){% endif %}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tableau récapitulatif des recommandations -->
+  {% if recommendations %}
+  <h2 class="section-inner" style="margin-top: 18pt;">{% if lang == 'en' %}Recommendations Summary{% else %}Récapitulatif des recommandations{% endif %}</h2>
+  <table class="annex-table">
+    <thead>
+      <tr>
+        <th style="width:5%;">#</th>
+        <th>{% if lang == 'en' %}Recommended Action{% else %}Action recommandée{% endif %}</th>
+        <th style="width:20%;">{% if lang == 'en' %}Priority{% else %}Priorité{% endif %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for reco in recommendations %}
+      <tr>
+        <td style="text-align:center; color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
+        <td style="font-family: var(--font); font-size: 9pt;">{{ reco }}</td>
+        <td>
+          {% if loop.index <= actions.urgent | length %}
+            <span class="badge badge-critical">Urgent</span>
+          {% elif loop.index <= (actions.urgent | length + actions.important | length) %}
+            <span class="badge badge-high">Important</span>
+          {% else %}
+            <span class="badge badge-low">{% if lang == 'en' %}Optimization{% else %}Optimisation{% endif %}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+</div><!-- /plan d'action -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ⑥ ANNEXES TECHNIQUES
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="section page-break">
+
+  <div class="section-header">
+    <div class="section-number">5</div>
+    <div>
+      <div class="section-title">{% if lang == 'en' %}Technical Annexes{% else %}Annexes Techniques{% endif %}</div>
+      <div class="section-subtitle">{% if lang == 'en' %}Raw data for your IT provider{% else %}Données brutes pour votre prestataire IT{% endif %}</div>
+    </div>
+  </div>
+
+  <!-- Carte des ports -->
+  <h2 class="section-inner">{% if lang == 'en' %}TCP Port Analysis{% else %}Analyse des ports TCP{% endif %}</h2>
+  {% if port_details %}
+  <table class="annex-table no-break">
+    <thead>
+      <tr>
+        <th>Port</th>
+        <th>Service</th>
+        <th>{% if lang == 'en' %}State{% else %}État{% endif %}</th>
+        <th>{% if lang == 'en' %}Risk{% else %}Risque{% endif %}</th>
+        <th>{% if lang == 'en' %}Action{% else %}Action{% endif %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for port_num, detail in port_details.items() | sort %}
+      <tr>
+        <td style="font-weight: 700;">{{ port_num }}</td>
+        <td>{{ detail.service }}</td>
+        <td>
+          {% if detail.open %}
+            <span class="port-open">● {% if lang == 'en' %}OPEN{% else %}OUVERT{% endif %}</span>
+          {% else %}
+            <span class="port-closed">○ {% if lang == 'en' %}CLOSED{% else %}FERMÉ{% endif %}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if detail.open %}
+            <span class="badge badge-{{ detail.severity | lower if detail.severity in ['CRITICAL','HIGH','MEDIUM','LOW'] else 'info' }}">
+              {{ detail.severity }}
+            </span>
+          {% else %}
+            <span style="color: #94a3b8;">—</span>
+          {% endif %}
+        </td>
+        <td style="font-size: 8pt; color: #64748b;">
+          {% if detail.open and detail.severity == 'CRITICAL' %}
+            {% if lang == 'en' %}Close immediately{% else %}Fermer immédiatement{% endif %}
+          {% elif detail.open and detail.severity == 'HIGH' %}
+            {% if lang == 'en' %}Restrict access{% else %}Restreindre l'accès{% endif %}
+          {% elif detail.open %}
+            {% if lang == 'en' %}Monitor{% else %}Surveiller{% endif %}
+          {% else %}
+            OK
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Détails SSL -->
+  <h2 class="section-inner" style="margin-top: 16pt;">{% if lang == 'en' %}SSL Certificate Details{% else %}Détails du certificat SSL{% endif %}</h2>
+  <table class="annex-table no-break">
+    <thead>
+      <tr><th>{% if lang == 'en' %}Parameter{% else %}Paramètre{% endif %}</th><th>{% if lang == 'en' %}Value{% else %}Valeur{% endif %}</th><th>{% if lang == 'en' %}Status{% else %}Statut{% endif %}</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{% if lang == 'en' %}Global status{% else %}Statut global{% endif %}</td>
+        <td>{{ ssl_details.get('status', 'N/A') | upper }}</td>
+        <td>
+          {% if ssl_details.get('status') == 'valid' %}
+            <span class="badge badge-low">OK</span>
+          {% else %}
+            <span class="badge badge-critical">ATTENTION</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% if ssl_details.get('tls_version') %}
+      <tr>
+        <td>Version TLS</td>
+        <td>{{ ssl_details.tls_version }}</td>
+        <td>
+          {% if ssl_details.tls_version in ('TLSv1.2', 'TLSv1.3') %}
+            <span class="badge badge-low">OK</span>
+          {% else %}
+            <span class="badge badge-critical">{% if lang == 'en' %}Obsolete{% else %}Obsolète{% endif %}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endif %}
+      {% if ssl_details.get('expires') %}
+      <tr>
+        <td>{% if lang == 'en' %}Certificate expiry{% else %}Expiration certificat{% endif %}</td>
+        <td>{{ ssl_details.expires }}</td>
+        <td>
+          {% if ssl_details.get('days_left', 0) > 30 %}
+            <span class="badge badge-low">{{ ssl_details.days_left }} {% if lang == 'en' %}days{% else %}jours{% endif %}</span>
+          {% elif ssl_details.get('days_left', 0) > 0 %}
+            <span class="badge badge-medium">{{ ssl_details.days_left }} {% if lang == 'en' %}days{% else %}jours{% endif %}</span>
+          {% else %}
+            <span class="badge badge-critical">{% if lang == 'en' %}EXPIRED{% else %}EXPIRÉ{% endif %}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endif %}
+      {% if ssl_details.get('cipher') %}
+      <tr>
+        <td>{% if lang == 'en' %}Cipher suite{% else %}Suite de chiffrement{% endif %}</td>
+        <td>{{ ssl_details.cipher }}</td>
+        <td><span class="badge badge-info">INFO</span></td>
+      </tr>
+      {% endif %}
+      {% if ssl_details.get('issuer') %}
+      <tr>
+        <td>{% if lang == 'en' %}Issuer (CA){% else %}Émetteur (CA){% endif %}</td>
+        <td>{{ ssl_details.issuer.get('organizationName', ssl_details.issuer.get('O', 'N/A')) }}</td>
+        <td><span class="badge badge-info">INFO</span></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <!-- DNS brut -->
+  <h2 class="section-inner" style="margin-top: 16pt;">{% if lang == 'en' %}DNS Records{% else %}Enregistrements DNS{% endif %}</h2>
+  <table class="annex-table no-break">
+    <thead>
+      <tr><th>Type</th><th>{% if lang == 'en' %}Value / Status{% else %}Valeur / Statut{% endif %}</th><th>{% if lang == 'en' %}Evaluation{% else %}Évaluation{% endif %}</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>SPF</td>
+        <td>
+          {% if dns_details.get('spf', {}).get('records') %}
+            {{ dns_details.spf.records[0][:80] }}{% if dns_details.spf.records[0]|length > 80 %}…{% endif %}
+          {% else %}
+            {% if lang == 'en' %}Absent{% else %}Absent{% endif %}
+          {% endif %}
+        </td>
+        <td>
+          {% set spf_status = dns_details.get('spf', {}).get('status', 'missing') %}
+          {% if spf_status == 'ok' %}
+            <span class="dns-ok">✓ {% if lang == 'en' %}Configured{% else %}Configuré{% endif %}</span>
+          {% elif spf_status == 'misconfigured' %}
+            <span class="dns-error">⚠ {% if lang == 'en' %}Misconfigured{% else %}Mal configuré{% endif %}</span>
+          {% else %}
+            <span class="dns-missing">✗ {% if lang == 'en' %}Missing{% else %}Manquant{% endif %}</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td>DMARC</td>
+        <td>
+          {% if dns_details.get('dmarc', {}).get('records') %}
+            {{ dns_details.dmarc.records[0][:80] }}{% if dns_details.dmarc.records[0]|length > 80 %}…{% endif %}
+          {% else %}
+            {% if lang == 'en' %}Absent{% else %}Absent{% endif %}
+          {% endif %}
+        </td>
+        <td>
+          {% set dmarc_status = dns_details.get('dmarc', {}).get('status', 'missing') %}
+          {% if dmarc_status == 'ok' %}
+            <span class="dns-ok">✓ {% if lang == 'en' %}Configured{% else %}Configuré{% endif %}</span>
+            {% if dns_details.dmarc.get('policy') %}
+              <span style="color: #94a3b8; font-size: 8pt;"> (p={{ dns_details.dmarc.policy }})</span>
+            {% endif %}
+          {% else %}
+            <span class="dns-missing">✗ {% if lang == 'en' %}Missing{% else %}Manquant{% endif %}</span>
+          {% endif %}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Informations de scan -->
+  <h2 class="section-inner" style="margin-top: 16pt;">{% if lang == 'en' %}Scan Metadata{% else %}Métadonnées du scan{% endif %}</h2>
+  <table class="annex-table no-break">
+    <thead>
+      <tr><th>{% if lang == 'en' %}Parameter{% else %}Paramètre{% endif %}</th><th>{% if lang == 'en' %}Value{% else %}Valeur{% endif %}</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>{% if lang == 'en' %}Analyzed domain{% else %}Domaine analysé{% endif %}</td><td>{{ domain }}</td></tr>
+      <tr><td>{% if lang == 'en' %}Scan date{% else %}Date du scan{% endif %}</td><td>{{ scanned_at }}</td></tr>
+      <tr><td>{% if lang == 'en' %}Execution time{% else %}Durée d'exécution{% endif %}</td><td>{{ (scan_duration_ms / 1000) | round(2) }} {% if lang == 'en' %}seconds{% else %}secondes{% endif %}</td></tr>
+      <tr><td>{% if lang == 'en' %}Report reference{% else %}Référence rapport{% endif %}</td><td>{{ scan_id }}</td></tr>
+      <tr><td>{% if lang == 'en' %}Scan type{% else %}Type de scan{% endif %}</td><td>{% if lang == 'en' %}Passive — read-only, no modifications{% else %}Passif — lecture seule, sans modification{% endif %}</td></tr>
+      <tr><td>{% if lang == 'en' %}Executed modules{% else %}Modules exécutés{% endif %}</td><td>DNS (SPF, DMARC) · SSL/TLS · Ports TCP (12 ports)</td></tr>
+    </tbody>
+  </table>
+
+</div><!-- /annexes -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ⑦ SECTIONS PREMIUM (Sous-domaines & Versions vulnérables)
+-->
+{% if is_premium %}
+
+<!-- Sous-domaines & Certificats -->
+{% if subdomain_findings or subdomain_details.get('total_found', 0) > 0 %}
+<div class="section page-break">
+  <div class="section-header">
+    <div class="section-number">★</div>
+    <div>
+      <div class="section-title">{% if lang == 'en' %}Subdomains &amp; SSL Certificates{% else %}Sous-domaines &amp; Certificats SSL{% endif %}</div>
+      <div class="section-subtitle">{% if lang == 'en' %}Analysis via Certificate Transparency (crt.sh){% else %}Analyse via Certificate Transparency (crt.sh){% endif %}</div>
+    </div>
+  </div>
+
+  <!-- Résumé -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10pt;margin-bottom:18pt;">
+    <div style="background:#f0f9ff;border:1pt solid #bae6fd;border-radius:6pt;padding:12pt;text-align:center;">
+      <div style="font-size:22pt;font-weight:800;color:#0369a1;">{{ subdomain_details.get('total_found', 0) }}</div>
+      <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Subdomains detected{% else %}Sous-domaines détectés{% endif %}</div>
+    </div>
+    <div style="background:#f0fdf4;border:1pt solid #bbf7d0;border-radius:6pt;padding:12pt;text-align:center;">
+      <div style="font-size:22pt;font-weight:800;color:#15803d;">{{ subdomain_details.get('subdomains', []) | selectattr('active') | list | length }}</div>
+      <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Active{% else %}Actifs{% endif %}</div>
+    </div>
+    <div style="background:#fef9c3;border:1pt solid #fde047;border-radius:6pt;padding:12pt;text-align:center;">
+      <div style="font-size:22pt;font-weight:800;color:#ca8a04;">{{ subdomain_details.get('orphaned', []) | length }}</div>
+      <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Orphaned{% else %}Orphelins{% endif %}</div>
+    </div>
+    <div style="background:#fef2f2;border:1pt solid #fecaca;border-radius:6pt;padding:12pt;text-align:center;">
+      <div style="font-size:22pt;font-weight:800;color:#dc2626;">{{ subdomain_details.get('expired_certs', []) | length }}</div>
+      <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Expired certs{% else %}Certs expirés{% endif %}</div>
+    </div>
+  </div>
+
+  <!-- Findings sous-domaines -->
+  {% for f in subdomain_findings %}
+  {% if f.severity != 'INFO' %}
+  <div class="finding-card" style="margin-bottom:10pt;">
+    <div class="finding-header">
+      <div class="finding-title-block">
+        <span class="severity-badge severity-{{ f.severity }}">{{ f.severity }}</span>
+        <span class="finding-title">{{ f.title or f.message }}</span>
+      </div>
+      {% if f.penalty %}<span style="color:#ef4444;font-size:8pt;font-weight:700;">−{{ f.penalty }} pts</span>{% endif %}
+    </div>
+    {% if f.plain_explanation %}
+    <div class="finding-explanation">{{ f.plain_explanation }}</div>
+    {% endif %}
+    {% if f.recommendation %}
+    <div class="finding-reco">→ {{ f.recommendation }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+
+  <!-- Table des sous-domaines actifs -->
+  {% if subdomain_details.get('subdomains') %}
+  <div style="margin-top:14pt;">
+    <div style="font-size:9pt;font-weight:700;color:#1e293b;margin-bottom:8pt;">{% if lang == 'en' %}Subdomain details{% else %}Détail des sous-domaines{% endif %}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:8pt;">
+      <thead>
+        <tr style="background:#f1f5f9;">
+          <th style="padding:6pt 8pt;text-align:left;border:1pt solid #e2e8f0;color:#64748b;">{% if lang == 'en' %}Subdomain{% else %}Sous-domaine{% endif %}</th>
+          <th style="padding:6pt 8pt;text-align:left;border:1pt solid #e2e8f0;color:#64748b;">IP</th>
+          <th style="padding:6pt 8pt;text-align:center;border:1pt solid #e2e8f0;color:#64748b;">{% if lang == 'en' %}Status{% else %}Statut{% endif %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sub in subdomain_details.subdomains[:20] %}
+        <tr style="{% if loop.index is even %}background:#f8fafc;{% endif %}">
+          <td style="padding:5pt 8pt;border:1pt solid #e2e8f0;font-family:monospace;font-size:7.5pt;">{{ sub.subdomain }}</td>
+          <td style="padding:5pt 8pt;border:1pt solid #e2e8f0;color:#64748b;font-family:monospace;font-size:7.5pt;">{{ sub.ip or '—' }}</td>
+          <td style="padding:5pt 8pt;border:1pt solid #e2e8f0;text-align:center;">
+            {% if sub.active %}
+            <span style="color:#15803d;font-weight:700;font-size:7pt;">✓ {% if lang == 'en' %}Active{% else %}Actif{% endif %}</span>
+            {% else %}
+            <span style="color:#dc2626;font-weight:700;font-size:7pt;">✗ {% if lang == 'en' %}Orphaned{% else %}Orphelin{% endif %}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if subdomain_details.subdomains | length > 20 %}
+    <div style="font-size:7.5pt;color:#94a3b8;margin-top:5pt;">… {% if lang == 'en' %}and {{ subdomain_details.subdomains | length - 20 }} more subdomains{% else %}et {{ subdomain_details.subdomains | length - 20 }} autres sous-domaines{% endif %}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Versions Vulnérables -->
+{% if vuln_findings or vuln_details.get('detected_stack') %}
+<div class="section page-break">
+  <div class="section-header">
+    <div class="section-number">★</div>
+    <div>
+      <div class="section-title">{% if lang == 'en' %}Tech Stack &amp; Known Vulnerabilities{% else %}Stack Technique &amp; Vulnérabilités Connues{% endif %}</div>
+      <div class="section-subtitle">{% if lang == 'en' %}Versions exposed in HTTP headers cross-referenced with CVEs{% else %}Versions exposées dans les en-têtes HTTP croisées avec les CVE{% endif %}</div>
+    </div>
+  </div>
+
+  <!-- Stack détectée -->
+  {% if vuln_details.get('detected_stack') %}
+  <div style="background:#f8fafc;border:1pt solid #e2e8f0;border-radius:8pt;padding:14pt;margin-bottom:16pt;">
+    <div style="font-size:9pt;font-weight:700;color:#1e293b;margin-bottom:10pt;">{% if lang == 'en' %}Detected technologies{% else %}Technologies identifiées{% endif %}</div>
+    <div style="display:flex;gap:10pt;flex-wrap:wrap;">
+      {% for tech in vuln_details.detected_stack %}
+      <div style="background:#fff;border:1pt solid #e2e8f0;border-radius:5pt;padding:8pt 12pt;">
+        <span style="font-size:9pt;font-weight:700;color:#0f2544;">{{ tech.tech | upper }}</span>
+        <span style="font-size:8pt;color:#64748b;margin-left:4pt;">{{ tech.version }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% if vuln_details.get('server_header') %}
+    <div style="margin-top:8pt;font-size:7.5pt;color:#94a3b8;font-family:monospace;">Server: {{ vuln_details.server_header }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Findings CVE -->
+  {% if vuln_findings %}
+  {% for f in vuln_findings %}
+  <div class="finding-card" style="margin-bottom:10pt;">
+    <div class="finding-header">
+      <div class="finding-title-block">
+        <span class="severity-badge severity-{{ f.severity }}">{{ f.severity }}</span>
+        <span class="finding-title">{{ f.title or f.message }}</span>
+      </div>
+      {% if f.penalty %}<span style="color:#ef4444;font-size:8pt;font-weight:700;">−{{ f.penalty }} pts</span>{% endif %}
+    </div>
+    {% if f.technical_detail %}
+    <div class="finding-detail">{{ f.technical_detail }}</div>
+    {% endif %}
+    {% if f.plain_explanation %}
+    <div class="finding-explanation">{{ f.plain_explanation }}</div>
+    {% endif %}
+    {% if f.recommendation %}
+    <div class="finding-reco">→ {{ f.recommendation }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div style="background:#f0fdf4;border:1pt solid #bbf7d0;border-radius:8pt;padding:14pt;text-align:center;">
+    <div style="color:#15803d;font-weight:700;font-size:10pt;">✓ {% if lang == 'en' %}No vulnerable version detected{% else %}Aucune version vulnérable détectée{% endif %}</div>
+    <div style="color:#64748b;font-size:8pt;margin-top:4pt;">{% if lang == 'en' %}The software versions exposed in HTTP headers do not match any known CVE.{% else %}Les versions de logiciels exposées dans les en-têtes HTTP ne correspondent à aucune CVE connue.{% endif %}</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endif %}{# /is_premium #}
+
+<!--
+     ⑧ PAGE DE CONTACT / CTA
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="section page-break">
+
+  <div class="section-header">
+    <div class="section-number">6</div>
+    <div>
+      <div class="section-title">{% if lang == 'en' %}Next Steps{% else %}Prochaines Étapes{% endif %}</div>
+      <div class="section-subtitle">{% if lang == 'en' %}Turn this report into a concrete action plan{% else %}Transformer ce rapport en plan d'action concret{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="cta-page">
+
+    <div class="cta-logo-block">
+      {% if wb_active and wb_logo %}
+        <img src="{{ wb_logo }}" alt="{{ wb_company }}" style="max-height:48pt; max-width:180pt; object-fit:contain;" />
+      {% else %}
+        <svg viewBox="0 0 34 38" width="36" height="36" fill="none">
+          <path d="M17 1L3 7.5V19C3 27 9.5 34.5 17 37C24.5 34.5 31 27 31 19V7.5L17 1Z"
+                fill="none" stroke="#67e8f9" stroke-width="2"/>
+          <path d="M11 19l4 4 8-8" stroke="#67e8f9" stroke-width="2.2"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      {% endif %}
+    </div>
+
+    {% if not wb_active %}
+    <div class="cta-heading">
+      {{ strings.cta_heading_1 }}<br>
+      <span>{{ strings.cta_heading_2 }}</span>
+    </div>
+
+    <div class="cta-subtext">
+      {{ strings.cta_body }} <strong>{{ strings.cta_body_strong }}</strong>.
+    </div>
+
+    <a href="https://scan.wezea.net/contact" class="cta-button">
+      {{ strings.cta_button }}
+    </a>
+    {% else %}
+    <div class="cta-heading">
+      {% if lang == 'en' %}Report prepared by <span>{{ wb_company }}</span>{% else %}Rapport préparé par <span>{{ wb_company }}</span>{% endif %}
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 18pt; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10pt; width: 100%;">
+      <div style="background: #f8fafc; border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 10pt; text-align: center;">
+        <div style="font-size: 11pt; font-weight: 800; color: #0f2544; margin-bottom: 3pt;">
+          {% if lang == 'en' %}Action plan{% else %}Plan d'action{% endif %}
+        </div>
+        <div style="font-size: 8.5pt; color: #64748b; line-height: 1.4;">
+          {% if lang == 'en' %}Prioritised remediation with cost estimates for each fix{% else %}Remédiation priorisée avec estimation de coût pour chaque correction{% endif %}
+        </div>
+      </div>
+      <div style="background: #f8fafc; border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 10pt; text-align: center;">
+        <div style="font-size: 11pt; font-weight: 800; color: #0f2544; margin-bottom: 3pt;">
+          {% if lang == 'en' %}GDPR Compliance{% else %}Conformité RGPD{% endif %}
+        </div>
+        <div style="font-size: 8.5pt; color: #64748b; line-height: 1.4;">
+          {% if lang == 'en' %}Analysis of legal obligations and fine risks under Article 83{% else %}Analyse des obligations légales et risques d'amendes selon l'article 83{% endif %}
+        </div>
+      </div>
+      <div style="background: #f8fafc; border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 10pt; text-align: center;">
+        <div style="font-size: 11pt; font-weight: 800; color: #0f2544; margin-bottom: 3pt;">
+          {% if lang == 'en' %}Monthly monitoring{% else %}Suivi mensuel{% endif %}
+        </div>
+        <div style="font-size: 8.5pt; color: #64748b; line-height: 1.4;">
+          {% if lang == 'en' %}Automatic monthly re-scan to track score progress{% else %}Re-scan automatique mensuel pour mesurer la progression du score{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="cta-disclaimer">
+      {{ strings.disclaimer.replace('{domain}', domain).replace('{date}', report_date) }}
+      <br><br>
+      {{ strings.copyright.replace('{year}', report_date[-4:]) }}
+    </div>
+  </div>
+
+</div><!-- /CTA -->
+
+</body>
+</html>

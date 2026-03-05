@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nom de domaine expiré : conséquences et comment l'éviter (2026) | Wezea</title>
+  <meta name="description" content="Un nom de domaine expiré peut être racheté par n'importe qui en quelques heures. Découvrez les conséquences réelles, les délais de grâce, et comment surveiller vos renouvellements." />
+  <meta name="keywords" content="nom de domaine expiré, renouvellement domaine, expiration domaine, domaine expiré rachat, surveiller renouvellement domaine, WHOIS expiration" />
+  <link rel="canonical" href="https://wezea.net/blog/expiration-nom-domaine/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type"        content="article" />
+  <meta property="og:title"       content="Nom de domaine expiré : conséquences et comment l'éviter" />
+  <meta property="og:description" content="Un domaine expiré peut être racheté par un concurrent ou un squatter en quelques heures. Voici tout ce qu'il faut savoir pour ne jamais en arriver là." />
+  <meta property="og:url"         content="https://wezea.net/blog/expiration-nom-domaine/" />
+  <meta property="og:image"       content="https://wezea.net/og-image.png" />
+  <meta property="og:site_name"   content="Wezea Security Scanner" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+  <link rel="stylesheet" href="../blog.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Nom de domaine expiré : conséquences et comment l'éviter",
+    "description": "Un domaine expiré peut être racheté par n'importe qui en quelques heures. Découvrez les délais de grâce et comment surveiller vos renouvellements.",
+    "datePublished": "2026-03-05",
+    "dateModified": "2026-03-05",
+    "author": { "@type": "Organization", "name": "Wezea" },
+    "publisher": { "@type": "Organization", "name": "Wezea", "url": "https://wezea.net" },
+    "mainEntityOfPage": "https://wezea.net/blog/expiration-nom-domaine/"
+  }
+  </script>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main class="page">
+
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">Domaine</span>
+      <span class="read-time">5 min de lecture</span>
+      <time datetime="2026-03-05">5 mars 2026</time>
+    </div>
+    <h1>Nom de domaine expiré : conséquences et comment l'éviter</h1>
+    <p class="article-intro">
+      Perdre son nom de domaine est une catastrophe silencieuse. Site inaccessible, emails qui ne partent plus, SEO détruit, identité usurpée par un concurrent ou un squatter. Et tout ça peut arriver parce qu'une carte bancaire a expiré ou qu'un email de rappel a été ignoré.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Sommaire</strong>
+    <ol>
+      <li><a href="#cycle-vie">Le cycle de vie d'un domaine expiré</a></li>
+      <li><a href="#consequences">Conséquences immédiates</a></li>
+      <li><a href="#rachat">Qui peut racheter votre domaine ?</a></li>
+      <li><a href="#recuperer">Récupérer un domaine expiré</a></li>
+      <li><a href="#prevenir">Prévenir l'expiration</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="cycle-vie">Le cycle de vie d'un domaine expiré</h2>
+    <p>
+      Quand un domaine expire, il ne devient pas immédiatement disponible pour tous. Il passe par plusieurs phases réglementées (les délais varient selon le TLD — .com, .be, .fr, etc.) :
+    </p>
+
+    <h3>Phase 1 — Période de grâce (0 à 40 jours)</h3>
+    <p>
+      Le domaine expire mais le propriétaire peut encore le renouveler au tarif normal. Le site peut devenir inaccessible ou être redirigé vers une page "domain expired" de votre registrar. Les emails continuent souvent de fonctionner pendant cette période.
+    </p>
+
+    <h3>Phase 2 — Période de rachat / Redemption (40 à 75 jours)</h3>
+    <p>
+      Votre registrar peut encore vous restituer le domaine, mais avec un surcoût important (souvent 100-300€). Le domaine est techniquement "suspendu" — il n'est plus résolu.
+    </p>
+
+    <h3>Phase 3 — Période de suppression (75 à 80 jours)</h3>
+    <p>
+      Le domaine entre dans une file d'attente avant d'être libéré. C'est ici que les outils de "domain drop catching" prennent position.
+    </p>
+
+    <h3>Phase 4 — Libération</h3>
+    <p>
+      Le domaine est de nouveau disponible à l'enregistrement pour n'importe qui. En quelques minutes, des robots automatisés peuvent le capturer.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Les .be et .fr ont des règles différentes</strong><br/>
+        Les TLD nationaux belges (.be) et français (.fr) ont leurs propres délais, souvent plus courts. DNS Belgium peut libérer un domaine .be en quelques semaines après expiration.
+      </div>
+    </div>
+
+    <h2 id="consequences">Conséquences immédiates d'une expiration</h2>
+
+    <h3>Votre site web disparaît</h3>
+    <p>
+      Sans résolution DNS active, votre site devient inaccessible. Tous les liens entrants (backlinks SEO, QR codes sur vos documents, signatures email) mènent vers une erreur ou une page de stationnement.
+    </p>
+
+    <h3>Vos emails ne fonctionnent plus</h3>
+    <p>
+      Si votre messagerie dépend du domaine (<code>vous@votredomaine.com</code>), les emails envoyés vers votre adresse rebondissent. Les emails que vous envoyez peuvent également être rejetés par les serveurs destinataires si les DNS ne répondent plus.
+    </p>
+
+    <h3>Votre SEO s'effondre</h3>
+    <p>
+      Google déindex rapidement les pages qui renvoient des erreurs. Selon la durée d'inaccessibilité, la perte de positionnement peut être irréversible — des années de travail SEO effacés en quelques semaines.
+    </p>
+
+    <h3>Vos intégrations cassent</h3>
+    <p>
+      OAuth, webhooks, APIs tierces configurées avec votre domaine cessent de fonctionner. Paiements Stripe, notifications, CRM — tout ce qui utilise votre domaine comme endpoint ou callback tombe en erreur.
+    </p>
+
+    <h2 id="rachat">Qui peut racheter votre domaine ?</h2>
+
+    <h3>Les squatters de domaines</h3>
+    <p>
+      Des individus utilisent des outils automatisés pour surveiller les domaines qui vont expirer et les capturer à la milliseconde de leur libération. Ils les revendent ensuite à prix fort — parfois des milliers d'euros.
+    </p>
+
+    <h3>Vos concurrents</h3>
+    <p>
+      Un concurrent peut acheter votre domaine expiré et l'utiliser pour récupérer votre trafic, rediriger vos clients vers son site, ou créer de la confusion dans votre marché.
+    </p>
+
+    <h3>Des acteurs malveillants</h3>
+    <p>
+      Votre domaine a une réputation email construite sur des années. Un spammeur qui le rachète peut l'utiliser pour des campagnes malveillantes — et vos anciens clients recevront des emails frauduleux qui semblent venir de vous.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Rachat forcé impossible</strong><br/>
+        Une fois le domaine libéré et enregistré par quelqu'un d'autre, il est très difficile de le récupérer légalement — sauf via une procédure UDRP coûteuse et longue, réservée aux marques déposées.
+      </div>
+    </div>
+
+    <h2 id="recuperer">Récupérer un domaine expiré</h2>
+    <p>
+      Si votre domaine est encore en période de grâce ou de rachat chez votre registrar :
+    </p>
+    <ol>
+      <li>Connectez-vous immédiatement à votre compte registrar</li>
+      <li>Vérifiez l'option de rachat (Redemption) — attendez-vous à payer un surcoût</li>
+      <li>Mettez à jour votre moyen de paiement avant de valider</li>
+      <li>Vérifiez que le renouvellement automatique est activé pour l'avenir</li>
+    </ol>
+    <p>
+      Si le domaine a déjà été capturé par un tiers, vos options sont limitées : contacter le nouveau propriétaire pour un rachat amiable, ou lancer une procédure UDRP si vous avez une marque déposée.
+    </p>
+
+    <h2 id="prevenir">Prévenir l'expiration : les bonnes pratiques</h2>
+
+    <h3>Activer le renouvellement automatique</h3>
+    <p>
+      C'est la mesure numéro un. Tous les registrars proposent le renouvellement automatique. Activez-le systématiquement et assurez-vous que le moyen de paiement associé est valide et à jour.
+    </p>
+
+    <h3>Renouveler pour plusieurs années</h3>
+    <p>
+      Renouvelez vos domaines stratégiques pour 5 à 10 ans. Cela réduit le risque d'oubli et protège contre les hausses tarifaires des registrars.
+    </p>
+
+    <h3>Maintenir les coordonnées à jour</h3>
+    <p>
+      Votre registrar envoie des rappels d'expiration par email. Si cette adresse email n'existe plus ou n'est plus surveillée, vous ne recevez rien. Vérifiez régulièrement les coordonnées enregistrées pour chaque domaine.
+    </p>
+
+    <h3>Utiliser un monitoring automatique</h3>
+    <p>
+      Un outil de monitoring de domaine surveille la date d'expiration WHOIS et vous alerte plusieurs semaines à l'avance, indépendamment des rappels du registrar.
+    </p>
+
+    <div class="callout callout-ok">
+      <span class="callout-icon">OK</span>
+      <div class="callout-body">
+        <strong>Règle des 60 jours</strong><br/>
+        Renouvelez votre domaine au minimum 60 jours avant son expiration. Vous avez ainsi largement le temps de régler tout problème de paiement ou d'accès à votre compte registrar.
+      </div>
+    </div>
+
+    <div class="cta-block">
+      <p>Vérifiez la date d'expiration de votre domaine :</p>
+      <a href="https://wezea.net" class="btn-cta">→ Auditer mon domaine gratuitement</a>
+    </div>
+
+
+    <div class="related">
+      <p class="related-title">Lire aussi</p>
+      <div class="related-grid">
+      <a href="/blog/dns-hijacking/" class="related-card">DNS Hijacking : comment votre domaine peut être détourné</a>
+      <a href="/blog/protection-phishing-domaine/" class="related-card">Protéger son domaine contre le phishing</a>
+      <a href="/blog/audit-securite-domaine/" class="related-card">Audit de sécurité de domaine : ce que ça vérifie vraiment</a>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="/footer.js"></script>
+</body>
+</html>

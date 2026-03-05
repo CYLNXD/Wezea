@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Certificat SSL expiré : conséquences, détection et renouvellement (2026) | Wezea</title>
+  <meta name="description" content="Un certificat SSL expiré fait afficher une erreur de sécurité à vos visiteurs et nuit à votre référencement. Découvrez les conséquences, comment détecter l'expiration et comment renouveler rapidement." />
+  <meta name="keywords" content="certificat SSL expiré, renouveler certificat SSL, erreur SSL site web, HTTPS sécurité, Let's Encrypt renouvellement, SSL TLS PME" />
+  <link rel="canonical" href="https://wezea.net/blog/certificat-ssl-expire/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type"        content="article" />
+  <meta property="og:title"       content="Certificat SSL expiré : conséquences, détection et renouvellement" />
+  <meta property="og:description" content="Un SSL expiré fait fuir vos visiteurs et pénalise votre SEO. Voici comment le détecter, comprendre les risques et renouveler rapidement." />
+  <meta property="og:url"         content="https://wezea.net/blog/certificat-ssl-expire/" />
+  <meta property="og:image"       content="https://wezea.net/og-image.png" />
+  <meta property="og:site_name"   content="Wezea Security Scanner" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+  <link rel="stylesheet" href="../blog.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Certificat SSL expiré : conséquences, détection et renouvellement",
+    "description": "Un certificat SSL expiré fait afficher une erreur de sécurité à vos visiteurs et nuit à votre référencement.",
+    "datePublished": "2026-03-05",
+    "dateModified": "2026-03-05",
+    "author": { "@type": "Organization", "name": "Wezea" },
+    "publisher": { "@type": "Organization", "name": "Wezea", "url": "https://wezea.net" },
+    "mainEntityOfPage": "https://wezea.net/blog/certificat-ssl-expire/"
+  }
+  </script>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main class="page">
+
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">SSL / TLS</span>
+      <span class="read-time">6 min de lecture</span>
+      <time datetime="2026-03-05">5 mars 2026</time>
+    </div>
+    <h1>Certificat SSL expiré : conséquences, détection et renouvellement</h1>
+    <p class="article-intro">
+      Votre certificat SSL a expiré — ou va expirer dans quelques jours. Résultat : une page d'avertissement rouge s'affiche chez vos visiteurs, votre taux de rebond explose, et Google rétrograde votre site. Voici tout ce que vous devez savoir pour agir vite.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Sommaire</strong>
+    <ol>
+      <li><a href="#cest-quoi">Qu'est-ce qu'un certificat SSL ?</a></li>
+      <li><a href="#consequences">Conséquences d'un SSL expiré</a></li>
+      <li><a href="#detection">Comment détecter l'expiration</a></li>
+      <li><a href="#renouvellement">Comment renouveler son certificat</a></li>
+      <li><a href="#automatiser">Automatiser le renouvellement</a></li>
+      <li><a href="#checker">Vérifier son domaine en 60 secondes</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="cest-quoi">Qu'est-ce qu'un certificat SSL ?</h2>
+    <p>
+      Un certificat SSL (ou TLS, son successeur technique) est un fichier numérique qui authentifie l'identité de votre site web et chiffre les données échangées entre le navigateur du visiteur et votre serveur. C'est ce qui permet l'affichage du cadenas dans la barre d'adresse et l'utilisation du protocole <code>https://</code>.
+    </p>
+    <p>
+      Un certificat a une durée de validité limitée — généralement <strong>90 jours pour Let's Encrypt</strong> et jusqu'à <strong>1 an pour les certificats commerciaux</strong>. Passé cette date, il expire et les navigateurs le rejettent immédiatement.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Durée maximale depuis 2020</strong><br/>
+        Apple, Google et Mozilla ont imposé une limite de 398 jours pour tous les certificats SSL publics. Depuis 2023, la tendance est à des certificats de 90 jours renouvelés automatiquement.
+      </div>
+    </div>
+
+    <h2 id="consequences">Conséquences d'un certificat SSL expiré</h2>
+
+    <h3>1. Vos visiteurs voient une page d'erreur bloquante</h3>
+    <p>
+      Chrome affiche <em>"Votre connexion n'est pas privée"</em> avec un avertissement rouge (<code>NET::ERR_CERT_DATE_INVALID</code>). Firefox affiche <em>"Attention : risque probable de sécurité"</em>. La majorité des visiteurs ne contournent pas ces avertissements — ils ferment l'onglet.
+    </p>
+
+    <h3>2. Impact direct sur votre chiffre d'affaires</h3>
+    <p>
+      Les études montrent qu'un avertissement SSL fait fuir <strong>85 % des visiteurs</strong>. Pour un site e-commerce ou SaaS, chaque heure d'expiration non détectée représente des ventes perdues. Les formulaires de contact ne fonctionnent plus, les paiements échouent, les inscriptions s'arrêtent.
+    </p>
+
+    <h3>3. Pénalité SEO</h3>
+    <p>
+      Google utilise HTTPS comme signal de classement depuis 2014. Un site en HTTP (ou avec SSL invalide) est pénalisé dans les résultats de recherche. De plus, Google Search Console remonte des erreurs de crawl sur les pages inaccessibles, ce qui dégrade l'indexation globale du site.
+    </p>
+
+    <h3>4. Rupture des intégrations techniques</h3>
+    <p>
+      Les API, webhooks, et outils tiers (CRM, analytics, paiement) refusent de communiquer avec un endpoint dont le certificat est invalide. Stripe, Brevo, HubSpot — tous vérifient la validité SSL avant chaque appel.
+    </p>
+
+    <h3>5. Atteinte à la réputation</h3>
+    <p>
+      Un SSL expiré signale un manque de sérieux dans la gestion technique. Pour une agence web ou une société qui gère des données clients, c'est particulièrement dommageable. Vos clients remarquent — et en parlent.
+    </p>
+
+    <div class="cta-block">
+      <p>Votre SSL est-il encore valide ? Vérifiez en 60 secondes :</p>
+      <a href="https://wezea.net" class="btn-cta">→ Scanner mon domaine gratuitement</a>
+    </div>
+
+    <h2 id="detection">Comment détecter l'expiration d'un certificat SSL</h2>
+
+    <h3>Via le navigateur</h3>
+    <p>
+      Sur Chrome, cliquez sur le cadenas (ou l'icône d'avertissement) dans la barre d'adresse → <em>La connexion est sécurisée</em> → <em>Le certificat est valide</em>. Vous verrez la date d'expiration exacte.
+    </p>
+
+    <h3>Via la ligne de commande</h3>
+    <div class="code-block">
+      <pre><code>openssl s_client -connect votre-domaine.com:443 -servername votre-domaine.com &lt;/dev/null 2>/dev/null \
+  | openssl x509 -noout -dates</code></pre>
+    </div>
+    <p>La sortie affiche <code>notBefore</code> (date d'émission) et <code>notAfter</code> (date d'expiration).</p>
+
+    <h3>Via un outil automatisé</h3>
+    <p>
+      Les outils de monitoring comme Wezea vérifient automatiquement la validité SSL de vos domaines et vous alertent avant l'expiration. Fini les découvertes catastrophiques un lundi matin.
+    </p>
+
+    <h2 id="renouvellement">Comment renouveler son certificat SSL</h2>
+
+    <h3>Let's Encrypt (gratuit, le plus courant)</h3>
+    <p>
+      Let's Encrypt émet des certificats gratuits valables 90 jours. La commande de renouvellement dépend de votre configuration :
+    </p>
+    <div class="code-block">
+      <pre><code># Avec Certbot (le client Let's Encrypt officiel)
+sudo certbot renew
+
+# Forcer le renouvellement même si le certificat est encore valide
+sudo certbot renew --force-renewal</code></pre>
+    </div>
+    <p>
+      Après renouvellement, rechargez nginx ou Apache pour qu'il prenne en compte le nouveau certificat :
+    </p>
+    <div class="code-block">
+      <pre><code>sudo systemctl reload nginx
+# ou
+sudo systemctl reload apache2</code></pre>
+    </div>
+
+    <h3>Certificat commercial (payant)</h3>
+    <p>
+      Pour les certificats issus d'une autorité commerciale (DigiCert, Sectigo, GlobalSign), le processus passe par votre hébergeur ou revendeur. Vous recevez généralement un email de rappel 30 jours avant l'expiration — si vous avez configuré les alertes.
+    </p>
+
+    <h3>Hébergement managé (OVH, Cloudflare, etc.)</h3>
+    <p>
+      La plupart des hébergeurs gèrent le renouvellement automatiquement si vous utilisez leur service SSL intégré. Vérifiez dans votre panneau de contrôle que l'option "renouvellement automatique" est bien activée.
+    </p>
+
+    <h2 id="automatiser">Automatiser le renouvellement : les bonnes pratiques</h2>
+
+    <h3>Configurer un cron job Certbot</h3>
+    <p>
+      Certbot installe généralement un timer systemd ou une entrée cron qui tente le renouvellement deux fois par jour. Vérifiez qu'il est actif :
+    </p>
+    <div class="code-block">
+      <pre><code># Vérifier le timer systemd
+systemctl status certbot.timer
+
+# Ou vérifier le cron
+crontab -l | grep certbot</code></pre>
+    </div>
+
+    <h3>Mettre en place des alertes préventives</h3>
+    <p>
+      Ne comptez pas uniquement sur le renouvellement automatique. Configurez des alertes email 30 et 7 jours avant l'expiration. Un outil de monitoring de domaine peut faire ça pour vous automatiquement.
+    </p>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">INFO</span>
+      <div class="callout-body">
+        <strong>Règle des 3 semaines</strong><br/>
+        Renouvelez toujours votre certificat au moins 21 jours avant son expiration. Cela laisse du temps pour diagnostiquer un problème si le renouvellement automatique échoue silencieusement.
+      </div>
+    </div>
+
+    <h3>Tester régulièrement</h3>
+    <p>
+      Un renouvellement automatique peut échouer sans que personne ne s'en rende compte : problème de DNS, changement de configuration serveur, quota Let's Encrypt atteint. Incluez une vérification SSL dans votre routine de monitoring.
+    </p>
+
+    <h2 id="checker">Vérifier l'état SSL de votre domaine en 60 secondes</h2>
+    <p>
+      Wezea analyse votre certificat SSL en profondeur : date d'expiration, chaîne de certification, algorithme de chiffrement, support TLS 1.2/1.3, HSTS. Vous obtenez un score de sécurité et des recommandations concrètes.
+    </p>
+
+    <div class="cta-block">
+      <p>Diagnostic SSL complet de votre domaine, gratuit :</p>
+      <a href="https://wezea.net" class="btn-cta">→ Analyser mon certificat SSL</a>
+    </div>
+
+
+    <div class="related">
+      <p class="related-title">Lire aussi</p>
+      <div class="related-grid">
+      <a href="/blog/audit-securite-domaine/" class="related-card">Audit de sécurité de domaine : ce que ça vérifie vraiment</a>
+      <a href="/blog/score-securite-domaine/" class="related-card">Comment interpréter un score de sécurité de domaine</a>
+      <a href="/blog/securite-wordpress-checklist/" class="related-card">Sécuriser WordPress : checklist complète 2026</a>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="/footer.js"></script>
+</body>
+</html>

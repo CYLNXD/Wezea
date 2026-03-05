@@ -1,0 +1,1813 @@
+// ─── ClientSpace.tsx — Espace Client Pro ──────────────────────────────────────
+//
+// 4 onglets :
+//   overview    → KPIs globaux + cartes domaines avec sparklines
+//   monitoring  → CRUD domaines + seuil d'alerte éditable inline
+//   history     → Historique des scans avec graphique + filtres par domaine
+//   settings    → Profil & Sécurité, Facturation, Zone dangereuse
+//
+import { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Globe, Shield, FileDown, Bell,
+  BarChart2, Plus, Trash2, RefreshCw, X, Check,
+  AlertTriangle, Clock, TrendingUp, TrendingDown, Minus,
+  Settings, Mail, Key, CreditCard,
+} from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { apiClient, getWhiteLabel, updateWhiteLabel, uploadWhiteLabelLogo, deleteWhiteLabelLogo } from '../lib/api';
+import type { WhiteLabelSettings } from '../lib/api';
+import { useLanguage } from '../i18n/LanguageContext';
+import PricingModal from '../components/PricingModal';
+import PageNavbar from '../components/PageNavbar';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface MonitoredDomain {
+  domain:               string;
+  last_score:           number | null;
+  last_risk_level:      string | null;
+  last_scan_at:         string | null;
+  alert_threshold:      number;
+  is_active:            boolean;
+  checks_config:        Record<string, boolean>;
+  created_at:           string;
+  // Feature 2 — Surveillance élargie
+  last_ssl_expiry_days: number | null;
+  last_open_ports:      string[] | null;
+  last_technologies:    Record<string, string> | null;
+  // Feature 3 — Scan programmé
+  scan_frequency:       'weekly' | 'biweekly' | 'monthly';
+  email_report:         boolean;
+}
+
+const CHECK_LABELS: { key: string; label: string }[] = [
+  { key: 'ssl',        label: 'SSL' },
+  { key: 'dns',        label: 'DNS' },
+  { key: 'ports',      label: 'Ports' },
+  { key: 'headers',    label: 'Headers' },
+  { key: 'email',      label: 'Email' },
+  { key: 'tech',       label: 'Tech' },
+  { key: 'reputation', label: 'Réput.' },
+];
+
+interface ScanHistoryItem {
+  id:              number;
+  scan_uuid:       string;
+  domain:          string;
+  security_score:  number;
+  risk_level:      string;
+  findings_count:  number;
+  scan_duration:   number;
+  created_at:      string;
+}
+
+interface ScanFinding {
+  category:         string;
+  severity:         string;
+  title?:           string;
+  message?:         string;
+  plain_explanation?: string;
+  technical_detail?:  string;
+  recommendation?:    string;
+  penalty?:           number;
+}
+
+interface ScanDetail {
+  scan_uuid:       string;
+  domain:          string;
+  security_score:  number;
+  risk_level:      string;
+  findings:        ScanFinding[];
+  created_at:      string;
+  scan_duration:   number;
+}
+
+type Tab = 'overview' | 'monitoring' | 'history' | 'settings';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers visuels
+// ─────────────────────────────────────────────────────────────────────────────
+
+const scoreColor = (s: number | null) =>
+  s === null ? 'text-slate-500'
+  : s >= 70   ? 'text-green-400'
+  : s >= 40   ? 'text-orange-400'
+  : 'text-red-400';
+
+const scoreBorder = (s: number | null) =>
+  s === null ? 'border-slate-700 bg-slate-900'
+  : s >= 70   ? 'border-green-500/30 bg-green-500/5'
+  : s >= 40   ? 'border-orange-500/30 bg-orange-500/5'
+  : 'border-red-500/30 bg-red-500/5';
+
+function RiskBadge({ level }: { level: string | null }) {
+  if (!level) return <span className="text-slate-600 text-xs font-mono">—</span>;
+  const cfg: Record<string, string> = {
+    CRITICAL: 'bg-red-500/15 text-red-400 border-red-500/30',
+    HIGH:     'bg-orange-500/15 text-orange-400 border-orange-500/30',
+    MEDIUM:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+    LOW:      'bg-blue-500/15 text-blue-400 border-blue-500/30',
+    MINIMAL:  'bg-green-500/15 text-green-400 border-green-500/30',
+  };
+  return (
+    <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${cfg[level] ?? 'text-slate-400 border-slate-700'}`}>
+      {level}
+    </span>
+  );
+}
+
+// Sparkline SVG simple (0–100, pas d'axe)
+function Sparkline({ scores, width = 80, height = 32 }: { scores: number[]; width?: number; height?: number }) {
+  if (scores.length < 2) return <span className="text-slate-700 text-xs font-mono">—</span>;
+
+  const pts = scores.map((v, i) => {
+    const x = (i / (scores.length - 1)) * width;
+    const y = height - (Math.max(0, Math.min(100, v)) / 100) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  const last  = scores[scores.length - 1];
+  const first = scores[0];
+  const c = last >= 70 ? '#34d399' : last >= 40 ? '#fb923c' : '#f87171';
+  const lastX = width;
+  const lastY = height - (Math.max(0, Math.min(100, last)) / 100) * height;
+
+  const trend = last > first + 2 ? 'up' : last < first - 2 ? 'down' : 'stable';
+  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
+  const trendColor = trend === 'up' ? 'text-green-400' : trend === 'down' ? 'text-red-400' : 'text-slate-500';
+
+  return (
+    <div className="flex items-center gap-2">
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width, height }} className="shrink-0 overflow-visible">
+        <polyline
+          points={pts}
+          fill="none"
+          stroke={c}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="2.5" fill={c} />
+      </svg>
+      <TrendIcon size={12} className={trendColor} />
+    </div>
+  );
+}
+
+// Graphique pleine largeur pour l'onglet Historique
+function ScoreLineChart({ scans, lang }: { scans: ScanHistoryItem[]; lang: 'fr' | 'en' }) {
+  if (scans.length < 2) return null;
+  const W = 600, H = 100, PAD = 16;
+  const sorted = [...scans].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const pts = sorted.map((s, i) => {
+    const x = PAD + (i / (sorted.length - 1)) * (W - PAD * 2);
+    const y = PAD + (1 - s.security_score / 100) * (H - PAD * 2);
+    return { x, y, score: s.security_score, date: s.created_at };
+  });
+  const polyline = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const last = pts[pts.length - 1].score;
+  const c = last >= 70 ? '#34d399' : last >= 40 ? '#fb923c' : '#f87171';
+
+  return (
+    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }}>
+        {/* Grid lignes horizontales */}
+        {[25, 50, 75].map(v => {
+          const y = PAD + (1 - v / 100) * (H - PAD * 2);
+          return (
+            <g key={v}>
+              <line x1={PAD} y1={y} x2={W - PAD} y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+              <text x={PAD - 4} y={y + 3} fill="#475569" fontSize="8" textAnchor="end">{v}</text>
+            </g>
+          );
+        })}
+        {/* Ligne */}
+        <polyline points={polyline} fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Points */}
+        {pts.map((p, i) => (
+          <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="3.5" fill={c} stroke="#0f1520" strokeWidth="1.5" />
+        ))}
+      </svg>
+      <div className="flex justify-between mt-1">
+        <span className="text-slate-700 text-[10px] font-mono">{new Date(sorted[0].created_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB')}</span>
+        <span className="text-slate-700 text-[10px] font-mono">{new Date(sorted[sorted.length - 1].created_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB')}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Composant principal
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface Props {
+  onBack: () => void;
+  onGoHistory?: () => void;
+  onGoAdmin?: () => void;
+  onGoContact?: () => void;
+}
+
+export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContact }: Props) {
+  const { user, deleteAccount, getPortalUrl, logout } = useAuth();
+  const { lang } = useLanguage();
+
+  const [tab, setTab]                   = useState<Tab>('overview');
+  const [domains, setDomains]           = useState<MonitoredDomain[]>([]);
+  const [history, setHistory]           = useState<ScanHistoryItem[]>([]);
+  const [loading, setLoading]           = useState(true);
+
+  // Monitoring form
+  const [newDomain, setNewDomain]       = useState('');
+  const [addError, setAddError]         = useState('');
+  const [addLoading, setAddLoading]     = useState(false);
+  // Add-domain form config
+  const [newDomainChecks, setNewDomainChecks] = useState<Record<string, boolean>>(
+    Object.fromEntries(CHECK_LABELS.map(({ key }) => [key, true]))
+  );
+  const [newDomainFrequency, setNewDomainFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly');
+  const [newDomainEmailReport, setNewDomainEmailReport] = useState(false);
+
+  // Threshold inline edit
+  const [editingThreshold, setEditingThreshold] = useState<string | null>(null);
+  const [thresholdValue, setThresholdValue]     = useState(10);
+
+  // PDF
+  const [pdfLoading, setPdfLoading]     = useState<string | null>(null);
+  const [_pdfError, setPdfError]        = useState<string | null>(null);
+
+  // Scan result modal
+  const [scanModal, setScanModal]       = useState<ScanDetail | null>(null);
+  const [scanModalLoading, setScanModalLoading] = useState<string | null>(null);
+
+  // Checks config editing (per domain)
+  const [pendingChecks, setPendingChecks] = useState<Record<string, Record<string, boolean>>>({});
+  const [checksLoading, setChecksLoading] = useState<string | null>(null);
+
+  // History filter
+  const [historyDomain, setHistoryDomain] = useState<string>('all');
+
+  // Settings sub-section
+  const [settingsSection, setSettingsSection] = useState<'profile' | 'billing' | 'whitelabel' | 'danger'>('profile');
+
+  // White-label state
+  const [wb, setWb]                     = useState<WhiteLabelSettings | null>(null);
+  const [wbLoading, setWbLoading]       = useState(false);
+  const [wbSaving, setWbSaving]         = useState(false);
+  const [wbMsg, setWbMsg]               = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [wbName, setWbName]             = useState('');
+  const [wbColor, setWbColor]           = useState('#22d3ee');
+  const [wbEnabled, setWbEnabled]       = useState(false);
+  const [wbLogoUploading, setWbLogoUploading] = useState(false);
+  // Change email form
+  const [newEmail, setNewEmail]           = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailLoading, setEmailLoading]   = useState(false);
+  const [emailMsg, setEmailMsg]           = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  // Change password form
+  const [currentPwd, setCurrentPwd]       = useState('');
+  const [newPwd, setNewPwd]               = useState('');
+  const [confirmPwd, setConfirmPwd]       = useState('');
+  const [pwdLoading, setPwdLoading]       = useState(false);
+  const [pwdMsg, setPwdMsg]               = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  // Billing
+  const [portalLoading, setPortalLoading] = useState(false);
+  // Delete account modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword]   = useState('');
+  const [deleteLoading, setDeleteLoading]     = useState(false);
+  const [deleteError, setDeleteError]         = useState('');
+
+  const [pricingModalOpen, setPricingModalOpen] = useState(false);
+  const isPremium = user?.plan === 'starter' || user?.plan === 'pro';
+  const planLimit = user?.plan === 'starter' ? 1 : null; // null = illimité (pro/team)
+
+  // ── Data fetching ──────────────────────────────────────────────────────────
+
+  const fetchDomains = useCallback(async () => {
+    if (!isPremium) return;
+    try {
+      const { data } = await apiClient.get('/monitoring/domains');
+      setDomains(data);
+    } catch { /* silencieux */ }
+  }, [isPremium]);
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get('/scans/history?limit=20');
+      setHistory(data.scans ?? []);
+    } catch { /* silencieux */ }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([fetchDomains(), fetchHistory()]).finally(() => setLoading(false));
+  }, [fetchDomains, fetchHistory]);
+
+  // Charger les settings white-label si plan Pro
+  useEffect(() => {
+    if (!user || !['pro', 'team'].includes(user.plan)) return;
+    setWbLoading(true);
+    getWhiteLabel()
+      .then(data => {
+        setWb(data);
+        setWbEnabled(data.enabled);
+        setWbName(data.company_name ?? '');
+        setWbColor(data.primary_color ?? '#22d3ee');
+      })
+      .catch(() => {})
+      .finally(() => setWbLoading(false));
+  }, [user]);
+
+  // ── Monitoring actions ─────────────────────────────────────────────────────
+
+  const addDomain = async () => {
+    const d = newDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (!d) return;
+    setAddLoading(true);
+    setAddError('');
+    try {
+      await apiClient.post('/monitoring/domains', { domain: d });
+      // Apply non-default config immediately after creation
+      const allEnabled = CHECK_LABELS.every(({ key }) => newDomainChecks[key] !== false);
+      const isDefaultFreq = newDomainFrequency === 'weekly';
+      const isDefaultEmail = !newDomainEmailReport;
+      if (!allEnabled || !isDefaultFreq || !isDefaultEmail) {
+        await apiClient.patch(`/monitoring/domains/${d}`, {
+          checks_config:  newDomainChecks,
+          scan_frequency: newDomainFrequency,
+          email_report:   newDomainEmailReport,
+        });
+      }
+      setNewDomain('');
+      setNewDomainChecks(Object.fromEntries(CHECK_LABELS.map(({ key }) => [key, true])));
+      setNewDomainFrequency('weekly');
+      setNewDomainEmailReport(false);
+      await fetchDomains();
+    } catch (err: any) {
+      setAddError(err?.response?.data?.detail?.error ?? (lang === 'fr' ? 'Erreur lors de l\'ajout' : 'Error adding domain'));
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const removeDomain = async (domain: string) => {
+    try {
+      await apiClient.delete(`/monitoring/domains/${domain}`);
+      await fetchDomains();
+    } catch { /* silencieux */ }
+  };
+
+  const saveThreshold = async (domain: string) => {
+    try {
+      await apiClient.patch(`/monitoring/domains/${domain}`, { alert_threshold: thresholdValue });
+      setEditingThreshold(null);
+      await fetchDomains();
+    } catch { /* silencieux */ }
+  };
+
+  const toggleCheck = async (d: MonitoredDomain, key: string) => {
+    const current = pendingChecks[d.domain] ?? d.checks_config;
+    const updated = { ...current, [key]: !current[key] };
+    // Mise à jour optimiste
+    setPendingChecks(prev => ({ ...prev, [d.domain]: updated }));
+    setChecksLoading(d.domain + ':' + key);
+    try {
+      await apiClient.patch(`/monitoring/domains/${d.domain}`, { checks_config: updated });
+      await fetchDomains();
+      // Nettoyer l'état pending après refresh
+      setPendingChecks(prev => { const n = { ...prev }; delete n[d.domain]; return n; });
+    } catch {
+      // Rollback
+      setPendingChecks(prev => ({ ...prev, [d.domain]: current }));
+    } finally {
+      setChecksLoading(null);
+    }
+  };
+
+  // ── PDF ────────────────────────────────────────────────────────────────────
+
+  const generatePdf = async (scanUuid: string, domain: string) => {
+    setPdfLoading(scanUuid);
+    setPdfError(null);
+    try {
+      const { data: scanData } = await apiClient.get(`/scans/history/${scanUuid}`);
+      const payload = {
+        ...scanData,
+        scan_id:           scanData.scan_uuid,
+        // scan_duration est stocké en ms dans la DB (= scan_duration_ms du résultat)
+        scan_duration_ms:  Math.round(scanData.scan_duration ?? 0),
+        scanned_at:        scanData.created_at,
+        port_details:      scanData.port_details      ?? {},
+        dns_details:       scanData.dns_details       ?? {},
+        ssl_details:       scanData.ssl_details       ?? {},
+        recommendations:   scanData.recommendations   ?? [],
+        subdomain_details: scanData.subdomain_details ?? {},
+        vuln_details:      scanData.vuln_details      ?? {},
+        meta:              scanData.meta              ?? {},
+      };
+      const { data } = await apiClient.post('/generate-pdf', { ...payload, lang }, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+      const a   = document.createElement('a');
+      a.href = url;
+      a.download = `cyberhealth-${domain}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      // Quand responseType: 'blob', les erreurs sont aussi des Blobs → on les lit en texte
+      let msg = lang === 'fr' ? 'Erreur lors de la génération du PDF. Réessayez.' : 'Error generating PDF. Please try again.';
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          msg = json?.detail?.message ?? json?.detail ?? json?.message ?? text;
+        } catch { /* ignore parse errors */ }
+      } else {
+        msg = err?.response?.data?.detail?.message ?? err?.response?.data?.message ?? err?.message ?? msg;
+      }
+      setPdfError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+    finally { setPdfLoading(null); }
+  };
+
+  // ── Open scan result modal ─────────────────────────────────────────────────
+
+  const openScanModal = async (scanUuid: string) => {
+    setScanModalLoading(scanUuid);
+    try {
+      const { data } = await apiClient.get(`/scans/history/${scanUuid}`);
+      setScanModal(data as ScanDetail);
+    } catch { /* silencieux */ }
+    finally { setScanModalLoading(null); }
+  };
+
+  // ── Données dérivées ───────────────────────────────────────────────────────
+
+  const historyByDomain = history.reduce<Record<string, ScanHistoryItem[]>>((acc, s) => {
+    if (!acc[s.domain]) acc[s.domain] = [];
+    acc[s.domain].push(s);
+    return acc;
+  }, {});
+
+  const avgScore = (() => {
+    const scored = domains.filter(d => d.last_score !== null);
+    if (!scored.length) return null;
+    return Math.round(scored.reduce((s, d) => s + (d.last_score ?? 0), 0) / scored.length);
+  })();
+
+  const criticalDomains = domains.filter(d => d.last_score !== null && d.last_score < 40).length;
+  const filteredHistory = historyDomain === 'all' ? history : history.filter(s => s.domain === historyDomain);
+
+  // ── Settings handlers ──────────────────────────────────────────────────────
+
+  const handleChangeEmail = async () => {
+    setEmailLoading(true);
+    setEmailMsg(null);
+    try {
+      await apiClient.post('/auth/change-email', { new_email: newEmail, current_password: emailPassword });
+      setEmailMsg({ type: 'ok', text: lang === 'fr' ? 'Email mis à jour avec succès.' : 'Email updated successfully.' });
+      setNewEmail('');
+      setEmailPassword('');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setEmailMsg({ type: 'err', text: msg ?? (lang === 'fr' ? 'Erreur lors de la mise à jour.' : 'Update failed.') });
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPwd !== confirmPwd) {
+      setPwdMsg({ type: 'err', text: lang === 'fr' ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.' });
+      return;
+    }
+    setPwdLoading(true);
+    setPwdMsg(null);
+    try {
+      await apiClient.post('/auth/change-password', { current_password: currentPwd, new_password: newPwd });
+      setPwdMsg({ type: 'ok', text: lang === 'fr' ? 'Mot de passe mis à jour avec succès.' : 'Password updated successfully.' });
+      setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setPwdMsg({ type: 'err', text: msg ?? (lang === 'fr' ? 'Erreur lors de la mise à jour.' : 'Update failed.') });
+    } finally {
+      setPwdLoading(false);
+    }
+  };
+
+  const handlePortal = async () => {
+    setPortalLoading(true);
+    try {
+      const url = await getPortalUrl();
+      window.open(url, '_blank');
+    } catch { /* silencieux */ }
+    finally { setPortalLoading(false); }
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      await deleteAccount(deletePassword);
+      logout();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setDeleteError(msg ?? (lang === 'fr' ? 'Mot de passe incorrect.' : 'Incorrect password.'));
+      setDeleteLoading(false);
+    }
+  };
+
+  const tabs: { id: Tab; label: string; icon: JSX.Element }[] = [
+    { id: 'overview',   label: lang === 'fr' ? 'Vue d\'ensemble' : 'Overview', icon: <BarChart2 size={14} /> },
+    { id: 'monitoring', label: lang === 'fr' ? 'Monitoring' : 'Monitoring',       icon: <Globe size={14} /> },
+    { id: 'history',    label: lang === 'fr' ? 'Historique' : 'History',       icon: <RefreshCw size={14} /> },
+    { id: 'settings',   label: lang === 'fr' ? 'Paramètres' : 'Settings',           icon: <Settings size={14} /> },
+  ];
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen text-slate-100" style={{ backgroundColor: 'var(--color-bg)' }}>
+
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <PageNavbar
+        onBack={onBack}
+        title={lang === 'fr' ? 'Mon espace' : 'My space'}
+        icon={<Shield size={14} />}
+        onGoHistory={onGoHistory}
+        onGoAdmin={onGoAdmin}
+        onGoContact={onGoContact}
+      />
+
+      <main className="max-w-6xl mx-auto px-4 py-6">
+
+        {/* ── Tab bar ─────────────────────────────────────────────────────── */}
+        <div
+          className="flex gap-1 mb-6 rounded-xl p-1 overflow-x-auto"
+          style={{ background: 'linear-gradient(180deg,#0f151e,#0b1018)', border: '1px solid rgba(255,255,255,0.07)' }}
+        >
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`
+                flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium
+                transition-all whitespace-nowrap flex-1 justify-center
+                ${tab === t.id
+                  ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
+                  : 'text-slate-500 hover:text-slate-300'}
+              `}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Content ─────────────────────────────────────────────────────── */}
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <div className="w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin" />
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={tab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+
+              {/* ══════════════════════════════════════════════════════════════
+                  TAB 1 — VUE D'ENSEMBLE
+              ══════════════════════════════════════════════════════════════ */}
+              {tab === 'overview' && (
+                <div className="flex flex-col gap-6">
+
+                  {/* KPI cards */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+
+                    {/* Domaines */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                      <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">{lang === 'fr' ? 'Domaines surveillés' : 'Monitored domains'}</p>
+                      <p className="text-3xl font-black font-mono text-white">
+                        {domains.length}
+                        <span className="text-slate-600 text-base">
+                          /{planLimit !== null ? planLimit : '∞'}
+                        </span>
+                      </p>
+                      <div className="mt-3 h-1 bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-1 bg-cyan-500 rounded-full transition-all"
+                          style={{ width: planLimit !== null
+                            ? `${(domains.length / planLimit) * 100}%`
+                            : '100%'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Score moyen */}
+                    <div className={`border rounded-xl p-4 ${avgScore !== null ? scoreBorder(avgScore) : 'border-slate-800 bg-slate-900'}`}>
+                      <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">{lang === 'fr' ? 'Score moyen' : 'Average score'}</p>
+                      <p className={`text-3xl font-black font-mono ${scoreColor(avgScore)}`}>
+                        {avgScore !== null ? avgScore : '—'}
+                        {avgScore !== null && <span className="text-base opacity-60">/100</span>}
+                      </p>
+                    </div>
+
+                    {/* Alertes critiques */}
+                    <div className={`border rounded-xl p-4 ${criticalDomains > 0 ? 'border-red-500/30 bg-red-500/5' : 'border-slate-800 bg-slate-900'}`}>
+                      <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">{lang === 'fr' ? 'Domaines critiques' : 'Critical domains'}</p>
+                      <div className="flex items-end gap-2">
+                        <p className={`text-3xl font-black font-mono ${criticalDomains > 0 ? 'text-red-400' : 'text-slate-500'}`}>
+                          {criticalDomains}
+                        </p>
+                        {criticalDomains > 0 && <AlertTriangle size={16} className="text-red-400 mb-1" />}
+                      </div>
+                    </div>
+
+                    {/* Prochain scan */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                      <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">{lang === 'fr' ? 'Prochain scan auto' : 'Next auto scan'}</p>
+                      <div className="flex items-center gap-1.5">
+                        <Clock size={13} className="text-cyan-400" />
+                        <p className="text-white font-bold text-sm">{lang === 'fr' ? 'Lundi 06:00 UTC' : 'Monday 06:00 UTC'}</p>
+                      </div>
+                      <p className="text-slate-600 text-xs font-mono mt-1">{lang === 'fr' ? 'hebdomadaire' : 'weekly'}</p>
+                    </div>
+                  </div>
+
+                  {/* Domain cards */}
+                  {domains.length === 0 ? (
+                    <div className="flex flex-col items-center gap-4 py-20 text-center">
+                      <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
+                        <Globe size={28} className="text-slate-600" />
+                      </div>
+                      <p className="text-slate-300 font-bold text-lg">{lang === 'fr' ? 'Aucun domaine sous surveillance' : 'No domain monitored'}</p>
+                      <p className="text-slate-600 text-sm max-w-sm">
+                        {lang === 'fr' ? 'Activez le monitoring pour recevoir des alertes automatiques chaque semaine.' : 'Enable monitoring to receive automatic alerts every week.'}
+                      </p>
+                      <button
+                        onClick={() => setTab('monitoring')}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition text-sm font-semibold"
+                      >
+                        <Plus size={14} /> {lang === 'fr' ? 'Ajouter un domaine' : 'Add a domain'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {domains.map(d => {
+                        const domainScans = [...(historyByDomain[d.domain] ?? [])].reverse();
+                        const scores = domainScans.map(h => h.security_score);
+                        const scanCount = historyByDomain[d.domain]?.length ?? 0;
+
+                        return (
+                          <div key={d.domain} className={`rounded-xl border p-5 flex flex-col gap-3 ${scoreBorder(d.last_score)}`}>
+                            {/* Domain + risk */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Globe size={13} className="text-slate-500 shrink-0 mt-0.5" />
+                                <span className="text-white font-mono text-sm font-bold truncate">{d.domain}</span>
+                              </div>
+                              <RiskBadge level={d.last_risk_level} />
+                            </div>
+
+                            {/* Score + sparkline */}
+                            <div className="flex items-end justify-between">
+                              <div>
+                                <p className={`text-4xl font-black font-mono leading-none ${scoreColor(d.last_score)}`}>
+                                  {d.last_score ?? '—'}
+                                </p>
+                                <p className="text-slate-600 text-xs font-mono mt-0.5">/100</p>
+                              </div>
+                              <Sparkline scores={scores} width={90} height={36} />
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex items-center justify-between text-[10px] font-mono text-slate-600 border-t border-slate-800/80 pt-2">
+                              <span>
+                                {d.last_scan_at
+                                  ? `${lang === 'fr' ? 'Dernier scan' : 'Last scan'} ${new Date(d.last_scan_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB')}`
+                                  : lang === 'fr' ? 'Aucun scan' : 'No scan'}
+                              </span>
+                              <span>{scanCount} scan{scanCount !== 1 ? 's' : ''}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════
+                  TAB 2 — MONITORING
+              ══════════════════════════════════════════════════════════════ */}
+              {tab === 'monitoring' && (
+                <div className="flex flex-col gap-5">
+
+                  {/* Add domain */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-white font-bold text-sm flex items-center gap-2">
+                          <Plus size={14} className="text-cyan-400" />
+                          {lang === 'fr' ? 'Ajouter un domaine' : 'Add a domain'}
+                        </p>
+                        <p className="text-slate-500 text-xs mt-0.5">
+                          {domains.length}/{planLimit !== null ? planLimit : '∞'} {lang === 'fr' ? 'domaine' : 'domain'}{domains.length !== 1 ? (lang === 'fr' ? 's' : 's') : ''} {lang === 'fr' ? 'utilisé' : 'used'}{domains.length !== 1 ? (lang === 'fr' ? 's' : '') : ''}
+                        </p>
+                      </div>
+                      {planLimit !== null && domains.length >= planLimit && (
+                        <span className="text-xs text-orange-400 font-mono bg-orange-500/10 border border-orange-500/20 px-2 py-1 rounded-lg">
+                          {lang === 'fr' ? 'Limite atteinte' : 'Limit reached'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-4">
+                      {/* Row 1: Domain input + Add button */}
+                      <div className="flex gap-2 flex-wrap">
+                        <input
+                          type="text"
+                          placeholder="exemple.com"
+                          value={newDomain}
+                          onChange={e => { setNewDomain(e.target.value); setAddError(''); }}
+                          onKeyDown={e => e.key === 'Enter' && addDomain()}
+                          disabled={planLimit !== null && domains.length >= planLimit}
+                          className="flex-1 min-w-[220px] bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-500 transition placeholder:text-slate-600 disabled:opacity-40"
+                        />
+                        <button
+                          onClick={addDomain}
+                          disabled={addLoading || !newDomain.trim() || (planLimit !== null && domains.length >= planLimit)}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition text-sm font-semibold disabled:opacity-40"
+                        >
+                          {addLoading
+                            ? <div className="w-3.5 h-3.5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+                            : <Plus size={14} />
+                          }
+                          {lang === 'fr' ? 'Ajouter' : 'Add'}
+                        </button>
+                      </div>
+                      {/* Row 2: Checks + Planification config */}
+                      <div className="border border-slate-800 rounded-xl p-4 flex flex-col gap-4 bg-slate-800/20">
+                        <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">
+                          {lang === 'fr' ? 'Configuration du monitoring' : 'Monitoring configuration'}
+                        </p>
+                        {/* Checks */}
+                        <div className="flex flex-col gap-2">
+                          <p className="text-xs text-slate-400 font-medium">{lang === 'fr' ? 'Checks à effectuer' : 'Checks to run'}</p>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {CHECK_LABELS.map(({ key, label }) => {
+                              const enabled = newDomainChecks[key] !== false;
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => setNewDomainChecks(prev => ({ ...prev, [key]: !enabled }))}
+                                  className={`
+                                    text-[10px] font-mono px-2.5 py-1 rounded-md border transition-all
+                                    ${enabled
+                                      ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20'
+                                      : 'bg-slate-900 text-slate-600 border-slate-700 hover:border-slate-600'}
+                                  `}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        {/* Planification */}
+                        <div className="flex items-end gap-6 flex-wrap">
+                          <div className="flex flex-col gap-1.5">
+                            <p className="text-xs text-slate-400 font-medium">{lang === 'fr' ? 'Fréquence de scan' : 'Scan frequency'}</p>
+                            <select
+                              value={newDomainFrequency}
+                              onChange={e => setNewDomainFrequency(e.target.value as 'weekly' | 'biweekly' | 'monthly')}
+                              className="bg-slate-800 border border-slate-700 text-slate-300 text-xs font-mono rounded-md px-2.5 py-1.5 focus:outline-none focus:border-cyan-500/50 cursor-pointer hover:border-slate-600 transition"
+                            >
+                              <option value="weekly">{lang === 'fr' ? 'Hebdomadaire' : 'Weekly'}</option>
+                              <option value="biweekly">{lang === 'fr' ? 'Bimensuel' : 'Biweekly'}</option>
+                              <option value="monthly">{lang === 'fr' ? 'Mensuel' : 'Monthly'}</option>
+                            </select>
+                          </div>
+                          <label className="flex items-center gap-2 cursor-pointer pb-1">
+                            <input
+                              type="checkbox"
+                              checked={newDomainEmailReport}
+                              onChange={e => setNewDomainEmailReport(e.target.checked)}
+                              className="w-3.5 h-3.5 accent-cyan-400 cursor-pointer"
+                            />
+                            <span className="text-xs font-mono text-slate-400 hover:text-slate-300 transition">
+                              {lang === 'fr' ? 'Rapport PDF par email' : 'PDF report by email'}
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    {addError && (
+                      <p className="mt-2 text-red-400 text-xs font-mono bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-1.5">
+                        {addError}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Upsell banner — Starter at 2/3 or 3/3 domains */}
+                  {user?.plan === 'starter' && domains.length >= 2 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`rounded-xl border p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 ${
+                        planLimit !== null && domains.length >= planLimit
+                          ? 'border-orange-500/30 bg-orange-500/5'
+                          : 'border-purple-500/30 bg-purple-500/5'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        {planLimit !== null && domains.length >= planLimit ? (
+                          <>
+                            <p className="text-orange-300 font-bold text-sm">
+                              {lang === 'fr' ? '⚠ Limite Starter atteinte' : '⚠ Starter limit reached'}
+                            </p>
+                            <p className="text-slate-400 text-xs mt-0.5">
+                              {lang === 'fr'
+                                ? 'Passez Pro pour surveiller des domaines en illimité et débloquer toutes les fonctionnalités.'
+                                : 'Upgrade to Pro to monitor unlimited domains and unlock all features.'}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-purple-300 font-bold text-sm">
+                              {lang === 'fr' ? '✦ Vous utilisez votre seul emplacement Starter' : '✦ Using your only Starter slot'}
+                            </p>
+                            <p className="text-slate-400 text-xs mt-0.5">
+                              {lang === 'fr'
+                                ? 'Passez Pro pour surveiller des domaines en illimité, rapports PDF avancés et alertes prioritaires.'
+                                : 'Upgrade to Pro to monitor unlimited domains, advanced PDF reports, and priority alerts.'}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setPricingModalOpen(true)}
+                        className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                          planLimit !== null && domains.length >= planLimit
+                            ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30 hover:bg-orange-500/30'
+                            : 'bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30'
+                        }`}
+                      >
+                        {lang === 'fr' ? 'Passer Pro →' : 'Upgrade to Pro →'}
+                      </button>
+                    </motion.div>
+                  )}
+
+                  {/* Domains table */}
+                  {domains.length === 0 ? (
+                    <div className="py-16 text-center text-slate-600 text-sm">
+                      {lang === 'fr' ? 'Ajoutez votre premier domaine ci-dessus pour commencer.' : 'Add your first domain above to get started.'}
+                    </div>
+                  ) : (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                      <div className="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+                        <p className="text-white font-bold text-sm">{domains.length} {lang === 'fr' ? 'domaine' : 'domain'}{domains.length !== 1 ? (lang === 'fr' ? 's' : 's') : ''} {lang === 'fr' ? 'surveillé' : 'monitored'}{domains.length !== 1 ? (lang === 'fr' ? 's' : '') : ''}</p>
+                        <p className="text-slate-600 text-xs font-mono">{lang === 'fr' ? 'Scan chaque lundi · 06:00 UTC' : 'Scan every Monday · 06:00 UTC'}</p>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-slate-800">
+                              <th className="px-5 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Domaine' : 'Domain'}</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Score' : 'Score'}</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Risque' : 'Risk'}</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Dernier scan' : 'Last scan'}</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Seuil alerte' : 'Alert threshold'}</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">Checks</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Planification' : 'Schedule'}</th>
+                              <th className="px-4 py-3 text-xs font-mono text-slate-500 uppercase tracking-wider" />
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/50">
+                            {domains.map(d => (
+                              <tr key={d.domain} className="hover:bg-slate-800/30 transition-colors group">
+
+                                {/* Domain */}
+                                <td className="px-5 py-4">
+                                  <div className="flex items-center gap-2">
+                                    <Globe size={12} className="text-slate-500 shrink-0" />
+                                    <span className="text-white font-mono font-medium text-sm">{d.domain}</span>
+                                  </div>
+                                </td>
+
+                                {/* Score */}
+                                <td className="px-4 py-4">
+                                  <span className={`text-xl font-black font-mono ${scoreColor(d.last_score)}`}>
+                                    {d.last_score ?? '—'}
+                                  </span>
+                                </td>
+
+                                {/* Risk */}
+                                <td className="px-4 py-4">
+                                  <RiskBadge level={d.last_risk_level} />
+                                </td>
+
+                                {/* Last scan */}
+                                <td className="px-4 py-4 text-slate-500 text-xs font-mono">
+                                  {d.last_scan_at
+                                    ? new Date(d.last_scan_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                    : '—'}
+                                </td>
+
+                                {/* Threshold — éditable inline */}
+                                <td className="px-4 py-4">
+                                  {editingThreshold === d.domain ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <input
+                                        type="number"
+                                        min={1} max={50}
+                                        value={thresholdValue}
+                                        onChange={e => setThresholdValue(Number(e.target.value))}
+                                        className="w-14 bg-slate-800 border border-cyan-500/40 rounded px-2 py-1 text-xs text-white font-mono focus:outline-none text-center"
+                                        autoFocus
+                                      />
+                                      <span className="text-slate-600 text-xs">pts</span>
+                                      <button
+                                        onClick={() => saveThreshold(d.domain)}
+                                        className="p-1 rounded text-green-400 hover:bg-green-500/10 transition"
+                                        title={lang === 'fr' ? 'Sauvegarder' : 'Save'}
+                                      >
+                                        <Check size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingThreshold(null)}
+                                        className="p-1 rounded text-slate-600 hover:text-slate-400 transition"
+                                        title={lang === 'fr' ? 'Annuler' : 'Cancel'}
+                                      >
+                                        <X size={13} />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => { setEditingThreshold(d.domain); setThresholdValue(d.alert_threshold); }}
+                                      className="flex items-center gap-1.5 text-xs font-mono text-slate-400 hover:text-white transition group-hover:opacity-100"
+                                      title={lang === 'fr' ? 'Modifier le seuil' : 'Edit threshold'}
+                                    >
+                                      <Bell size={11} className="text-slate-600" />
+                                      −{d.alert_threshold} pts
+                                    </button>
+                                  )}
+                                </td>
+
+                                {/* Checks — toggles interactifs */}
+                                <td className="px-4 py-4">
+                                  <div className="flex gap-1 flex-wrap">
+                                    {CHECK_LABELS.map(({ key, label }) => {
+                                      const cfg = pendingChecks[d.domain] ?? d.checks_config;
+                                      const enabled = cfg[key] !== false;
+                                      const isLoading = checksLoading === d.domain + ':' + key;
+                                      return (
+                                        <button
+                                          key={key}
+                                          onClick={() => toggleCheck(d, key)}
+                                          disabled={isLoading}
+                                          title={enabled ? (lang === 'fr' ? `Désactiver le check ${label}` : `Disable check ${label}`) : (lang === 'fr' ? `Activer le check ${label}` : `Enable check ${label}`)}
+                                          className={`
+                                            text-[9px] font-mono px-1.5 py-0.5 rounded border transition-all
+                                            ${enabled
+                                              ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20'
+                                              : 'bg-slate-900 text-slate-600 border-slate-800 hover:border-slate-700'}
+                                            disabled:opacity-40
+                                          `}
+                                        >
+                                          {label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <p className="text-xs text-slate-500 mt-1.5">{lang === 'fr' ? 'Cliquer pour activer / désactiver' : 'Click to enable / disable'}</p>
+                                </td>
+
+                                {/* Planification — Feature 3 */}
+                                <td className="px-4 py-4">
+                                  <div className="flex flex-col gap-2">
+                                    {/* Fréquence de scan */}
+                                    <select
+                                      value={d.scan_frequency}
+                                      onChange={async e => {
+                                        const freq = e.target.value as 'weekly' | 'biweekly' | 'monthly';
+                                        setDomains(prev => prev.map(x => x.domain === d.domain ? { ...x, scan_frequency: freq } : x));
+                                        try { await apiClient.patch(`/monitoring/domains/${d.domain}`, { scan_frequency: freq }); }
+                                        catch { /* silently ignore */ }
+                                      }}
+                                      className="bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-mono rounded px-1.5 py-1 focus:outline-none focus:border-cyan-500/50 cursor-pointer hover:border-slate-600 transition"
+                                      title={lang === 'fr' ? 'Fréquence de scan' : 'Scan frequency'}
+                                    >
+                                      <option value="weekly">{lang === 'fr' ? 'Hebdo' : 'Weekly'}</option>
+                                      <option value="biweekly">{lang === 'fr' ? 'Bimensuel' : 'Biweekly'}</option>
+                                      <option value="monthly">{lang === 'fr' ? 'Mensuel' : 'Monthly'}</option>
+                                    </select>
+                                    {/* Email rapport PDF */}
+                                    <label className="flex items-center gap-1.5 cursor-pointer group/pdf">
+                                      <input
+                                        type="checkbox"
+                                        checked={d.email_report}
+                                        onChange={async e => {
+                                          const val = e.target.checked;
+                                          setDomains(prev => prev.map(x => x.domain === d.domain ? { ...x, email_report: val } : x));
+                                          try { await apiClient.patch(`/monitoring/domains/${d.domain}`, { email_report: val }); }
+                                          catch { /* silently ignore */ }
+                                        }}
+                                        className="w-3 h-3 accent-cyan-400 cursor-pointer"
+                                      />
+                                      <span className="text-[10px] font-mono text-slate-500 group-hover/pdf:text-slate-400 transition">
+                                        {lang === 'fr' ? 'PDF par email' : 'PDF by email'}
+                                      </span>
+                                    </label>
+                                  </div>
+                                </td>
+
+                                {/* Delete */}
+                                <td className="px-4 py-4 text-right">
+                                  <button
+                                    onClick={() => removeDomain(d.domain)}
+                                    className="p-1.5 rounded-lg text-slate-700 hover:text-red-400 hover:bg-red-500/10 transition opacity-0 group-hover:opacity-100"
+                                    title={lang === 'fr' ? 'Retirer du monitoring' : 'Remove from monitoring'}
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-center text-[11px] text-slate-700 font-mono">
+                    {lang === 'fr' ? 'Alerte email automatique si le score baisse du seuil configuré · Scan chaque lundi à 06:00 UTC' : 'Automatic email alert if score drops below configured threshold · Scan every Monday at 06:00 UTC'}
+                  </p>
+                </div>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════
+                  TAB 3 — HISTORIQUE
+              ══════════════════════════════════════════════════════════════ */}
+              {tab === 'history' && (
+                <div className="flex flex-col gap-5">
+
+                  {/* Domain sparkline cards */}
+                  {Object.keys(historyByDomain).length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {Object.entries(historyByDomain).map(([domain, scans]) => {
+                        const sorted = [...scans].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                        const scores = sorted.map(s => s.security_score);
+                        const latest = scans[0];
+                        const isActive = historyDomain === domain;
+
+                        return (
+                          <button
+                            key={domain}
+                            onClick={() => setHistoryDomain(isActive ? 'all' : domain)}
+                            className={`
+                              rounded-xl border p-4 text-left transition-all
+                              ${isActive
+                                ? 'border-cyan-500/40 bg-cyan-500/5 ring-1 ring-cyan-500/20'
+                                : 'border-slate-800 bg-slate-900 hover:border-slate-700'}
+                            `}
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-white font-mono text-sm font-bold truncate max-w-[130px]">{domain}</span>
+                              <span className={`text-xl font-black font-mono ${scoreColor(latest?.security_score ?? null)}`}>
+                                {latest?.security_score ?? '—'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600 text-xs font-mono">{scans.length} scan{scans.length !== 1 ? 's' : ''}</span>
+                              <Sparkline scores={scores} width={90} height={28} />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Full chart for selected domain */}
+                  {historyDomain !== 'all' && historyByDomain[historyDomain] && (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm font-bold text-white">
+                        {lang === 'fr' ? 'Évolution du score' : 'Score evolution'} — <span className="text-cyan-400 font-mono">{historyDomain}</span>
+                      </p>
+                      <ScoreLineChart scans={historyByDomain[historyDomain]} lang={lang} />
+                    </div>
+                  )}
+
+                  {/* All domains filter pill */}
+                  {historyDomain !== 'all' && (
+                    <button
+                      onClick={() => setHistoryDomain('all')}
+                      className="self-start flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition font-mono border border-slate-800 rounded-lg px-3 py-1.5 hover:border-slate-700"
+                    >
+                      <X size={11} />
+                      {lang === 'fr' ? 'Voir tous les domaines' : 'View all domains'}
+                    </button>
+                  )}
+
+                  {/* Scan list table */}
+                  {filteredHistory.length === 0 ? (
+                    <div className="py-16 text-center text-slate-600 text-sm">
+                      {history.length === 0 ? (lang === 'fr' ? 'Aucun scan dans votre historique.' : 'No scan in your history.') : (lang === 'fr' ? 'Aucun scan pour ce domaine.' : 'No scan for this domain.')}
+                    </div>
+                  ) : (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                      <div className="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+                        <p className="text-white font-bold text-sm">
+                          {filteredHistory.length} scan{filteredHistory.length !== 1 ? 's' : ''}
+                          {historyDomain !== 'all' && <span className="text-cyan-400 font-mono ml-2">{historyDomain}</span>}
+                        </p>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-slate-800">
+                              <th className="px-5 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Domaine' : 'Domain'}</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">Score</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Risque' : 'Risk'}</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">Findings</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Date' : 'Date'}</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Durée' : 'Duration'}</th>
+                              {isPremium ? (
+                                <>
+                                  <th className="px-4 py-3 text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Voir' : 'View'}</th>
+                                  <th className="px-4 py-3 text-xs font-mono text-slate-500 uppercase tracking-wider">PDF</th>
+                                </>
+                              ) : null}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/40">
+                            {filteredHistory.map(scan => (
+                              <tr key={scan.scan_uuid} className="hover:bg-slate-800/25 transition-colors">
+                                <td className="px-5 py-3.5 font-mono text-slate-300 text-xs">{scan.domain}</td>
+                                <td className="px-4 py-3.5">
+                                  <span className={`text-lg font-black font-mono ${scoreColor(scan.security_score)}`}>
+                                    {scan.security_score}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3.5"><RiskBadge level={scan.risk_level} /></td>
+                                <td className="px-4 py-3.5 text-slate-500 font-mono text-xs">{scan.findings_count}</td>
+                                <td className="px-4 py-3.5 text-slate-500 text-xs font-mono">
+                                  {new Date(scan.created_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB', {
+                                    day: '2-digit', month: '2-digit', year: 'numeric',
+                                    hour: '2-digit', minute: '2-digit',
+                                  })}
+                                </td>
+                                <td className="px-4 py-3.5 text-slate-600 text-xs font-mono">{scan.scan_duration}s</td>
+                                {isPremium && (
+                                  <>
+                                    <td className="px-4 py-3.5">
+                                      <button
+                                        onClick={() => openScanModal(scan.scan_uuid)}
+                                        disabled={scanModalLoading === scan.scan_uuid}
+                                        title={lang === 'fr' ? 'Voir les résultats' : 'View results'}
+                                        className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-200 transition disabled:opacity-40"
+                                      >
+                                        {scanModalLoading === scan.scan_uuid
+                                          ? <div className="w-3 h-3 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+                                          : <Shield size={13} />
+                                        }
+                                        {lang === 'fr' ? 'Voir' : 'View'}
+                                      </button>
+                                    </td>
+                                    <td className="px-4 py-3.5">
+                                      <button
+                                        onClick={() => generatePdf(scan.scan_uuid, scan.domain)}
+                                        disabled={pdfLoading === scan.scan_uuid}
+                                        className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition disabled:opacity-40"
+                                      >
+                                        {pdfLoading === scan.scan_uuid
+                                          ? <div className="w-3 h-3 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+                                          : <FileDown size={13} />
+                                        }
+                                        PDF
+                                      </button>
+                                    </td>
+                                  </>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════
+                  TAB 4 — PARAMÈTRES
+              ══════════════════════════════════════════════════════════════ */}
+              {tab === 'settings' && (
+                <div className="flex flex-col gap-5">
+
+                  {/* Sub-nav */}
+                  <div className="flex gap-2 flex-wrap">
+                    {([
+                      { id: 'profile'     as const, label: lang === 'fr' ? 'Profil & Sécurité' : 'Profile & Security', icon: <Key size={13} /> },
+                      { id: 'billing'     as const, label: lang === 'fr' ? 'Facturation' : 'Billing',                  icon: <CreditCard size={13} /> },
+                      ...(user?.plan && ['pro', 'team'].includes(user.plan) ? [{
+                        id: 'whitelabel' as const,
+                        label: lang === 'fr' ? 'Marque blanche' : 'White-label',
+                        icon: <Shield size={13} />,
+                      }] : []),
+                      { id: 'danger'      as const, label: lang === 'fr' ? 'Zone dangereuse' : 'Danger zone',          icon: <AlertTriangle size={13} /> },
+                    ]).map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => setSettingsSection(s.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
+                          settingsSection === s.id
+                            ? s.id === 'danger'
+                              ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                              : 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
+                            : 'text-slate-500 border-slate-800 hover:border-slate-700 hover:text-slate-300'
+                        }`}
+                      >
+                        {s.icon}{s.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* ── PROFILE & SECURITY ── */}
+                  {settingsSection === 'profile' && (
+                    <div className="flex flex-col gap-4">
+
+                      {/* Change email */}
+                      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+                        <h3 className="text-white font-semibold text-sm mb-4 flex items-center gap-2">
+                          <Mail size={14} className="text-cyan-400" />
+                          {lang === 'fr' ? 'Adresse email' : 'Email address'}
+                        </h3>
+                        {user?.google_id ? (
+                          <p className="text-slate-400 text-xs">
+                            {lang === 'fr' ? 'Votre compte est lié à Google. L\'email est géré par Google.' : 'Your account is linked to Google. Email is managed by Google.'}
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-slate-500 text-xs mb-4">
+                              {lang === 'fr' ? 'Email actuel :' : 'Current email:'}{' '}
+                              <span className="text-slate-300 font-mono">{user?.email}</span>
+                            </p>
+                            {emailMsg && (
+                              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-3 ${emailMsg.type === 'ok' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                                {emailMsg.type === 'ok' ? <Check size={12} /> : <AlertTriangle size={12} />}
+                                {emailMsg.text}
+                              </div>
+                            )}
+                            <div className="flex flex-col gap-3">
+                              <input
+                                type="email"
+                                placeholder={lang === 'fr' ? 'Nouvel email' : 'New email'}
+                                value={newEmail}
+                                onChange={e => setNewEmail(e.target.value)}
+                                className="w-full bg-slate-800/60 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-cyan-500/50 placeholder-slate-600"
+                              />
+                              <input
+                                type="password"
+                                placeholder={lang === 'fr' ? 'Mot de passe actuel (confirmation)' : 'Current password (confirmation)'}
+                                value={emailPassword}
+                                onChange={e => setEmailPassword(e.target.value)}
+                                className="w-full bg-slate-800/60 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-cyan-500/50 placeholder-slate-600"
+                              />
+                              <button
+                                onClick={handleChangeEmail}
+                                disabled={emailLoading || !newEmail || !emailPassword}
+                                className="self-start flex items-center gap-2 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-400 px-4 py-2 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {emailLoading ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                                {lang === 'fr' ? 'Mettre à jour l\'email' : 'Update email'}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Change password */}
+                      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+                        <h3 className="text-white font-semibold text-sm mb-4 flex items-center gap-2">
+                          <Key size={14} className="text-cyan-400" />
+                          {lang === 'fr' ? 'Mot de passe' : 'Password'}
+                        </h3>
+                        {user?.google_id ? (
+                          <p className="text-slate-400 text-xs">
+                            {lang === 'fr' ? 'Votre compte est lié à Google. Connectez-vous via Google.' : 'Your account is linked to Google. Sign in via Google.'}
+                          </p>
+                        ) : (
+                          <>
+                            {pwdMsg && (
+                              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-3 ${pwdMsg.type === 'ok' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                                {pwdMsg.type === 'ok' ? <Check size={12} /> : <AlertTriangle size={12} />}
+                                {pwdMsg.text}
+                              </div>
+                            )}
+                            <div className="flex flex-col gap-3">
+                              <input
+                                type="password"
+                                placeholder={lang === 'fr' ? 'Mot de passe actuel' : 'Current password'}
+                                value={currentPwd}
+                                onChange={e => setCurrentPwd(e.target.value)}
+                                className="w-full bg-slate-800/60 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-cyan-500/50 placeholder-slate-600"
+                              />
+                              <input
+                                type="password"
+                                placeholder={lang === 'fr' ? 'Nouveau mot de passe' : 'New password'}
+                                value={newPwd}
+                                onChange={e => setNewPwd(e.target.value)}
+                                className="w-full bg-slate-800/60 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-cyan-500/50 placeholder-slate-600"
+                              />
+                              <input
+                                type="password"
+                                placeholder={lang === 'fr' ? 'Confirmer le nouveau mot de passe' : 'Confirm new password'}
+                                value={confirmPwd}
+                                onChange={e => setConfirmPwd(e.target.value)}
+                                className="w-full bg-slate-800/60 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-cyan-500/50 placeholder-slate-600"
+                              />
+                              <button
+                                onClick={handleChangePassword}
+                                disabled={pwdLoading || !currentPwd || !newPwd || !confirmPwd}
+                                className="self-start flex items-center gap-2 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-400 px-4 py-2 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {pwdLoading ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                                {lang === 'fr' ? 'Mettre à jour le mot de passe' : 'Update password'}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── BILLING ── */}
+                  {settingsSection === 'billing' && (
+                    <div className="flex flex-col gap-4">
+                      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+                        <h3 className="text-white font-semibold text-sm mb-5 flex items-center gap-2">
+                          <CreditCard size={14} className="text-cyan-400" />
+                          {lang === 'fr' ? 'Abonnement actuel' : 'Current plan'}
+                        </h3>
+                        <div className="flex items-center justify-between flex-wrap gap-4">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-xl font-black tracking-wide ${user?.plan === 'pro' ? 'text-purple-400' : user?.plan === 'starter' ? 'text-cyan-400' : 'text-slate-400'}`}>
+                                {user?.plan?.toUpperCase() ?? 'FREE'}
+                              </span>
+                              {isPremium && (
+                                <span className="text-xs bg-green-500/15 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded font-semibold">
+                                  {lang === 'fr' ? 'Actif' : 'Active'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-slate-500 text-xs">
+                              {user?.plan === 'pro'
+                                ? (lang === 'fr' ? '19,90 € / mois · 10 domaines surveillés' : '€19.90 / month · 10 monitored domains')
+                                : user?.plan === 'starter'
+                                ? (lang === 'fr' ? '9,90 € / mois · 3 domaines surveillés' : '€9.90 / month · 3 monitored domains')
+                                : (lang === 'fr' ? 'Plan gratuit · 1 scan / jour' : 'Free plan · 1 scan / day')}
+                            </p>
+                          </div>
+                          {isPremium && (
+                            <button
+                              onClick={handlePortal}
+                              disabled={portalLoading}
+                              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-semibold transition disabled:opacity-40"
+                            >
+                              {portalLoading ? <RefreshCw size={12} className="animate-spin" /> : <CreditCard size={12} />}
+                              {lang === 'fr' ? 'Gérer l\'abonnement' : 'Manage subscription'}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Divider */}
+                        <div className="border-t border-slate-800 my-5" />
+
+                        {/* Plan comparison */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className={`rounded-xl border p-4 ${!isPremium ? 'border-cyan-500/30 bg-cyan-500/5' : 'border-slate-800'}`}>
+                            <p className="text-slate-300 font-bold text-sm mb-1">Free</p>
+                            <p className="text-slate-600 text-xs mb-3">{lang === 'fr' ? '0 € / mois' : '€0 / month'}</p>
+                            <ul className="text-slate-500 text-xs space-y-1">
+                              <li>· {lang === 'fr' ? '1 scan / jour' : '1 scan / day'}</li>
+                              <li>· {lang === 'fr' ? 'Résultats basiques' : 'Basic results'}</li>
+                            </ul>
+                          </div>
+                          <div className={`rounded-xl border p-4 ${user?.plan === 'starter' ? 'border-cyan-500/30 bg-cyan-500/5' : 'border-slate-800'}`}>
+                            <p className="text-cyan-400 font-bold text-sm mb-1">Starter</p>
+                            <p className="text-slate-600 text-xs mb-3">{lang === 'fr' ? '9,90 € / mois' : '€9.90 / month'}</p>
+                            <ul className="text-slate-500 text-xs space-y-1">
+                              <li>· {lang === 'fr' ? '3 domaines surveillés' : '3 monitored domains'}</li>
+                              <li>· {lang === 'fr' ? 'Checks avancés' : 'Advanced checks'}</li>
+                              <li>· {lang === 'fr' ? 'Rapports PDF' : 'PDF reports'}</li>
+                            </ul>
+                          </div>
+                          <div className={`rounded-xl border p-4 ${user?.plan === 'pro' ? 'border-purple-500/30 bg-purple-500/5' : 'border-slate-800'}`}>
+                            <p className="text-purple-400 font-bold text-sm mb-1">Pro</p>
+                            <p className="text-slate-600 text-xs mb-3">{lang === 'fr' ? '19,90 € / mois' : '€19.90 / month'}</p>
+                            <ul className="text-slate-500 text-xs space-y-1">
+                              <li>· {lang === 'fr' ? '10 domaines surveillés' : '10 monitored domains'}</li>
+                              <li>· {lang === 'fr' ? 'Toutes les features' : 'All features'}</li>
+                              <li>· {lang === 'fr' ? 'Support prioritaire' : 'Priority support'}</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── WHITE-LABEL ── */}
+                  {settingsSection === 'whitelabel' && (
+                    <div className="flex flex-col gap-5">
+                      <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-5">
+                        <h3 className="text-cyan-400 font-semibold text-sm mb-1 flex items-center gap-2">
+                          <Shield size={14} />
+                          {lang === 'fr' ? 'Marque blanche — Rapports PDF' : 'White-label — PDF Reports'}
+                        </h3>
+                        <p className="text-slate-400 text-xs mb-5">
+                          {lang === 'fr'
+                            ? 'Personnalisez les rapports PDF avec le nom et le logo de votre agence. Vos clients verront votre marque, pas Wezea.'
+                            : 'Customise PDF reports with your agency name and logo. Your clients will see your brand, not Wezea.'}
+                        </p>
+
+                        {wbLoading ? (
+                          <div className="text-slate-500 text-xs">{lang === 'fr' ? 'Chargement...' : 'Loading...'}</div>
+                        ) : (
+                          <div className="flex flex-col gap-4">
+
+                            {/* Toggle activer */}
+                            <label className="flex items-center gap-3 cursor-pointer">
+                              <div
+                                onClick={() => setWbEnabled(v => !v)}
+                                className={`relative w-10 h-5 rounded-full transition-colors ${wbEnabled ? 'bg-cyan-500' : 'bg-slate-700'}`}
+                              >
+                                <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${wbEnabled ? 'translate-x-5' : ''}`} />
+                              </div>
+                              <span className="text-slate-300 text-sm">
+                                {lang === 'fr' ? 'Activer la marque blanche' : 'Enable white-label'}
+                              </span>
+                            </label>
+
+                            {/* Nom de l'agence */}
+                            <div>
+                              <label className="text-slate-400 text-xs block mb-1.5">
+                                {lang === 'fr' ? 'Nom de l\'agence' : 'Agency name'}
+                              </label>
+                              <input
+                                type="text"
+                                value={wbName}
+                                onChange={e => setWbName(e.target.value)}
+                                maxLength={100}
+                                placeholder={lang === 'fr' ? 'Mon Agence IT' : 'My IT Agency'}
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition"
+                              />
+                            </div>
+
+                            {/* Couleur principale */}
+                            <div>
+                              <label className="text-slate-400 text-xs block mb-1.5">
+                                {lang === 'fr' ? 'Couleur principale' : 'Primary colour'}
+                              </label>
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="color"
+                                  value={wbColor}
+                                  onChange={e => setWbColor(e.target.value)}
+                                  className="w-10 h-9 rounded-lg border border-slate-700 bg-slate-800 cursor-pointer p-0.5"
+                                />
+                                <input
+                                  type="text"
+                                  value={wbColor}
+                                  onChange={e => setWbColor(e.target.value)}
+                                  maxLength={7}
+                                  placeholder="#22d3ee"
+                                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition font-mono"
+                                />
+                                <div className="w-8 h-8 rounded-lg border border-slate-700 shrink-0" style={{ backgroundColor: wbColor }} />
+                              </div>
+                            </div>
+
+                            {/* Upload logo */}
+                            <div>
+                              <label className="text-slate-400 text-xs block mb-1.5">
+                                {lang === 'fr' ? 'Logo (PNG, JPG, SVG — max 200 Ko)' : 'Logo (PNG, JPG, SVG — max 200 KB)'}
+                              </label>
+                              <div className="flex items-center gap-3">
+                                {wb?.has_logo && wb.logo_b64 && (
+                                  <img src={wb.logo_b64} alt="logo" className="h-10 max-w-[100px] object-contain rounded border border-slate-700 bg-slate-800 p-1" />
+                                )}
+                                <label className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-3 py-2 text-slate-300 text-xs font-medium cursor-pointer transition">
+                                  <input
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                    className="hidden"
+                                    disabled={wbLogoUploading}
+                                    onChange={async e => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      setWbLogoUploading(true);
+                                      setWbMsg(null);
+                                      try {
+                                        await uploadWhiteLabelLogo(file);
+                                        const updated = await getWhiteLabel();
+                                        setWb(updated);
+                                        setWbMsg({ type: 'ok', text: lang === 'fr' ? 'Logo uploadé ✓' : 'Logo uploaded ✓' });
+                                      } catch (err: unknown) {
+                                        const raw = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+                                        const detail = typeof raw === 'string' ? raw : undefined;
+                                        setWbMsg({ type: 'err', text: detail || (lang === 'fr' ? 'Erreur upload logo' : 'Logo upload error') });
+                                      } finally {
+                                        setWbLogoUploading(false);
+                                      }
+                                    }}
+                                  />
+                                  {wbLogoUploading
+                                    ? (lang === 'fr' ? 'Upload...' : 'Uploading...')
+                                    : (lang === 'fr' ? 'Choisir un logo' : 'Choose a logo')}
+                                </label>
+                                {wb?.has_logo && (
+                                  <button
+                                    onClick={async () => {
+                                      setWbMsg(null);
+                                      try {
+                                        await deleteWhiteLabelLogo();
+                                        setWb(prev => prev ? { ...prev, has_logo: false, logo_b64: null } : null);
+                                        setWbMsg({ type: 'ok', text: lang === 'fr' ? 'Logo supprimé' : 'Logo deleted' });
+                                      } catch {
+                                        setWbMsg({ type: 'err', text: lang === 'fr' ? 'Erreur suppression' : 'Delete error' });
+                                      }
+                                    }}
+                                    className="text-red-400 hover:text-red-300 text-xs transition"
+                                  >
+                                    {lang === 'fr' ? 'Supprimer' : 'Delete'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Message feedback */}
+                            {wbMsg && (
+                              <p className={`text-xs ${wbMsg.type === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {wbMsg.text}
+                              </p>
+                            )}
+
+                            {/* Bouton sauvegarder */}
+                            <button
+                              disabled={wbSaving}
+                              onClick={async () => {
+                                setWbSaving(true);
+                                setWbMsg(null);
+                                try {
+                                  const updated = await updateWhiteLabel({
+                                    enabled: wbEnabled,
+                                    company_name: wbName,
+                                    primary_color: wbColor,
+                                  });
+                                  setWb(prev => prev ? { ...prev, ...updated } : updated);
+                                  setWbMsg({ type: 'ok', text: lang === 'fr' ? 'Paramètres sauvegardés ✓' : 'Settings saved ✓' });
+                                } catch {
+                                  setWbMsg({ type: 'err', text: lang === 'fr' ? 'Erreur lors de la sauvegarde' : 'Save error' });
+                                } finally {
+                                  setWbSaving(false);
+                                }
+                              }}
+                              className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-900 text-sm font-bold transition"
+                            >
+                              {wbSaving
+                                ? (lang === 'fr' ? 'Sauvegarde...' : 'Saving...')
+                                : (lang === 'fr' ? 'Enregistrer les paramètres' : 'Save settings')}
+                            </button>
+
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── DANGER ZONE ── */}
+                  {settingsSection === 'danger' && (
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
+                      <h3 className="text-red-400 font-semibold text-sm mb-2 flex items-center gap-2">
+                        <AlertTriangle size={14} />
+                        {lang === 'fr' ? 'Zone dangereuse' : 'Danger zone'}
+                      </h3>
+                      <p className="text-slate-400 text-xs mb-5">
+                        {lang === 'fr'
+                          ? 'La suppression de votre compte est définitive. Toutes vos données (scans, domaines surveillés) seront effacées conformément au RGPD.'
+                          : 'Deleting your account is permanent. All your data (scans, monitored domains) will be erased in compliance with GDPR.'}
+                      </p>
+                      <button
+                        onClick={() => setShowDeleteModal(true)}
+                        className="flex items-center gap-2 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-xs font-semibold transition"
+                      >
+                        <Trash2 size={12} />
+                        {lang === 'fr' ? 'Supprimer mon compte' : 'Delete my account'}
+                      </button>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+            </motion.div>
+          </AnimatePresence>
+        )}
+      </main>
+
+      {/* ── Scan Result Modal ─────────────────────────────────────────────── */}
+      {scanModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setScanModal(null)}
+        >
+          <div
+            className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/95 backdrop-blur-sm">
+              <div className="flex items-center gap-3">
+                <Shield size={16} className="text-cyan-400" />
+                <div>
+                  <p className="text-white font-mono font-bold text-sm">{scanModal.domain}</p>
+                  <p className="text-slate-500 text-xs">
+                    {new Date(scanModal.created_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB', {
+                      day: '2-digit', month: 'long', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {/* Score */}
+                <div className="text-right">
+                  <p className={`text-2xl font-black font-mono ${scoreColor(scanModal.security_score)}`}>
+                    {scanModal.security_score}<span className="text-xs text-slate-600 font-normal">/100</span>
+                  </p>
+                  <RiskBadge level={scanModal.risk_level} />
+                </div>
+                {/* PDF button */}
+                <button
+                  onClick={() => generatePdf(scanModal.scan_uuid, scanModal.domain)}
+                  disabled={pdfLoading === scanModal.scan_uuid}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 transition text-xs font-semibold disabled:opacity-40"
+                >
+                  {pdfLoading === scanModal.scan_uuid
+                    ? <div className="w-3 h-3 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+                    : <FileDown size={13} />
+                  }
+                  {lang === 'fr' ? 'Rapport PDF' : 'PDF Report'}
+                </button>
+                <button onClick={() => setScanModal(null)} className="text-slate-500 hover:text-white transition p-1">
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Summary stats */}
+            <div className="grid grid-cols-3 gap-3 px-6 py-4 border-b border-slate-800">
+              <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-black font-mono text-white">{scanModal.findings.length}</p>
+                <p className="text-slate-500 text-xs mt-0.5">{lang === 'fr' ? 'Findings' : 'Findings'}</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-black font-mono text-red-400">
+                  {scanModal.findings.filter(f => f.severity === 'CRITICAL').length}
+                </p>
+                <p className="text-slate-500 text-xs mt-0.5">{lang === 'fr' ? 'Critiques' : 'Critical'}</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-black font-mono text-orange-400">
+                  {scanModal.findings.filter(f => f.severity === 'HIGH').length}
+                </p>
+                <p className="text-slate-500 text-xs mt-0.5">{lang === 'fr' ? 'Élevés' : 'High'}</p>
+              </div>
+            </div>
+
+            {/* Findings list */}
+            <div className="px-6 py-4 flex flex-col gap-3">
+              {scanModal.findings.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-green-400 font-semibold text-sm">✓ {lang === 'fr' ? 'Aucune vulnérabilité détectée' : 'No vulnerability detected'}</p>
+                </div>
+              ) : (
+                scanModal.findings.map((f, i) => {
+                  const sevColors: Record<string, string> = {
+                    CRITICAL: 'border-l-red-500 bg-red-500/5',
+                    HIGH:     'border-l-orange-500 bg-orange-500/5',
+                    MEDIUM:   'border-l-yellow-500 bg-yellow-500/5',
+                    LOW:      'border-l-blue-500 bg-blue-500/5',
+                    INFO:     'border-l-slate-500 bg-slate-800/30',
+                  };
+                  const sevText: Record<string, string> = {
+                    CRITICAL: 'text-red-400', HIGH: 'text-orange-400',
+                    MEDIUM: 'text-yellow-400', LOW: 'text-blue-400', INFO: 'text-slate-400',
+                  };
+                  return (
+                    <div key={i} className={`border-l-2 rounded-r-lg p-3 ${sevColors[f.severity] ?? sevColors.INFO}`}>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-white text-sm font-semibold leading-snug">{f.title ?? f.message}</p>
+                        <span className={`text-xs font-bold font-mono shrink-0 ${sevText[f.severity] ?? sevText.INFO}`}>
+                          {f.severity}
+                          {(f.penalty ?? 0) > 0 && <span className="text-slate-500 font-normal ml-1">−{f.penalty}pt</span>}
+                        </span>
+                      </div>
+                      <p className="text-slate-500 text-xs font-mono mb-2">{f.category}</p>
+                      {f.plain_explanation && (
+                        <p className="text-slate-300 text-xs leading-relaxed mb-2">{f.plain_explanation}</p>
+                      )}
+                      {f.recommendation && (
+                        <p className="text-cyan-400/80 text-xs leading-relaxed">→ {f.recommendation}</p>
+                      )}
+                      {f.technical_detail && (
+                        <p className="text-slate-600 text-xs font-mono mt-1 leading-relaxed">{f.technical_detail}</p>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Account Modal ──────────────────────────────────────────── */}
+      {showDeleteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.80)', backdropFilter: 'blur(4px)' }}
+          onClick={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteError(''); }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-red-500/20 bg-slate-900 shadow-2xl p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                <AlertTriangle size={16} className="text-red-400" />
+              </div>
+              <div>
+                <p className="text-white font-bold text-sm">
+                  {lang === 'fr' ? 'Supprimer mon compte' : 'Delete my account'}
+                </p>
+                <p className="text-slate-500 text-xs">
+                  {lang === 'fr' ? 'Cette action est irréversible.' : 'This action is irreversible.'}
+                </p>
+              </div>
+            </div>
+            <p className="text-slate-400 text-xs mb-4">
+              {lang === 'fr'
+                ? 'Tous vos scans et domaines surveillés seront définitivement supprimés. Confirmez votre mot de passe pour continuer.'
+                : 'All your scans and monitored domains will be permanently deleted. Confirm your password to continue.'}
+            </p>
+            {deleteError && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 text-red-400 text-xs mb-3">
+                <AlertTriangle size={12} />{deleteError}
+              </div>
+            )}
+            <input
+              type="password"
+              placeholder={lang === 'fr' ? 'Mot de passe actuel' : 'Current password'}
+              value={deletePassword}
+              onChange={e => setDeletePassword(e.target.value)}
+              className="w-full bg-slate-800/60 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-red-500/50 placeholder-slate-600 mb-4"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteError(''); }}
+                className="flex-1 px-4 py-2 rounded-lg border border-slate-700 text-slate-400 text-xs font-semibold hover:border-slate-600 transition"
+              >
+                {lang === 'fr' ? 'Annuler' : 'Cancel'}
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteLoading || !deletePassword}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {deleteLoading ? <RefreshCw size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                {lang === 'fr' ? 'Supprimer définitivement' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <PricingModal
+        open={pricingModalOpen}
+        onClose={() => setPricingModalOpen(false)}
+      />
+    </div>
+  );
+}

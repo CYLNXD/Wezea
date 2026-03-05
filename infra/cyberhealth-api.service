@@ -1,0 +1,44 @@
+[Unit]
+Description=CyberHealth Scanner API (FastAPI/Uvicorn)
+Documentation=https://scan.wezea.net
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=cyberhealth
+Group=cyberhealth
+WorkingDirectory=/home/cyberhealth/app/backend
+
+# Démarrage du serveur Uvicorn
+ExecStart=/home/cyberhealth/app/backend/venv/bin/uvicorn \
+    app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2 \
+    --log-level info \
+    --access-log
+
+# Redémarrage automatique en cas de crash
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Variables d'environnement (fichier .env optionnel)
+EnvironmentFile=-/home/cyberhealth/app/backend/.env
+
+# Sécurité
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/cyberhealth/app/backend
+
+# Logs
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cyberhealth-api
+
+[Install]
+WantedBy=multi-user.target

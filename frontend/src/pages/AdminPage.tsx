@@ -1,0 +1,653 @@
+// ─── AdminPage.tsx — Dashboard admin Wezea ─────────────────────────────────
+import { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Shield, Users, Trash2, RefreshCw, CheckCircle, XCircle,
+  TrendingUp, DollarSign, UserPlus, ArrowUpRight, Zap, BarChart3,
+} from 'lucide-react';
+import { apiClient } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import PageNavbar from '../components/PageNavbar';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface UserAdmin {
+  id: number;
+  email: string;
+  plan: string;
+  is_active: boolean;
+  is_admin: boolean;
+  scan_count: number;
+  created_at: string;
+}
+
+interface Metrics {
+  mrr_cents: number;
+  plan_breakdown: Record<string, number>;
+  revenue_30d_cents: number;
+  conversions_30d: number;
+  churns_30d: number;
+  new_signups_30d: number;
+  active_users_7d: number;
+  conversion_rate: number;
+  signups_last_30d: { date: string; count: number }[];
+  scans_last_14d: { date: string; count: number }[];
+}
+
+interface Stats {
+  total_users: number;
+  active_users: number;
+  pro_users: number;
+  free_users: number;
+  total_scans: number;
+}
+
+interface Props {
+  onBack?: () => void;
+  onGoHistory?: () => void;
+  onGoClientSpace?: () => void;
+  onGoContact?: () => void;
+}
+
+type Tab = 'metrics' | 'users';
+
+// ─── Plan config ──────────────────────────────────────────────────────────────
+
+const PLAN_COLORS: Record<string, string> = {
+  free:    'text-slate-400 bg-slate-800 border-slate-700',
+  starter: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+  pro:     'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
+  team:    'text-purple-400 bg-purple-500/10 border-purple-500/30',
+};
+
+const PLAN_BAR_COLORS: Record<string, string> = {
+  free:    'bg-slate-600',
+  starter: 'bg-emerald-500',
+  pro:     'bg-cyan-500',
+  team:    'bg-purple-500',
+};
+
+// ─── Sparkline SVG ────────────────────────────────────────────────────────────
+
+function Sparkline({
+  data,
+  color = '#06b6d4',
+  width = 160,
+  height = 48,
+}: {
+  data: { date: string; count: number }[];
+  color?: string;
+  width?: number;
+  height?: number;
+}) {
+  const values = useMemo(() => {
+    if (!data.length) return [];
+    // Fill all dates in range
+    const map = new Map(data.map(d => [d.date, d.count]));
+    const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
+    if (!sorted.length) return [];
+    const start = new Date(sorted[0].date);
+    const end   = new Date(sorted[sorted.length - 1].date);
+    const out: number[] = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const key = d.toISOString().split('T')[0];
+      out.push(map.get(key) ?? 0);
+    }
+    return out;
+  }, [data]);
+
+  if (!values.length || values.every(v => v === 0)) {
+    return (
+      <div
+        style={{ width, height }}
+        className="flex items-center justify-center"
+      >
+        <span className="text-slate-700 text-[10px] font-mono">pas encore de données</span>
+      </div>
+    );
+  }
+
+  const max = Math.max(...values, 1);
+  const pad = 4;
+  const step = (width - pad * 2) / Math.max(values.length - 1, 1);
+
+  const pts = values.map((v, i) => ({
+    x: pad + i * step,
+    y: pad + (1 - v / max) * (height - pad * 2),
+  }));
+
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const fillPath = `${linePath} L${(pad + (values.length - 1) * step).toFixed(1)},${height} L${pad},${height} Z`;
+
+  const gradId = `sg-${color.replace('#', '')}`;
+
+  return (
+    <svg width={width} height={height}>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <path d={fillPath} fill={`url(#${gradId})`} />
+      <path d={linePath} stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {/* last dot */}
+      <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r="2.5" fill={color} />
+    </svg>
+  );
+}
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+
+function KpiCard({
+  label,
+  value,
+  sub,
+  color,
+  icon: Icon,
+  trend,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+  icon: React.ElementType;
+  trend?: 'up' | 'down' | 'neutral';
+}) {
+  const trendClass = trend === 'up' ? 'text-emerald-400' : trend === 'down' ? 'text-red-400' : 'text-slate-500';
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-2"
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-slate-500 text-[11px] font-mono uppercase tracking-wider">{label}</span>
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${color}`}>
+          <Icon size={14} />
+        </div>
+      </div>
+      <p className="text-2xl font-black font-mono text-white">{value}</p>
+      {sub && <p className={`text-[11px] font-mono ${trendClass}`}>{sub}</p>}
+    </motion.div>
+  );
+}
+
+// ─── Metrics Tab ──────────────────────────────────────────────────────────────
+
+function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats | null }) {
+  if (!metrics || !stats) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const mrr    = (metrics.mrr_cents / 100).toFixed(2);
+  const rev30d = (metrics.revenue_30d_cents / 100).toFixed(2);
+  const totalPlanUsers = Object.values(metrics.plan_breakdown).reduce((a, b) => a + b, 0) || 1;
+
+  const kpis = [
+    {
+      label: 'MRR',
+      value: `${mrr} €`,
+      sub: `revenu mensuel récurrent`,
+      color: 'bg-emerald-500/10 text-emerald-400',
+      icon: DollarSign,
+      trend: 'neutral' as const,
+    },
+    {
+      label: 'Revenu 30j',
+      value: `${rev30d} €`,
+      sub: `${metrics.conversions_30d} paiement${metrics.conversions_30d > 1 ? 's' : ''} complété${metrics.conversions_30d > 1 ? 's' : ''}`,
+      color: 'bg-cyan-500/10 text-cyan-400',
+      icon: TrendingUp,
+      trend: metrics.conversions_30d > 0 ? 'up' as const : 'neutral' as const,
+    },
+    {
+      label: 'Taux de conversion',
+      value: `${metrics.conversion_rate}%`,
+      sub: `free → payant (total)`,
+      color: 'bg-purple-500/10 text-purple-400',
+      icon: ArrowUpRight,
+      trend: metrics.conversion_rate > 5 ? 'up' as const : 'neutral' as const,
+    },
+    {
+      label: 'Churns 30j',
+      value: String(metrics.churns_30d),
+      sub: `résiliations ce mois`,
+      color: metrics.churns_30d > 0 ? 'bg-red-500/10 text-red-400' : 'bg-slate-800 text-slate-500',
+      icon: Zap,
+      trend: metrics.churns_30d > 0 ? 'down' as const : 'neutral' as const,
+    },
+    {
+      label: 'Inscrits 30j',
+      value: String(metrics.new_signups_30d),
+      sub: `nouveaux comptes`,
+      color: 'bg-yellow-500/10 text-yellow-400',
+      icon: UserPlus,
+      trend: metrics.new_signups_30d > 0 ? 'up' as const : 'neutral' as const,
+    },
+    {
+      label: 'Actifs 7j',
+      value: String(metrics.active_users_7d),
+      sub: `users avec ≥1 scan`,
+      color: 'bg-sky-500/10 text-sky-400',
+      icon: Users,
+      trend: 'neutral' as const,
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {kpis.map(k => (
+          <KpiCard key={k.label} {...k} />
+        ))}
+      </div>
+
+      {/* Plan breakdown + Sparklines */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* Plan breakdown */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 size={14} className="text-slate-500" />
+            <h3 className="text-white text-sm font-bold">Répartition des plans</h3>
+          </div>
+          <div className="space-y-3">
+            {(['free', 'starter', 'pro', 'team'] as const).map(plan => {
+              const count = metrics.plan_breakdown[plan] ?? 0;
+              const pct   = Math.round((count / totalPlanUsers) * 100);
+              const labels: Record<string, string> = { free: 'Free', starter: 'Starter', pro: 'Pro', team: 'Team' };
+              const barColor = PLAN_BAR_COLORS[plan] ?? 'bg-slate-600';
+              return (
+                <div key={plan}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-slate-400 font-mono">{labels[plan]}</span>
+                    <span className="text-xs text-slate-300 font-mono font-bold">{count} <span className="text-slate-600">({pct}%)</span></span>
+                  </div>
+                  <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${barColor}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 pt-4 border-t border-slate-800 grid grid-cols-2 gap-2">
+            <div className="text-center">
+              <p className="text-white font-black font-mono text-lg">{stats.total_users}</p>
+              <p className="text-slate-600 text-[10px] font-mono">total inscrits</p>
+            </div>
+            <div className="text-center">
+              <p className="text-white font-black font-mono text-lg">{stats.total_scans}</p>
+              <p className="text-slate-600 text-[10px] font-mono">scans total</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Sparkline charts */}
+        <div className="space-y-4">
+          {/* Signups 30d */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <UserPlus size={13} className="text-yellow-400" />
+                <h3 className="text-white text-sm font-bold">Inscrits — 30 jours</h3>
+              </div>
+              <span className="text-yellow-400 font-mono font-black text-sm">+{metrics.new_signups_30d}</span>
+            </div>
+            <Sparkline data={metrics.signups_last_30d} color="#eab308" width={260} height={52} />
+          </div>
+
+          {/* Scans 14d */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Zap size={13} className="text-cyan-400" />
+                <h3 className="text-white text-sm font-bold">Scans — 14 jours</h3>
+              </div>
+              <span className="text-cyan-400 font-mono font-black text-sm">
+                {metrics.scans_last_14d.reduce((a, b) => a + b.count, 0)}
+              </span>
+            </div>
+            <Sparkline data={metrics.scans_last_14d} color="#06b6d4" width={260} height={52} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Users Tab ────────────────────────────────────────────────────────────────
+
+function UsersTab({
+  users,
+  stats,
+  updating,
+  onUpdatePlan,
+  onToggleActive,
+  onDelete,
+}: {
+  users: UserAdmin[];
+  stats: Stats | null;
+  updating: number | null;
+  onUpdatePlan: (id: number, plan: string) => void;
+  onToggleActive: (id: number, active: boolean) => void;
+  onDelete: (id: number, email: string) => void;
+}) {
+  const { user } = useAuth();
+  const [search, setSearch] = useState('');
+
+  const filtered = users.filter(u =>
+    u.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div>
+      {/* Stats row */}
+      {stats && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5"
+        >
+          {[
+            { label: 'Total', value: stats.total_users, color: 'text-white' },
+            { label: 'Actifs', value: stats.active_users, color: 'text-emerald-400' },
+            { label: 'Free', value: stats.free_users, color: 'text-slate-400' },
+            { label: 'Payants', value: stats.pro_users, color: 'text-cyan-400' },
+            { label: 'Scans', value: stats.total_scans, color: 'text-purple-400' },
+          ].map(s => (
+            <div key={s.label} className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
+              <p className={`text-xl font-black font-mono ${s.color}`}>{s.value}</p>
+              <p className="text-slate-600 text-[10px] font-mono mt-0.5">{s.label}</p>
+            </div>
+          ))}
+        </motion.div>
+      )}
+
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Rechercher un email…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full sm:w-72 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 transition"
+        />
+      </div>
+
+      {/* Table */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden"
+      >
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-slate-800">
+              <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider">Email</th>
+              <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider">Plan</th>
+              <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider hidden sm:table-cell">Scans</th>
+              <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider hidden md:table-cell">Inscrit</th>
+              <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider">Statut</th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center py-12 text-slate-700 font-mono text-xs">
+                  Aucun utilisateur
+                </td>
+              </tr>
+            ) : filtered.map(u => (
+              <tr
+                key={u.id}
+                className={`border-b border-slate-800/50 hover:bg-slate-800/30 transition ${updating === u.id ? 'opacity-50 pointer-events-none' : ''}`}
+              >
+                {/* Email */}
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-xs font-bold shrink-0">
+                      {u.email[0].toUpperCase()}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-slate-300 font-mono truncate max-w-[180px]">{u.email}</span>
+                      {u.is_admin && (
+                        <span className="text-[9px] text-yellow-500 font-mono">admin</span>
+                      )}
+                    </div>
+                  </div>
+                </td>
+
+                {/* Plan */}
+                <td className="px-4 py-3">
+                  <select
+                    value={u.plan}
+                    onChange={e => onUpdatePlan(u.id, e.target.value)}
+                    disabled={updating === u.id || u.id === user?.id}
+                    className={`text-xs font-mono px-2 py-1 rounded-lg border cursor-pointer focus:outline-none transition bg-transparent disabled:cursor-not-allowed ${PLAN_COLORS[u.plan] ?? PLAN_COLORS.free}`}
+                  >
+                    <option value="free"    className="bg-slate-900 text-slate-400">Free</option>
+                    <option value="starter" className="bg-slate-900 text-emerald-400">Starter</option>
+                    <option value="pro"     className="bg-slate-900 text-cyan-400">Pro</option>
+                    <option value="team"    className="bg-slate-900 text-purple-400">Team</option>
+                  </select>
+                </td>
+
+                {/* Scans */}
+                <td className="px-4 py-3 hidden sm:table-cell">
+                  <span className="text-xs text-slate-400 font-mono">{u.scan_count}</span>
+                </td>
+
+                {/* Date */}
+                <td className="px-4 py-3 hidden md:table-cell">
+                  <span className="text-xs text-slate-500 font-mono">
+                    {new Date(u.created_at).toLocaleDateString('fr-FR')}
+                  </span>
+                </td>
+
+                {/* Statut */}
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => onToggleActive(u.id, !u.is_active)}
+                    disabled={updating === u.id || u.id === user?.id}
+                    title={u.is_active ? 'Désactiver' : 'Activer'}
+                    className="disabled:cursor-not-allowed"
+                  >
+                    {u.is_active
+                      ? <CheckCircle size={16} className="text-emerald-400 hover:text-emerald-300 transition" />
+                      : <XCircle    size={16} className="text-red-400 hover:text-red-300 transition" />
+                    }
+                  </button>
+                </td>
+
+                {/* Delete */}
+                <td className="px-4 py-3">
+                  {u.id !== user?.id && !u.is_admin && (
+                    <button
+                      onClick={() => onDelete(u.id, u.email)}
+                      disabled={updating === u.id}
+                      className="text-slate-700 hover:text-red-400 transition disabled:cursor-not-allowed"
+                      title="Supprimer"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Main AdminPage ───────────────────────────────────────────────────────────
+
+export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoContact }: Props) {
+  const [tab,      setTab]      = useState<Tab>('metrics');
+  const [metrics,  setMetrics]  = useState<Metrics | null>(null);
+  const [users,    setUsers]    = useState<UserAdmin[]>([]);
+  const [stats,    setStats]    = useState<Stats | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
+  const [updating, setUpdating] = useState<number | null>(null);
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [usersRes, statsRes, metricsRes] = await Promise.all([
+        apiClient.get('/admin/users'),
+        apiClient.get('/admin/stats'),
+        apiClient.get('/admin/metrics'),
+      ]);
+      setUsers(usersRes.data);
+      setStats(statsRes.data);
+      setMetrics(metricsRes.data);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Erreur de chargement');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const updatePlan = async (userId: number, plan: string) => {
+    setUpdating(userId);
+    try {
+      const res = await apiClient.patch(`/admin/users/${userId}`, { plan });
+      setUsers(prev => prev.map(u => u.id === userId ? res.data : u));
+      // Refresh stats/metrics silently
+      Promise.all([
+        apiClient.get('/admin/stats'),
+        apiClient.get('/admin/metrics'),
+      ]).then(([s, m]) => { setStats(s.data); setMetrics(m.data); }).catch(() => {});
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Erreur');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const toggleActive = async (userId: number, is_active: boolean) => {
+    setUpdating(userId);
+    try {
+      const res = await apiClient.patch(`/admin/users/${userId}`, { is_active });
+      setUsers(prev => prev.map(u => u.id === userId ? res.data : u));
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Erreur');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const deleteUser = async (userId: number, email: string) => {
+    if (!confirm(`Supprimer ${email} et tout son historique ?`)) return;
+    setUpdating(userId);
+    try {
+      await apiClient.delete(`/admin/users/${userId}`);
+      setUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Erreur');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+
+      {/* Nav */}
+      <PageNavbar
+        onBack={onBack ?? (() => {})}
+        title="Admin"
+        icon={<Shield size={14} />}
+        onGoHistory={onGoHistory}
+        onGoClientSpace={onGoClientSpace}
+        onGoContact={onGoContact}
+        actions={
+          <button
+            onClick={fetchData}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-200 transition px-3 py-1.5 rounded-lg hover:bg-white/5 border border-white/6 font-medium"
+          >
+            <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
+            Actualiser
+          </button>
+        }
+      />
+
+      <div className="max-w-6xl mx-auto px-4 py-6">
+
+        {/* Tab bar */}
+        <div className="flex gap-1 mb-6 bg-slate-900 border border-slate-800 rounded-xl p-1 w-fit">
+          {([
+            { key: 'metrics', label: 'Métriques', icon: TrendingUp },
+            { key: 'users',   label: 'Utilisateurs', icon: Users },
+          ] as { key: Tab; label: string; icon: React.ElementType }[]).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition ${
+                tab === key
+                  ? 'bg-slate-800 text-white'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              <Icon size={13} />
+              {label}
+              {key === 'users' && users.length > 0 && (
+                <span className="ml-0.5 bg-slate-700 text-slate-300 rounded-full px-1.5 py-0.5 text-[9px] font-mono">
+                  {users.length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="mb-5 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-xs">
+            {error}
+          </div>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* Content */}
+        {!loading && (
+          <>
+            {tab === 'metrics' && (
+              <MetricsTab metrics={metrics} stats={stats} />
+            )}
+            {tab === 'users' && (
+              <UsersTab
+                users={users}
+                stats={stats}
+                updating={updating}
+                onUpdatePlan={updatePlan}
+                onToggleActive={toggleActive}
+                onDelete={deleteUser}
+              />
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

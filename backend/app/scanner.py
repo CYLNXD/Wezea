@@ -1,0 +1,1009 @@
+"""
+CyberHealth Scanner — Moteur d'Audit de Sécurité
+=================================================
+Auteur  : CyberHealth Team
+Version : 1.0.0 (MVP)
+Licence : Propriétaire
+
+Architecture :
+    AuditManager          → Orchestre les scans en parallèle (asyncio.gather)
+    DNSAuditor            → Analyse SPF, DMARC (dnspython)
+    SSLAuditor            → Analyse certificat, version TLS (ssl + socket)
+    PortAuditor           → Analyse des ports critiques (socket)
+    ScoreEngine           → Calcul du SecurityScore & niveau de risque
+    ReportBuilder         → Construction du rapport JSON + estimation de pertes
+
+Principes :
+    ✓ Scan 100 % passif (lecture seule, pas de brute-force)
+    ✓ Modulaire  : ajouter un nouvel auditeur = sous-classer BaseAuditor
+    ✓ Thread-safe : chaque auditeur est indépendant, les findings sont agrégés en fin
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import socket
+import ssl
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any
+
+import dns.exception
+import dns.resolver
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuration — chargée depuis les variables d'environnement
+# ─────────────────────────────────────────────────────────────────────────────
+
+SCAN_TIMEOUT_SEC: int = int(os.getenv("SCAN_TIMEOUT_SEC", "5"))
+DNS_LIFETIME_SEC: float = float(os.getenv("DNS_LIFETIME_SEC", "8.0"))
+SSL_PORT: int = int(os.getenv("SSL_PORT", "443"))
+
+# Ports à scanner avec (service, catégorie_pénalité, niveau_de_risque)
+MONITORED_PORTS: dict[int, tuple[str, str | None, str]] = {
+    21:   ("FTP",         "ftp_telnet",  "HIGH"),
+    22:   ("SSH",         None,          "INFO"),
+    23:   ("Telnet",      "ftp_telnet",  "HIGH"),
+    25:   ("SMTP",        None,          "INFO"),
+    80:   ("HTTP",        None,          "INFO"),
+    443:  ("HTTPS",       None,          "INFO"),
+    445:  ("SMB",         "rdp_smb",     "CRITICAL"),
+    3306: ("MySQL",       "database",    "CRITICAL"),
+    3389: ("RDP",         "rdp_smb",     "CRITICAL"),
+    5432: ("PostgreSQL",  "database",    "CRITICAL"),
+    8080: ("HTTP-Alt",    None,          "INFO"),
+    8443: ("HTTPS-Alt",   None,          "INFO"),
+}
+
+# Table des pénalités — modifiable sans toucher à la logique métier
+PENALTY_TABLE: dict[str, int] = {
+    "spf_missing":              15,
+    "spf_misconfigured":        15,
+    "dmarc_missing":            20,
+    "ssl_invalid":              30,
+    "ssl_unreachable":          30,
+    "tls_old_version":          10,
+    "rdp_smb":                  40,
+    "ftp_telnet":               20,
+    "database":                 25,
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Modèles de données
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dataclass
+class Finding:
+    """
+    Représente une vulnérabilité ou un constat de sécurité.
+    Chaque finding contient : détail technique + explication vulgarisée PME.
+    """
+    category:         str   # Ex : "DNS & Mail", "SSL / HTTPS", "Exposition des Ports"
+    severity:         str   # "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO"
+    title:            str   # Titre court du constat
+    technical_detail: str   # Détail technique pour un expert
+    plain_explanation: str  # Explication compréhensible par un patron de PME
+    penalty:          int   # Points déduits du score (0 si INFO)
+    recommendation:   str   # Action corrective concrète
+
+    def to_dict(self) -> dict:
+        return {
+            "category":          self.category,
+            "severity":          self.severity,
+            "title":             self.title,
+            "technical_detail":  self.technical_detail,
+            "plain_explanation": self.plain_explanation,
+            "penalty":           self.penalty,
+            "recommendation":    self.recommendation,
+        }
+
+
+@dataclass
+class ScanResult:
+    """Rapport complet renvoyé par l'API."""
+    domain:         str
+    scanned_at:     str
+    security_score: int
+    risk_level:     str
+    findings:       list[Finding]         = field(default_factory=list)
+    dns_details:    dict[str, Any]        = field(default_factory=dict)
+    ssl_details:    dict[str, Any]        = field(default_factory=dict)
+    port_details:   dict[int, dict]       = field(default_factory=dict)
+    recommendations: list[str]            = field(default_factory=list)
+    scan_duration_ms: int                 = 0
+    # Champs premium (Starter / Pro)
+    subdomain_details: dict[str, Any]     = field(default_factory=dict)
+    vuln_details:      dict[str, Any]     = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "domain":             self.domain,
+            "scanned_at":         self.scanned_at,
+            "security_score":     self.security_score,
+            "risk_level":         self.risk_level,
+            "findings":           [f.to_dict() for f in self.findings],
+            "dns_details":        self.dns_details,
+            "ssl_details":        self.ssl_details,
+            "port_details":       {str(k): v for k, v in self.port_details.items()},
+            "recommendations":    self.recommendations,
+            "scan_duration_ms":   self.scan_duration_ms,
+            "subdomain_details":  self.subdomain_details,
+            "vuln_details":       self.vuln_details,
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Interface BaseAuditor — étend l'outil facilement
+# ─────────────────────────────────────────────────────────────────────────────
+
+class BaseAuditor(ABC):
+    """
+    Classe abstraite. Pour ajouter un nouveau module de scan :
+      1. Sous-classer BaseAuditor
+      2. Implémenter `audit() -> list[Finding]` et `get_details() -> dict`
+      3. Injecter dans AuditManager.run_all_scans()
+    """
+
+    def __init__(self, domain: str, lang: str = "fr") -> None:
+        self.domain = domain
+        self.lang = lang
+        self._findings: list[Finding] = []
+        self._details: dict[str, Any] = {}
+
+    def _t(self, fr: str, en: str) -> str:
+        """Return the string in the correct language."""
+        return en if getattr(self, 'lang', 'fr') == "en" else fr
+
+    @abstractmethod
+    async def audit(self) -> list[Finding]:
+        """Lance le scan et retourne la liste des findings."""
+
+    def get_details(self) -> dict[str, Any]:
+        """Retourne les détails bruts du scan pour le JSON."""
+        return self._details
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auditeur DNS (SPF + DMARC)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DNSAuditor(BaseAuditor):
+    """Analyse les enregistrements SPF et DMARC du domaine."""
+
+    async def audit(self) -> list[Finding]:
+        loop = asyncio.get_event_loop()
+        # Les deux vérifications sont séquentielles (I/O réseau léger)
+        await loop.run_in_executor(None, self._check_spf)
+        await loop.run_in_executor(None, self._check_dmarc)
+        return self._findings
+
+    # ── SPF ──────────────────────────────────────────────────────────────────
+
+    def _check_spf(self) -> None:
+        try:
+            resolver = dns.resolver.Resolver()
+            resolver.lifetime = DNS_LIFETIME_SEC
+            answers = resolver.resolve(self.domain, "TXT")
+            spf_records = [
+                r.to_text().strip('"')
+                for r in answers
+                if "v=spf1" in r.to_text()
+            ]
+
+            if not spf_records:
+                self._findings.append(Finding(
+                    category="DNS & Mail",
+                    severity="HIGH",
+                    title=self._t(
+                        "SPF manquant",
+                        "SPF record missing"
+                    ),
+                    technical_detail=self._t(
+                        f"Aucun enregistrement TXT contenant 'v=spf1' trouvé pour {self.domain}.",
+                        f"No TXT record containing 'v=spf1' found for {self.domain}."
+                    ),
+                    plain_explanation=self._t(
+                        "Sans SPF, n'importe qui peut envoyer des emails en se faisant passer pour votre entreprise. "
+                        "Vos clients risquent de recevoir des arnaques semblant provenir de votre adresse officielle.",
+                        "Without SPF, anyone can send emails impersonating your company. "
+                        "Your customers may receive scam emails that appear to come from your official address."
+                    ),
+                    penalty=PENALTY_TABLE["spf_missing"],
+                    recommendation=self._t(
+                        "Ajoutez ce TXT sur votre DNS : \"v=spf1 include:_spf.google.com ~all\" "
+                        "(adaptez selon votre hébergeur mail).",
+                        "Add this TXT record to your DNS: \"v=spf1 include:_spf.google.com ~all\" "
+                        "(adjust based on your email provider)."
+                    ),
+                ))
+                self._details["spf"] = {"status": "missing", "records": []}
+                return
+
+            spf = spf_records[0]
+            # SPF en +all = tout le monde est autorisé → dangereux
+            if "+all" in spf:
+                self._findings.append(Finding(
+                    category="DNS & Mail",
+                    severity="HIGH",
+                    title=self._t(
+                        "SPF mal configuré (+all permissif)",
+                        "SPF misconfigured (+all permissive)"
+                    ),
+                    technical_detail=self._t(
+                        f"Enregistrement SPF trouvé : '{spf}'. "
+                        "Le qualificateur '+all' autorise n'importe quel serveur à envoyer.",
+                        f"SPF record found: '{spf}'. "
+                        "The '+all' qualifier allows any server to send on your behalf."
+                    ),
+                    plain_explanation=self._t(
+                        "Votre protection anti-usurpation par email est configurée comme une porte ouverte : "
+                        "tout le monde peut envoyer des emails en votre nom malgré la présence de SPF.",
+                        "Your email spoofing protection is configured like an open door: "
+                        "anyone can send emails in your name despite SPF being present."
+                    ),
+                    penalty=PENALTY_TABLE["spf_misconfigured"],
+                    recommendation=self._t(
+                        "Remplacez '+all' par '~all' (quarantaine) ou '-all' (rejet strict) dans votre enregistrement SPF.",
+                        "Replace '+all' with '~all' (quarantine) or '-all' (strict rejection) in your SPF record."
+                    ),
+                ))
+                self._details["spf"] = {"status": "misconfigured", "records": spf_records}
+            else:
+                self._details["spf"] = {"status": "ok", "records": spf_records}
+
+        except (dns.exception.DNSException, Exception) as exc:
+            self._details["spf"] = {"status": "error", "error": str(exc)}
+
+    # ── DMARC ─────────────────────────────────────────────────────────────────
+
+    def _check_dmarc(self) -> None:
+        dmarc_domain = f"_dmarc.{self.domain}"
+        try:
+            resolver = dns.resolver.Resolver()
+            resolver.lifetime = DNS_LIFETIME_SEC
+            answers = resolver.resolve(dmarc_domain, "TXT")
+            dmarc_records = [
+                r.to_text().strip('"')
+                for r in answers
+                if "v=DMARC1" in r.to_text()
+            ]
+
+            if not dmarc_records:
+                self._add_dmarc_missing_finding()
+                self._details["dmarc"] = {"status": "missing", "records": []}
+            else:
+                policy = ""
+                for rec in dmarc_records:
+                    for tag in rec.split(";"):
+                        tag = tag.strip()
+                        if tag.startswith("p="):
+                            policy = tag.split("=", 1)[1].strip()
+                if policy == "none":
+                    self._findings.append(Finding(
+                        category="DNS & Mail",
+                        severity="MEDIUM",
+                        title=self._t(
+                            "DMARC présent mais en mode surveillance (p=none)",
+                            "DMARC present but in monitoring mode (p=none)"
+                        ),
+                        technical_detail=self._t(
+                            "Politique DMARC : p=none — les emails frauduleux ne sont pas bloqués, seulement rapportés.",
+                            "DMARC policy: p=none — fraudulent emails are not blocked, only reported."
+                        ),
+                        plain_explanation=self._t(
+                            "Votre protection anti-phishing est en mode 'observateur' : "
+                            "elle voit les attaques mais ne les bloque pas. "
+                            "Les emails usurpant votre identité arrivent quand même chez vos clients.",
+                            "Your anti-phishing protection is in 'observer' mode: "
+                            "it sees attacks but doesn't block them. "
+                            "Emails impersonating your brand still reach your customers."
+                        ),
+                        penalty=8,
+                        recommendation=self._t(
+                            "Passez votre politique DMARC à p=quarantine puis p=reject une fois la configuration SPF validée.",
+                            "Upgrade your DMARC policy to p=quarantine, then p=reject once your SPF configuration is validated."
+                        ),
+                    ))
+                self._details["dmarc"] = {"status": "ok", "records": dmarc_records, "policy": policy}
+
+        except dns.exception.NXDOMAIN:
+            self._add_dmarc_missing_finding()
+            self._details["dmarc"] = {"status": "missing", "records": []}
+        except Exception as exc:
+            self._details["dmarc"] = {"status": "error", "error": str(exc)}
+
+    def _add_dmarc_missing_finding(self) -> None:
+        self._findings.append(Finding(
+            category="DNS & Mail",
+            severity="HIGH",
+            title=self._t(
+                "DMARC manquant — Protection anti-phishing absente",
+                "DMARC missing — Anti-phishing protection absent"
+            ),
+            technical_detail=self._t(
+                f"Aucun enregistrement TXT DMARC trouvé pour _dmarc.{self.domain}.",
+                f"No DMARC TXT record found for _dmarc.{self.domain}."
+            ),
+            plain_explanation=self._t(
+                "Sans DMARC, votre domaine est une cible facile pour le phishing. "
+                "Des pirates peuvent envoyer des emails semblant venir de vous pour escroquer vos clients, "
+                "partenaires ou employés — et vous n'en serez jamais informé.",
+                "Without DMARC, your domain is an easy target for phishing. "
+                "Attackers can send emails appearing to come from you to scam your customers, "
+                "partners, or employees — and you'll never be notified."
+            ),
+            penalty=PENALTY_TABLE["dmarc_missing"],
+            recommendation=self._t(
+                "Ajoutez ce TXT : _dmarc.votredomaine.com → "
+                "\"v=DMARC1; p=quarantine; rua=mailto:dmarc@votredomaine.com\". "
+                "Progressez ensuite vers p=reject pour un blocage total.",
+                "Add this TXT record: _dmarc.yourdomain.com → "
+                "\"v=DMARC1; p=quarantine; rua=mailto:dmarc@yourdomain.com\". "
+                "Then upgrade to p=reject for full blocking."
+            ),
+        ))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auditeur SSL / HTTPS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SSLAuditor(BaseAuditor):
+    """Vérifie la validité du certificat SSL et la version TLS négociée."""
+
+    DEPRECATED_TLS = {"TLSv1", "TLSv1.1", "SSLv2", "SSLv3"}
+    EXPIRY_WARNING_DAYS = int(os.getenv("SSL_EXPIRY_WARNING_DAYS", "30"))
+
+    async def audit(self) -> list[Finding]:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._check_ssl)
+        return self._findings
+
+    def _check_ssl(self) -> None:
+        ctx = ssl.create_default_context()
+        try:
+            raw_conn = socket.create_connection(
+                (self.domain, SSL_PORT), timeout=SCAN_TIMEOUT_SEC
+            )
+            with ctx.wrap_socket(raw_conn, server_hostname=self.domain) as tls_sock:
+                cert      = tls_sock.getpeercert()
+                tls_ver   = tls_sock.version()
+                cipher    = tls_sock.cipher()
+
+                # ── Expiration ────────────────────────────────────────────────
+                expire_str  = cert.get("notAfter", "")
+                expire_dt   = datetime.strptime(expire_str, "%b %d %H:%M:%S %Y %Z").replace(
+                    tzinfo=timezone.utc
+                )
+                days_left = (expire_dt - datetime.now(timezone.utc)).days
+
+                self._details = {
+                    "status":      "valid",
+                    "issuer":      self._flatten_dn(cert.get("issuer", [])),
+                    "subject":     self._flatten_dn(cert.get("subject", [])),
+                    "expires":     expire_str,
+                    "days_left":   days_left,
+                    "tls_version": tls_ver,
+                    "cipher":      cipher[0] if cipher else None,
+                    "bits":        cipher[2] if cipher else None,
+                }
+
+                if days_left < 0:
+                    self._findings.append(Finding(
+                        category="SSL / HTTPS",
+                        severity="CRITICAL",
+                        title=self._t("Certificat SSL expiré", "SSL certificate expired"),
+                        technical_detail=self._t(
+                            f"Le certificat a expiré le {expire_str} (il y a {abs(days_left)} jours).",
+                            f"The certificate expired on {expire_str} ({abs(days_left)} days ago)."
+                        ),
+                        plain_explanation=self._t(
+                            "Votre certificat de sécurité est périmé. "
+                            "Les navigateurs affichent une page d'erreur rouge effrayante à vos visiteurs, "
+                            "et les échanges de données ne sont plus chiffrés.",
+                            "Your security certificate has expired. "
+                            "Browsers display a scary red error page to your visitors, "
+                            "and data exchanges are no longer encrypted."
+                        ),
+                        penalty=PENALTY_TABLE["ssl_invalid"],
+                        recommendation=self._t(
+                            "Renouvelez immédiatement votre certificat SSL. "
+                            "Let's Encrypt (gratuit) avec Certbot renouvelle automatiquement toutes les 60 jours.",
+                            "Renew your SSL certificate immediately. "
+                            "Let's Encrypt (free) with Certbot renews automatically every 60 days."
+                        ),
+                    ))
+                elif days_left < self.EXPIRY_WARNING_DAYS:
+                    self._findings.append(Finding(
+                        category="SSL / HTTPS",
+                        severity="MEDIUM",
+                        title=self._t(
+                            f"Certificat SSL expire dans {days_left} jours",
+                            f"SSL certificate expires in {days_left} days"
+                        ),
+                        technical_detail=self._t(
+                            f"Date d'expiration : {expire_str}.",
+                            f"Expiration date: {expire_str}."
+                        ),
+                        plain_explanation=self._t(
+                            f"Votre certificat de sécurité expire dans {days_left} jours. "
+                            "Passé cette date, vos visiteurs verront un avertissement de sécurité et fuiront votre site.",
+                            f"Your security certificate expires in {days_left} days. "
+                            "After that, visitors will see a security warning and leave your site."
+                        ),
+                        penalty=0,
+                        recommendation=self._t(
+                            "Planifiez le renouvellement maintenant. "
+                            "Avec Certbot/Let's Encrypt, il s'effectue en une commande.",
+                            "Schedule the renewal now. "
+                            "With Certbot/Let's Encrypt, it takes just one command."
+                        ),
+                    ))
+
+                # ── Version TLS ───────────────────────────────────────────────
+                if tls_ver in self.DEPRECATED_TLS:
+                    self._findings.append(Finding(
+                        category="SSL / HTTPS",
+                        severity="HIGH",
+                        title=self._t(
+                            f"Version TLS obsolète : {tls_ver}",
+                            f"Deprecated TLS version: {tls_ver}"
+                        ),
+                        technical_detail=self._t(
+                            f"Le serveur a négocié {tls_ver}, une version officiellement dépréciée par la RFC 8996.",
+                            f"The server negotiated {tls_ver}, an officially deprecated version per RFC 8996."
+                        ),
+                        plain_explanation=self._t(
+                            "Votre site utilise une technologie de chiffrement obsolète, "
+                            "comme une vieille serrure rouillée sur votre coffre-fort. "
+                            "Des attaquants peuvent potentiellement intercepter les communications de vos clients.",
+                            "Your site uses outdated encryption technology, "
+                            "like a rusty old lock on your safe. "
+                            "Attackers may be able to intercept your customers' communications."
+                        ),
+                        penalty=PENALTY_TABLE["tls_old_version"],
+                        recommendation=self._t(
+                            "Configurez votre serveur web pour accepter uniquement TLS 1.2 et TLS 1.3. "
+                            "Ajoutez : SSLProtocol TLSv1.2 TLSv1.3 (Apache) ou ssl_protocols TLSv1.2 TLSv1.3; (Nginx).",
+                            "Configure your web server to accept only TLS 1.2 and TLS 1.3. "
+                            "Add: SSLProtocol TLSv1.2 TLSv1.3 (Apache) or ssl_protocols TLSv1.2 TLSv1.3; (Nginx)."
+                        ),
+                    ))
+
+        except ssl.SSLCertVerificationError as exc:
+            is_self_signed = "self-signed" in str(exc).lower()
+            label_fr = "auto-signé" if is_self_signed else "invalide / non approuvé"
+            label_en = "self-signed" if is_self_signed else "invalid / untrusted"
+            self._findings.append(Finding(
+                category="SSL / HTTPS",
+                severity="CRITICAL",
+                title=self._t(
+                    f"Certificat SSL {label_fr}",
+                    f"SSL certificate {label_en}"
+                ),
+                technical_detail=str(exc),
+                plain_explanation=self._t(
+                    "Votre site n'a pas de certificat de sécurité reconnu. "
+                    "C'est l'équivalent numérique d'ouvrir un magasin sans porte : "
+                    "toutes les données échangées peuvent être interceptées par n'importe qui sur le réseau.",
+                    "Your site does not have a recognized security certificate. "
+                    "It's the digital equivalent of opening a store with no door: "
+                    "all exchanged data can be intercepted by anyone on the network."
+                ),
+                penalty=PENALTY_TABLE["ssl_invalid"],
+                recommendation=self._t(
+                    "Installez un certificat SSL valide via Let's Encrypt (gratuit) "
+                    "ou un fournisseur commercial (DigiCert, Sectigo…).",
+                    "Install a valid SSL certificate via Let's Encrypt (free) "
+                    "or a commercial provider (DigiCert, Sectigo…)."
+                ),
+            ))
+            self._details = {"status": "invalid_cert", "error": str(exc)}
+
+        except (ssl.SSLError, ConnectionRefusedError, socket.timeout, OSError) as exc:
+            self._findings.append(Finding(
+                category="SSL / HTTPS",
+                severity="CRITICAL",
+                title=self._t(
+                    "HTTPS inaccessible sur le port 443",
+                    "HTTPS unreachable on port 443"
+                ),
+                technical_detail=self._t(
+                    f"Impossible d'établir une connexion TLS vers {self.domain}:{SSL_PORT} — {exc}",
+                    f"Unable to establish a TLS connection to {self.domain}:{SSL_PORT} — {exc}"
+                ),
+                plain_explanation=self._t(
+                    "Votre site n'est pas accessible en HTTPS. "
+                    "Toutes les données circulant entre vos visiteurs et votre site "
+                    "transitent en clair sur internet (comme envoyer une lettre sans enveloppe).",
+                    "Your site is not accessible over HTTPS. "
+                    "All data between your visitors and your site travels in plaintext "
+                    "on the internet (like sending a letter without an envelope)."
+                ),
+                penalty=PENALTY_TABLE["ssl_unreachable"],
+                recommendation=self._t(
+                    "Activez HTTPS sur votre serveur web et pointez votre DNS vers le bon serveur. "
+                    "Vérifiez que le pare-feu autorise le port 443.",
+                    "Enable HTTPS on your web server and point your DNS to the correct server. "
+                    "Ensure your firewall allows port 443."
+                ),
+            ))
+            self._details = {"status": "unreachable", "error": str(exc)}
+
+    @staticmethod
+    def _flatten_dn(dn: list) -> dict[str, str]:
+        """Aplatit la structure Subject/Issuer du certificat en dict simple."""
+        result = {}
+        for item in dn:
+            if item:
+                k, v = item[0]
+                result[k] = v
+        return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Détection d'hébergement mutualisé
+# ─────────────────────────────────────────────────────────────────────────────
+
+# (nom_partiel_dans_PTR, libellé_hébergeur)
+SHARED_HOSTING_PTR_PATTERNS: list[tuple[str, str]] = [
+    ("ovh.net",            "OVH"),
+    ("ovhcloud.com",       "OVHcloud"),
+    ("kimsufi.com",        "Kimsufi"),
+    ("so-you-start.com",   "SoYouStart"),
+    ("o2switch.net",       "o2switch"),
+    ("o2switch.com",       "o2switch"),
+    ("1and1.net",          "Ionos"),
+    ("1and1.com",          "Ionos"),
+    ("ionos.com",          "Ionos"),
+    ("hostinger.com",      "Hostinger"),
+    ("hostinger.net",      "Hostinger"),
+    ("siteground.com",     "SiteGround"),
+    ("siteground.net",     "SiteGround"),
+    ("bluehost.com",       "Bluehost"),
+    ("gandi.net",          "Gandi"),
+    ("planethoster.com",   "PlanetHoster"),
+    ("planethoster.info",  "PlanetHoster"),
+    ("lws.fr",             "LWS"),
+    ("ikoula.com",         "Ikoula"),
+    ("infomaniak.com",     "Infomaniak"),
+    ("infomaniak.net",     "Infomaniak"),
+    ("cloudflare.com",     "Cloudflare"),
+    ("inmotionhosting.com","InMotion"),
+    ("a2hosting.com",      "A2 Hosting"),
+    ("dreamhost.com",      "DreamHost"),
+    ("namecheap.com",      "Namecheap"),
+    ("godaddy.com",        "GoDaddy"),
+]
+
+
+def _detect_shared_hosting(domain: str) -> tuple[bool, str]:
+    """
+    Détecte si un domaine est hébergé sur une infrastructure mutualisée
+    via une résolution PTR de son adresse IP.
+    Retourne (is_shared: bool, provider_name: str).
+    """
+    try:
+        ip = socket.gethostbyname(domain)
+        try:
+            ptr_host = socket.gethostbyaddr(ip)[0].lower()
+        except Exception:
+            ptr_host = ""
+        for pattern, name in SHARED_HOSTING_PTR_PATTERNS:
+            if pattern in ptr_host:
+                return True, name
+    except Exception:
+        pass
+    return False, ""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auditeur de Ports
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PortAuditor(BaseAuditor):
+    """
+    Scanne les ports critiques en parallèle.
+    Scan passif uniquement : tentative de connexion TCP (SYN), pas de bannière.
+    """
+
+    async def audit(self) -> list[Finding]:
+        # Détecter hébergement mutualisé en parallèle du scan des ports
+        loop = asyncio.get_event_loop()
+        shared_future = loop.run_in_executor(None, _detect_shared_hosting, self.domain)
+
+        tasks = [
+            self._check_port(port, meta)
+            for port, meta in MONITORED_PORTS.items()
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        is_shared, provider = await shared_future
+
+        port_map: dict[int, dict] = {}
+        for res in results:
+            if isinstance(res, dict):
+                port_map.update(res)
+
+        # Garder self._details avec uniquement les données de ports (clés entières)
+        # pour ne pas casser le template PDF qui fait int(key) sur port_details
+        self._details = dict(port_map)
+
+        if is_shared:
+            self._add_shared_hosting_note(port_map, provider)
+        else:
+            self._analyze_open_ports(port_map)
+
+        return self._findings
+
+    def _add_shared_hosting_note(self, port_map: dict[int, dict], provider: str) -> None:
+        """
+        Sur hébergement mutualisé, les ports ouverts appartiennent à l'infrastructure
+        du prestataire — l'utilisateur ne peut pas les fermer.
+        On génère un finding INFO neutre si des ports critiques semblent ouverts.
+        """
+        open_critical = [
+            p for p, v in port_map.items()
+            if v.get("open") and p in (21, 23, 445, 3306, 3389, 5432)
+        ]
+        if open_critical:
+            self._findings.append(Finding(
+                category="Exposition des Ports",
+                severity="INFO",
+                title=self._t(
+                    f"Ports détectés sur infrastructure mutualisée ({provider})",
+                    f"Ports detected on shared hosting infrastructure ({provider})"
+                ),
+                technical_detail=self._t(
+                    f"L'adresse IP de {self.domain} appartient à l'infrastructure partagée de {provider}. "
+                    f"Les ports {open_critical} détectés sont gérés par l'hébergeur, "
+                    "pas par le client final. Ils ne constituent pas une vulnérabilité actionnable.",
+                    f"The IP address of {self.domain} belongs to {provider}'s shared infrastructure. "
+                    f"Ports {open_critical} are managed by the hosting provider, "
+                    "not by the end customer. They do not represent an actionable vulnerability."
+                ),
+                plain_explanation=self._t(
+                    f"Votre site est hébergé chez {provider} sur une infrastructure mutualisée. "
+                    "Les ports ouverts détectés sont gérés directement par l'hébergeur — "
+                    "vous ne pouvez pas les modifier. "
+                    "Pour un contrôle total du firewall, optez pour un VPS ou un serveur dédié.",
+                    f"Your site is hosted at {provider} on shared infrastructure. "
+                    "The open ports detected are managed directly by the hosting provider — "
+                    "you cannot modify them. "
+                    "For full firewall control, consider a VPS or dedicated server."
+                ),
+                penalty=0,
+                recommendation=self._t(
+                    f"Aucune action requise sur ces ports — ils sont sous contrôle de {provider}. "
+                    "Si vous avez besoin de contrôler votre exposition réseau, "
+                    "envisagez de migrer vers un VPS ou serveur dédié.",
+                    f"No action required on these ports — they are managed by {provider}. "
+                    "If you need to control your network exposure, "
+                    "consider migrating to a VPS or dedicated server."
+                ),
+            ))
+
+    async def _check_port(self, port: int, meta: tuple) -> dict:
+        """Tente une connexion TCP non bloquante."""
+        service, _penalty_key, severity = meta
+        loop = asyncio.get_event_loop()
+        try:
+            future = loop.run_in_executor(None, self._tcp_connect, port)
+            is_open = await asyncio.wait_for(future, timeout=SCAN_TIMEOUT_SEC)
+        except (asyncio.TimeoutError, Exception):
+            is_open = False
+        return {port: {"service": service, "open": is_open, "severity": severity}}
+
+    def _tcp_connect(self, port: int) -> bool:
+        """Connexion TCP synchrone (exécutée dans un thread)."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(SCAN_TIMEOUT_SEC)
+        try:
+            result = sock.connect_ex((self.domain, port))
+            return result == 0
+        except Exception:
+            return False
+        finally:
+            sock.close()
+
+    def _analyze_open_ports(self, port_map: dict[int, dict]) -> None:
+        """Génère les findings à partir des ports ouverts."""
+        open_ports = {p: v for p, v in port_map.items() if v.get("open")}
+        open_nums  = set(open_ports.keys())
+
+        # ── RDP / SMB — Risque Ransomware ────────────────────────────────────
+        rdp_smb = sorted(open_nums & {3389, 445})
+        if rdp_smb:
+            self._findings.append(Finding(
+                category="Exposition des Ports",
+                severity="CRITICAL",
+                title=self._t(
+                    f"Port(s) RDP/SMB exposés à internet : {rdp_smb}",
+                    f"RDP/SMB port(s) exposed to the internet: {rdp_smb}"
+                ),
+                technical_detail=self._t(
+                    f"Ports détectés ouverts : {rdp_smb}. "
+                    "Ces ports sont les vecteurs d'attaque #1 des ransomwares (WannaCry, Ryuk, LockBit…).",
+                    f"Open ports detected: {rdp_smb}. "
+                    "These ports are the #1 attack vector for ransomware (WannaCry, Ryuk, LockBit…)."
+                ),
+                plain_explanation=self._t(
+                    "Porte d'entrée favorite des pirates pour bloquer vos ordinateurs avec un ransomware "
+                    "et exiger une rançon en bitcoins. "
+                    "90 % des attaques par ransomware débutent par un port RDP ou SMB accessible depuis internet.",
+                    "The favorite entry point for attackers to lock your computers with ransomware "
+                    "and demand a bitcoin ransom. "
+                    "90% of ransomware attacks start through an RDP or SMB port exposed to the internet."
+                ),
+                penalty=PENALTY_TABLE["rdp_smb"],
+                recommendation=self._t(
+                    "ACTION IMMÉDIATE : Fermez les ports 3389 (RDP) et 445 (SMB) dans votre pare-feu. "
+                    "Pour l'accès distant, utilisez un VPN (WireGuard, OpenVPN) ou une solution Zero-Trust.",
+                    "IMMEDIATE ACTION: Close ports 3389 (RDP) and 445 (SMB) in your firewall. "
+                    "For remote access, use a VPN (WireGuard, OpenVPN) or a Zero-Trust solution."
+                ),
+            ))
+
+        # ── FTP / Telnet — Protocoles sans chiffrement ───────────────────────
+        ftp_telnet = sorted(open_nums & {21, 23})
+        if ftp_telnet:
+            self._findings.append(Finding(
+                category="Exposition des Ports",
+                severity="HIGH",
+                title=self._t(
+                    f"Protocole(s) obsolète(s) sans chiffrement : {ftp_telnet}",
+                    f"Legacy unencrypted protocol(s) exposed: {ftp_telnet}"
+                ),
+                technical_detail=self._t(
+                    f"Ports actifs : {ftp_telnet}. "
+                    "FTP (21) et Telnet (23) transmettent identifiants et données en texte clair sur le réseau.",
+                    f"Active ports: {ftp_telnet}. "
+                    "FTP (21) and Telnet (23) transmit credentials and data in plaintext over the network."
+                ),
+                plain_explanation=self._t(
+                    "Ces protocoles ont été conçus dans les années 70 sans aucune sécurité. "
+                    "Utiliser FTP ou Telnet, c'est comme envoyer votre mot de passe sur une carte postale. "
+                    "N'importe qui sur le réseau peut intercepter vos identifiants et vos fichiers.",
+                    "These protocols were designed in the 1970s with no security. "
+                    "Using FTP or Telnet is like sending your password on a postcard. "
+                    "Anyone on the network can intercept your credentials and files."
+                ),
+                penalty=PENALTY_TABLE["ftp_telnet"],
+                recommendation=self._t(
+                    "Désactivez FTP et Telnet immédiatement. "
+                    "Remplacez par : SFTP/SCP pour les transferts de fichiers, SSH (port 22) pour l'administration.",
+                    "Disable FTP and Telnet immediately. "
+                    "Replace with: SFTP/SCP for file transfers, SSH (port 22) for remote administration."
+                ),
+            ))
+
+        # ── Bases de données exposées ─────────────────────────────────────────
+        databases = sorted(open_nums & {3306, 5432})
+        if databases:
+            db_labels = {3306: "MySQL", 5432: "PostgreSQL"}
+            db_names  = [db_labels[p] for p in databases]
+            self._findings.append(Finding(
+                category="Exposition des Ports",
+                severity="CRITICAL",
+                title=self._t(
+                    f"Base(s) de données accessibles depuis internet : {db_names}",
+                    f"Database(s) accessible from the internet: {db_names}"
+                ),
+                technical_detail=self._t(
+                    f"Ports de base de données ouverts sur IP publique : {databases}. "
+                    "Exposés à des tentatives de connexion et d'injection SQL directes.",
+                    f"Database ports open on public IP: {databases}. "
+                    "Exposed to direct connection attempts and SQL injection."
+                ),
+                plain_explanation=self._t(
+                    "Votre base de données est directement accessible depuis internet. "
+                    "C'est comme laisser vos archives confidentielles clients sur le trottoir. "
+                    "Un attaquant peut tenter d'extraire toutes vos données en quelques minutes.",
+                    "Your database is directly accessible from the internet. "
+                    "It's like leaving your confidential customer records on the street. "
+                    "An attacker can attempt to extract all your data within minutes."
+                ),
+                penalty=PENALTY_TABLE["database"],
+                recommendation=self._t(
+                    f"Bloquez immédiatement les ports {databases} dans votre pare-feu. "
+                    "Les bases de données ne doivent JAMAIS être accessibles depuis l'internet public. "
+                    "Utilisez un réseau privé (VPC/VLAN) et des connexions via tunnel SSH.",
+                    f"Immediately block ports {databases} in your firewall. "
+                    "Databases should NEVER be accessible from the public internet. "
+                    "Use a private network (VPC/VLAN) and SSH tunnel connections."
+                ),
+            ))
+
+        # ── SSH exposé — observation (pas de pénalité) ───────────────────────
+        if 22 in open_nums:
+            self._findings.append(Finding(
+                category="Exposition des Ports",
+                severity="INFO",
+                title=self._t(
+                    "SSH (port 22) exposé — à surveiller",
+                    "SSH (port 22) exposed — monitor closely"
+                ),
+                technical_detail=self._t(
+                    "Port 22 (SSH) accessible depuis internet.",
+                    "Port 22 (SSH) accessible from the internet."
+                ),
+                plain_explanation=self._t(
+                    "L'accès SSH distant est ouvert. "
+                    "Bien que SSH soit chiffré, ce port est constamment scanné par des bots tentant des mots de passe en boucle.",
+                    "Remote SSH access is open. "
+                    "While SSH is encrypted, this port is constantly scanned by bots trying passwords in a loop."
+                ),
+                penalty=0,
+                recommendation=self._t(
+                    "Désactivez l'authentification par mot de passe SSH (utilisez uniquement des clés SSH). "
+                    "Envisagez de déplacer SSH sur un port non-standard ou de le protéger avec Fail2Ban.",
+                    "Disable SSH password authentication (use only SSH keys). "
+                    "Consider moving SSH to a non-standard port or protecting it with Fail2Ban."
+                ),
+            ))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Moteur de Score
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ScoreEngine:
+    """Calcule le SecurityScore final et le niveau de risque."""
+
+    BASE_SCORE = 100
+
+    @staticmethod
+    def compute(findings: list[Finding]) -> tuple[int, str]:
+        total_penalty = sum(f.penalty for f in findings)
+        score         = max(0, ScoreEngine.BASE_SCORE - total_penalty)
+        risk_level    = ScoreEngine._risk_level(score)
+        return score, risk_level
+
+    @staticmethod
+    def _risk_level(score: int) -> str:
+        if score >= 80:
+            return "LOW"
+        elif score >= 60:
+            return "MEDIUM"
+        elif score >= 40:
+            return "HIGH"
+        else:
+            return "CRITICAL"
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Orchestrateur principal — AuditManager
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AuditManager:
+    """
+    Orchestre l'exécution parallèle de tous les auditeurs.
+    Point d'entrée unique : await AuditManager(domain, lang).run()
+    """
+
+    # Clés de checks supportées (pour checks_config du monitoring)
+    CHECK_KEYS = ("dns", "ssl", "ports", "headers", "email", "tech", "reputation")
+
+    def __init__(
+        self,
+        domain: str,
+        lang: str = "fr",
+        plan: str = "free",
+        checks_config: dict | None = None,
+    ) -> None:
+        self.domain = domain.lower().strip()
+        self.lang   = lang
+        self.plan   = plan
+
+        # Import tardif pour éviter les imports circulaires
+        from app.extra_checks import (
+            HttpHeaderAuditor,
+            EmailSecurityAuditor,
+            TechExposureAuditor,
+            ReputationAuditor,
+        )
+
+        # Map clé → auditeur
+        all_base: list[tuple[str, BaseAuditor]] = [
+            ("dns",        DNSAuditor(self.domain, lang)),
+            ("ssl",        SSLAuditor(self.domain, lang)),
+            ("ports",      PortAuditor(self.domain, lang)),
+            ("headers",    HttpHeaderAuditor(self.domain, lang)),
+            ("email",      EmailSecurityAuditor(self.domain, lang)),
+            ("tech",       TechExposureAuditor(self.domain, lang)),
+            ("reputation", ReputationAuditor(self.domain, lang)),
+        ]
+
+        # Filtrer selon checks_config si fourni (True = activé par défaut)
+        if checks_config:
+            self._auditors = [a for (k, a) in all_base if checks_config.get(k, True)]
+        else:
+            self._auditors = [a for (_, a) in all_base]
+
+        # Auditeurs premium (Starter et Pro uniquement)
+        self._premium_auditors: list[BaseAuditor] = []
+        if plan in ("starter", "pro"):
+            from app.advanced_checks import SubdomainAuditor, VulnVersionAuditor
+            self._subdomain_auditor = SubdomainAuditor(self.domain, lang)
+            self._vuln_auditor      = VulnVersionAuditor(self.domain, lang)
+            self._premium_auditors  = [self._subdomain_auditor, self._vuln_auditor]
+        else:
+            self._subdomain_auditor = None
+            self._vuln_auditor      = None
+
+    async def run(self) -> ScanResult:
+        """Lance tous les scans en parallèle et agrège les résultats."""
+        start_ts = datetime.now(timezone.utc)
+
+        all_auditors = self._auditors + self._premium_auditors
+        audit_results = await asyncio.gather(
+            *[auditor.audit() for auditor in all_auditors],
+            return_exceptions=True,
+        )
+
+        all_findings: list[Finding] = []
+        for res in audit_results:
+            if isinstance(res, list):
+                all_findings.extend(res)
+
+        score, risk_level = ScoreEngine.compute(all_findings)
+
+        sorted_findings = sorted(all_findings, key=lambda f: f.penalty, reverse=True)
+        recommendations = [
+            f.recommendation
+            for f in sorted_findings
+            if f.penalty > 0
+        ]
+
+        elapsed_ms = int(
+            (datetime.now(timezone.utc) - start_ts).total_seconds() * 1000
+        )
+
+        # Détails premium
+        subdomain_details: dict = {}
+        vuln_details: dict = {}
+        if self.plan in ("starter", "pro") and self._subdomain_auditor:
+            subdomain_details = self._subdomain_auditor.get_details()
+        if self.plan in ("starter", "pro") and self._vuln_auditor:
+            vuln_details = self._vuln_auditor.get_details()
+
+        return ScanResult(
+            domain             = self.domain,
+            scanned_at         = start_ts.isoformat(),
+            security_score     = score,
+            risk_level         = risk_level,
+            findings           = sorted_findings,
+            dns_details        = self._auditors[0].get_details(),  # DNSAuditor
+            ssl_details        = self._auditors[1].get_details(),  # SSLAuditor
+            port_details       = {
+                int(k): v
+                for k, v in self._auditors[2].get_details().items()
+            },
+            recommendations    = recommendations,
+            scan_duration_ms   = elapsed_ms,
+            subdomain_details  = subdomain_details,
+            vuln_details       = vuln_details,
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Point d'entrée CLI (tests rapides)
+# ─────────────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import json
+    import sys
+
+    domain = sys.argv[1] if len(sys.argv) > 1 else "example.com"
+    print(f"\n🔍 CyberHealth Scanner — Analyse de : {domain}\n{'─' * 50}")
+
+    async def _main():
+        manager = AuditManager(domain)
+        result  = await manager.run()
+        print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+
+    asyncio.run(_main())

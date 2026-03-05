@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPF, DKIM et DMARC : le guide complet pour protéger votre domaine (2026) | Wezea</title>
+  <meta name="description" content="Comment configurer SPF, DKIM et DMARC étape par étape pour empêcher l'usurpation de votre domaine. Guide pratique avec exemples DNS, erreurs courantes et outils de vérification." />
+  <meta name="keywords" content="configurer SPF DMARC, DKIM configuration, SPF DKIM DMARC tutoriel, protéger domaine email, anti-spoofing DNS" />
+  <link rel="canonical" href="https://wezea.net/blog/configurer-spf-dkim-dmarc/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type"        content="article" />
+  <meta property="og:title"       content="SPF, DKIM et DMARC : le guide complet pour protéger votre domaine (2026)" />
+  <meta property="og:description" content="Configurez SPF, DKIM et DMARC pas à pas pour empêcher que votre domaine soit utilisé pour envoyer des emails frauduleux." />
+  <meta property="og:url"         content="https://wezea.net/blog/configurer-spf-dkim-dmarc/" />
+  <meta property="og:image"       content="https://wezea.net/og-image.png" />
+  <meta property="og:site_name"   content="Wezea Security Scanner" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+  <link rel="stylesheet" href="../blog.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "SPF, DKIM et DMARC : le guide complet pour protéger votre domaine",
+    "description": "Comment configurer SPF, DKIM et DMARC étape par étape pour empêcher l'usurpation de votre domaine.",
+    "datePublished": "2026-03-05",
+    "dateModified": "2026-03-05",
+    "author": { "@type": "Organization", "name": "Wezea" },
+    "publisher": { "@type": "Organization", "name": "Wezea", "url": "https://wezea.net" },
+    "mainEntityOfPage": "https://wezea.net/blog/configurer-spf-dkim-dmarc/"
+  }
+  </script>
+</head>
+<body>
+<script src="/nav.js"></script>
+<!-- Article -->
+<main class="page">
+  <header class="article-header">
+    <div class="article-tag">Guide technique</div>
+    <h1 class="article-title">SPF, DKIM et DMARC : le guide complet pour protéger votre domaine</h1>
+    <div class="article-meta">
+      <span>5 mars 2026</span>
+      <span>8 min de lecture</span>
+      <span class="article-tag">Sécurité email</span>
+    </div>
+    <p class="article-intro">
+      Chaque année, des millions d'emails frauduleux sont envoyés en usurpant des noms de domaine légitimes. SPF, DKIM et DMARC sont les trois enregistrements DNS qui permettent d'empêcher ça. Ce guide vous explique comment les configurer correctement — même sans être expert.
+    </p>
+  </header>
+
+  <!-- TOC -->
+  <nav class="toc" aria-label="Sommaire">
+    <div class="toc-title">Sommaire</div>
+    <ol>
+      <li><a href="#pourquoi">Pourquoi ces trois enregistrements sont essentiels</a></li>
+      <li><a href="#spf">Configurer SPF</a></li>
+      <li><a href="#dkim">Configurer DKIM</a></li>
+      <li><a href="#dmarc">Configurer DMARC</a></li>
+      <li><a href="#ordre">Dans quel ordre les déployer</a></li>
+      <li><a href="#verifier">Vérifier votre configuration</a></li>
+      <li><a href="#erreurs">Erreurs courantes à éviter</a></li>
+    </ol>
+  </nav>
+
+  <article class="article-body">
+
+    <h2 id="pourquoi">Pourquoi SPF, DKIM et DMARC sont essentiels</h2>
+
+    <p>Par défaut, le protocole email (SMTP) ne vérifie pas l'identité de l'expéditeur. N'importe qui peut envoyer un email en prétendant venir de <code>contact@votre-domaine.fr</code>. C'est ce qu'on appelle le <strong>spoofing</strong> ou usurpation d'identité.</p>
+
+    <p>Les conséquences sont directes : vos clients reçoivent des emails frauduleux soi-disant envoyés par vous, votre réputation d'expéditeur se dégrade, et Gmail ou Outlook commencent à passer vos vrais emails en spam.</p>
+
+    <p>SPF, DKIM et DMARC forment un système à trois niveaux qui résout ce problème :</p>
+
+    <table>
+      <thead><tr><th>Protocole</th><th>Ce qu'il fait</th><th>Type DNS</th></tr></thead>
+      <tbody>
+        <tr><td><strong>SPF</strong></td><td>Déclare quels serveurs sont autorisés à envoyer pour votre domaine</td><td>TXT</td></tr>
+        <tr><td><strong>DKIM</strong></td><td>Signe chaque email avec une clé cryptographique vérifiable</td><td>TXT</td></tr>
+        <tr><td><strong>DMARC</strong></td><td>Dit aux serveurs destinataires quoi faire en cas d'échec SPF ou DKIM</td><td>TXT</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">INFO</span>
+      <div class="callout-body"><strong>Règle de Google et Yahoo (2024) :</strong> depuis février 2024, Gmail et Yahoo exigent SPF + DMARC pour tous les expéditeurs de masse. Sans ça, vos emails arrivent en spam ou sont rejetés.</div>
+    </div>
+
+    <h2 id="spf">1. Configurer SPF</h2>
+
+    <p>SPF (Sender Policy Framework) s'ajoute comme un enregistrement <code>TXT</code> à la racine de votre domaine. Il liste les adresses IP ou services autorisés à envoyer des emails en votre nom.</p>
+
+    <h3>Structure d'un enregistrement SPF</h3>
+
+    <div class="code-block"><pre><span class="hl">v=spf1</span> <span class="ok">include:_spf.google.com</span> <span class="ok">include:sendgrid.net</span> <span class="hl">~all</span>
+<span class="cm">│         │                         │                    │</span>
+<span class="cm">│         └─ Gmail autorisé        └─ SendGrid autorisé  └─ Échec doux (~) ou rejet (-)</span>
+<span class="cm">└─ Version SPF (toujours v=spf1)</span></pre></div>
+
+    <p>La directive finale est cruciale :</p>
+    <ul>
+      <li><code>~all</code> — <strong>softfail</strong> : les emails non autorisés arrivent quand même mais sont marqués (recommandé pour commencer)</li>
+      <li><code>-all</code> — <strong>fail</strong> : les emails non autorisés sont rejetés (recommandé une fois stabilisé)</li>
+      <li><code>?all</code> — <strong>neutral</strong> : ne fait rien, à éviter</li>
+    </ul>
+
+    <h3>Exemples selon votre fournisseur d'email</h3>
+
+    <table>
+      <thead><tr><th>Service</th><th>Directive à inclure</th></tr></thead>
+      <tbody>
+        <tr><td>Google Workspace</td><td><code>include:_spf.google.com</code></td></tr>
+        <tr><td>Microsoft 365</td><td><code>include:spf.protection.outlook.com</code></td></tr>
+        <tr><td>OVH</td><td><code>include:mx.ovh.com</code></td></tr>
+        <tr><td>Infomaniak</td><td><code>include:_spf.infomaniak.com</code></td></tr>
+        <tr><td>Brevo (ex-Sendinblue)</td><td><code>include:sendinblue.com</code></td></tr>
+        <tr><td>Mailchimp</td><td><code>include:servers.mcsv.net</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body"><strong>Limite des 10 lookups DNS :</strong> un enregistrement SPF ne peut déclencher que 10 requêtes DNS (inclusions). Si vous avez beaucoup de services, utilisez un outil de "flattening" SPF pour aplatir les inclusions en adresses IP directes.</div>
+    </div>
+
+    <h2 id="dkim">2. Configurer DKIM</h2>
+
+    <p>DKIM (DomainKeys Identified Mail) fonctionne avec une paire de clés cryptographiques. Votre serveur d'envoi signe chaque email avec une clé privée. Le destinataire vérifie la signature avec la clé publique publiée dans vos DNS.</p>
+
+    <h3>Où trouver votre clé DKIM</h3>
+
+    <p>La clé DKIM est générée par votre service d'envoi, pas par vous. Dans votre interface :</p>
+    <ul>
+      <li><strong>Google Workspace</strong> : Admin Console → Apps → Google Workspace → Gmail → Authentifier les e-mails</li>
+      <li><strong>Microsoft 365</strong> : Defender → Email &amp; Collaboration → Policies → DKIM</li>
+      <li><strong>Brevo / Mailchimp</strong> : Paramètres → Expéditeurs → DKIM</li>
+    </ul>
+
+    <p>Votre service vous donnera un enregistrement DNS à ajouter, qui ressemble à ceci :</p>
+
+    <div class="code-block"><pre><span class="cm">Nom du champ DNS :</span>
+<span class="hl">google._domainkey.votre-domaine.fr</span>
+
+<span class="cm">Valeur (enregistrement TXT) :</span>
+<span class="ok">v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQ...</span></pre></div>
+
+    <p>Le préfixe (<code>google</code>, <code>s1</code>, <code>mail</code>…) est appelé le <strong>sélecteur DKIM</strong>. Vous pouvez en avoir plusieurs, un par service d'envoi, sur le même domaine.</p>
+
+    <div class="callout callout-ok">
+      <span class="callout-icon">OK</span>
+      <div class="callout-body"><strong>Clé de 2048 bits minimum :</strong> les clés de 1024 bits sont considérées obsolètes. Assurez-vous que votre service génère des clés de 2048 bits lors de la configuration DKIM.</div>
+    </div>
+
+    <h2 id="dmarc">3. Configurer DMARC</h2>
+
+    <p>DMARC est le chef d'orchestre. Il indique aux serveurs destinataires quoi faire quand un email échoue la vérification SPF ou DKIM. Il vous envoie aussi des rapports quotidiens sur qui envoie des emails depuis votre domaine.</p>
+
+    <h3>Structure d'un enregistrement DMARC</h3>
+
+    <p>L'enregistrement DMARC s'ajoute sur <code>_dmarc.votre-domaine.fr</code> en tant que <code>TXT</code> :</p>
+
+    <div class="code-block"><pre><span class="hl">v=DMARC1;</span> <span class="ok">p=quarantine;</span> <span class="ok">rua=mailto:dmarc@votre-domaine.fr;</span> <span class="ok">pct=100;</span> <span class="ok">adkim=s;</span> <span class="ok">aspf=s</span>
+<span class="cm">          │               │                              │          │         │</span>
+<span class="cm">          └─ Politique    └─ Rapports agrégés           └─ 100%    └─ DKIM  └─ SPF
+             (none/        (adresse de réception)         des        strict   strict
+              quarantine/                                  emails</span>
+<span class="cm">              reject)</span></pre></div>
+
+    <h3>Les trois politiques DMARC</h3>
+
+    <table>
+      <thead><tr><th>Politique</th><th>Comportement</th><th>Quand l'utiliser</th></tr></thead>
+      <tbody>
+        <tr><td><code>p=none</code></td><td>Surveille sans agir (emails délivrés normalement)</td><td>Phase de démarrage — collectez des rapports</td></tr>
+        <tr><td><code>p=quarantine</code></td><td>Emails suspects mis en spam</td><td>Après avoir analysé les rapports (2–4 semaines)</td></tr>
+        <tr><td><code>p=reject</code></td><td>Emails suspects rejetés complètement</td><td>Configuration finale, protection maximale</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Lire les rapports DMARC</h3>
+
+    <p>Les rapports DMARC arrivent en XML brut — illisibles directement. Utilisez des services gratuits comme <strong>DMARC Analyzer</strong>, <strong>MXToolbox</strong> ou <strong>Postmark DMARC</strong> pour les visualiser et identifier quels services envoient pour votre domaine.</p>
+
+    <h2 id="ordre">4. Dans quel ordre les déployer</h2>
+
+    <p>L'ordre est important pour éviter de bloquer vos emails légitimes :</p>
+
+    <ol>
+      <li><strong>Commencez par SPF</strong> — listez tous vos services d'envoi, terminez par <code>~all</code></li>
+      <li><strong>Activez DKIM</strong> — généralement en cliquant "Activer" dans votre service d'email, puis en ajoutant le TXT DNS fourni</li>
+      <li><strong>Ajoutez DMARC avec <code>p=none</code></strong> — récoltez les rapports pendant 2 à 4 semaines pour identifier les sources légitimes</li>
+      <li><strong>Passez à <code>p=quarantine</code></strong> une fois tous les services légitimes identifiés et configurés</li>
+      <li><strong>Finissez sur <code>p=reject</code></strong> pour une protection maximale</li>
+    </ol>
+
+    <div class="cta-block">
+      <h3>Vérifiez votre configuration SPF, DKIM et DMARC</h3>
+      <p>Le scanner Wezea analyse votre domaine en 60 secondes : présence et validité de SPF, DKIM, DMARC, politique appliquée, et recommandations concrètes.</p>
+      <a href="https://wezea.net" class="btn-cta">→ Scanner mon domaine gratuitement</a>
+      <p class="cta-note">Sans inscription · Résultats en 60 secondes · Rapport PDF disponible</p>
+    </div>
+
+    <h2 id="verifier">5. Vérifier votre configuration</h2>
+
+    <p>Une fois les enregistrements DNS ajoutés, attendez 15 à 30 minutes (propagation DNS) puis vérifiez :</p>
+
+    <ul>
+      <li><strong>En ligne :</strong> MXToolbox SPF Checker, DMARC Analyzer, mail-tester.com</li>
+      <li><strong>En ligne de commande</strong> — vérifier SPF :</li>
+    </ul>
+
+    <div class="code-block"><pre><span class="cm"># Vérifier SPF</span>
+<span class="hl">dig TXT votre-domaine.fr | grep spf</span>
+
+<span class="cm"># Vérifier DMARC</span>
+<span class="hl">dig TXT _dmarc.votre-domaine.fr</span>
+
+<span class="cm"># Vérifier DKIM (remplacer "google" par votre sélecteur)</span>
+<span class="hl">dig TXT google._domainkey.votre-domaine.fr</span></pre></div>
+
+    <h2 id="erreurs">6. Erreurs courantes à éviter</h2>
+
+    <ul>
+      <li><strong>Plusieurs enregistrements SPF</strong> — vous ne pouvez avoir qu'un seul enregistrement SPF par domaine. Si vous en avez deux, les serveurs ne sauront lequel prendre et les deux seront ignorés.</li>
+      <li><strong>Oublier un service d'envoi</strong> — chaque outil qui envoie en votre nom (CRM, helpdesk, newsletter…) doit être inclus dans SPF et avoir son DKIM configuré.</li>
+      <li><strong>Passer trop vite à <code>p=reject</code></strong> — sans avoir analysé les rapports DMARC, vous risquez de bloquer des emails légitimes.</li>
+      <li><strong>Ne pas surveiller les rapports</strong> — les rapports DMARC sont votre tableau de bord. Sans eux, vous ignorez si quelqu'un usurpe votre domaine en ce moment.</li>
+      <li><strong>Appliquer DMARC sur des sous-domaines oubliés</strong> — <code>sp=reject</code> dans votre enregistrement DMARC applique la politique aux sous-domaines. Utile si vous en avez que vous n'utilisez pas pour l'email.</li>
+    </ul>
+
+    <div class="callout callout-ok">
+      <span class="callout-icon">OK</span>
+      <div class="callout-body">
+        <strong>Checklist finale :</strong>
+        <ul style="margin-top:0.5rem">
+          <li>Un seul enregistrement SPF avec tous vos services</li>
+          <li>DKIM activé et TXT DNS ajouté pour chaque service d'envoi</li>
+          <li>DMARC avec <code>p=none</code> et adresse de rapport valide</li>
+          <li>Propagation DNS vérifiée (15–30 min après modification)</li>
+          <li>Rapports lus et analysés avant de passer à <code>quarantine</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cta-block">
+      <h3>Votre domaine est-il correctement configuré ?</h3>
+      <p>Analysez votre domaine maintenant : SPF, DKIM, DMARC, SSL, ports ouverts et plus. Score de sécurité global en 60 secondes.</p>
+      <a href="https://wezea.net" class="btn-cta">→ Analyser mon domaine</a>
+      <p class="cta-note">Gratuit · Sans installation · Rapport PDF exportable</p>
+    </div>
+
+
+    <div class="related">
+      <p class="related-title">Lire aussi</p>
+      <div class="related-grid">
+      <a href="/blog/dmarc-rapports-analyse/" class="related-card">Lire et analyser ses rapports DMARC</a>
+      <a href="/blog/usurpation-domaine-email/" class="related-card">Usurpation de domaine : comment des hackers envoient des emails à votre place</a>
+      <a href="/blog/liste-noire-email-domaine/" class="related-card">Liste noire email : savoir si votre domaine est bloqué</a>
+      </div>
+    </div>
+  </article>
+</main>
+<script src="/footer.js"></script>
+</body>
+</html>
