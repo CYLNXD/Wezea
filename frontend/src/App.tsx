@@ -46,19 +46,19 @@ export default function App() {
   return (
     <LanguageProvider>
       <AuthProvider>
-        {/* Grille cyber globale — fixed, au-dessus du contenu (z-1), sous navbar/modals */}
+        {/* Grille cyber globale */}
         <div
           aria-hidden="true"
           style={{
             position: 'fixed',
             inset: 0,
             pointerEvents: 'none',
-            zIndex: 1,
+            zIndex: 10,
             backgroundImage:
               'linear-gradient(rgba(34,211,238,1) 1px, transparent 1px),' +
               'linear-gradient(90deg, rgba(34,211,238,1) 1px, transparent 1px)',
             backgroundSize: '48px 48px',
-            opacity: 0.03,
+            opacity: 0.15,
           }}
         />
 
