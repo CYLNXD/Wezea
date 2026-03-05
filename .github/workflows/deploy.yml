@@ -26,7 +26,12 @@ jobs:
       # ── 3. Build du frontend React ────────────────────────────────────────
       - name: 📦 Install & Build frontend
         working-directory: frontend
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
         run: |
+          echo "VITE_API_URL=${VITE_API_URL}" > .env.production
+          echo "VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}" >> .env.production
           npm ci --silent
           npm run build
 
