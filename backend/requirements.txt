@@ -24,6 +24,7 @@ jinja2==3.1.4
 
 # PDF Generation (rapport expert)
 weasyprint==62.3
+pydyf==0.10.0          # ÉPINGLÉ — pydyf 0.11.0+ casse l'API transform de weasyprint 62.x
 
 # Logging structuré
 structlog==24.4.0
