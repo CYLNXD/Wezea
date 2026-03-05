@@ -3,6 +3,7 @@
 # API Framework
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
+gunicorn==23.0.0
 pydantic==2.10.2
 python-multipart==0.0.12   # requis par FastAPI pour les uploads de fichiers (Form, File)
 
