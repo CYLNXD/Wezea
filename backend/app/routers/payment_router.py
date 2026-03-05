@@ -22,10 +22,13 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.limiter import limiter
 from app.models import User, Payment
 from app.routers.auth_router import get_current_user
 from app.services.brevo_service import send_upgrade_email
 import asyncio as _asyncio
+
+_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 router = APIRouter(prefix="/payment", tags=["payment"])
 
@@ -165,7 +168,9 @@ def _downgrade_from_subscription(subscription_id: str, db: Session) -> None:
     summary     = "Créer une Stripe Checkout Session",
     description = "Crée une session d'abonnement Stripe (starter ou pro) et retourne l'URL de checkout.",
 )
+@limiter.limit("5/hour")
 async def create_checkout(
+    request: Request,
     body:         CheckoutRequest = CheckoutRequest(),
     current_user: User            = Depends(get_current_user),
     db:           Session         = Depends(get_db),
@@ -233,7 +238,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     except stripe.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Signature webhook invalide.")
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Webhook invalide : {exc}")
+        detail = f"Webhook invalide : {exc}" if _DEBUG else "Webhook invalide."
+        raise HTTPException(status_code=400, detail=detail)
 
     event_type = event["type"]
     data       = event["data"]["object"]
@@ -245,15 +251,33 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         session_id  = data.get("id")
         customer_id = data.get("customer")
 
+        user = None
+
+        # 1. Par metadata.user_id (nominal)
         if user_id:
             user = db.query(User).filter(User.id == int(user_id)).first()
-            if user:
-                user.plan                    = plan
-                user.subscription_status     = "active"
-                user.subscription_expires_at = None
-                # Stocker le customer Stripe pour résistance à la recréation de DB
-                if customer_id and not user.stripe_customer_id:
-                    user.stripe_customer_id = customer_id
+
+        # 2. Par stripe_customer_id en DB (fallback si metadata absente/corrompue)
+        if not user and customer_id:
+            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+
+        # 3. Par email du customer Stripe (dernier recours)
+        if not user and customer_id:
+            try:
+                customer = stripe.Customer.retrieve(customer_id)
+                email    = (customer.get("email") or "").lower().strip()
+                if email:
+                    user = db.query(User).filter(User.email == email).first()
+            except Exception:
+                pass
+
+        if user:
+            user.plan                    = plan
+            user.subscription_status     = "active"
+            user.subscription_expires_at = None
+            # Stocker le customer Stripe pour résistance à la recréation de DB
+            if customer_id and not user.stripe_customer_id:
+                user.stripe_customer_id = customer_id
 
         payment = db.query(Payment).filter(Payment.stripe_session_id == session_id).first()
         if payment:
@@ -332,7 +356,7 @@ async def customer_portal(
     current_user: User    = Depends(get_current_user),
     db:           Session = Depends(get_db),
 ):
-    if current_user.plan not in ("starter", "pro") or current_user.subscription_status != "active":
+    if current_user.plan not in ("starter", "pro") or current_user.subscription_status not in ("active", "cancelling"):
         raise HTTPException(status_code=400, detail="Aucun abonnement actif.")
 
     last_payment = (
@@ -343,20 +367,30 @@ async def customer_portal(
     )
     customer_id = None
 
-    # 1. Chercher via la session Stripe
-    if last_payment:
+    # 1. stripe_customer_id stocké en DB (le plus rapide et robuste)
+    if current_user.stripe_customer_id:
+        customer_id = current_user.stripe_customer_id
+
+    # 2. Via la session Stripe (si pas en DB)
+    if not customer_id and last_payment:
         try:
             checkout_session = stripe.checkout.Session.retrieve(last_payment.stripe_session_id)
             customer_id      = checkout_session.get("customer")
+            if customer_id:
+                # Mettre en cache pour la prochaine fois
+                current_user.stripe_customer_id = customer_id
+                db.commit()
         except stripe.StripeError:
             pass
 
-    # 2. Fallback : chercher le customer par email
+    # 3. Fallback : chercher le customer par email
     if not customer_id:
         try:
             customers = stripe.Customer.list(email=current_user.email, limit=1)
             if customers.data:
                 customer_id = customers.data[0].id
+                current_user.stripe_customer_id = customer_id
+                db.commit()
         except stripe.StripeError:
             pass
 
@@ -384,7 +418,7 @@ async def cancel_subscription(
     current_user: User    = Depends(get_current_user),
     db:           Session = Depends(get_db),
 ):
-    if current_user.plan not in ("starter", "pro") or current_user.subscription_status != "active":
+    if current_user.plan not in ("starter", "pro") or current_user.subscription_status not in ("active", "cancelling"):
         raise HTTPException(status_code=400, detail="Aucun abonnement actif à annuler.")
 
     last_payment = (
@@ -394,20 +428,39 @@ async def cancel_subscription(
         .first()
     )
 
-    if last_payment:
+    # Récupérer l'ID de subscription Stripe pour programmer la résiliation en fin de période
+    sub_id = None
+
+    # 1. Via stripe_customer_id stocké en DB
+    if current_user.stripe_customer_id:
         try:
-            session = stripe.checkout.Session.retrieve(last_payment.stripe_session_id)
-            sub_id  = session.get("subscription")
-            if sub_id:
-                stripe.Subscription.modify(sub_id, cancel_at_period_end=True)
+            subs = stripe.Subscription.list(customer=current_user.stripe_customer_id, status="active", limit=1)
+            if subs.data:
+                sub_id = subs.data[0].id
         except stripe.StripeError:
             pass
 
-    current_user.subscription_status = "cancelled"
+    # 2. Via le dernier paiement
+    if not sub_id and last_payment:
+        try:
+            session = stripe.checkout.Session.retrieve(last_payment.stripe_session_id)
+            sub_id  = session.get("subscription")
+        except stripe.StripeError:
+            pass
+
+    if sub_id:
+        try:
+            stripe.Subscription.modify(sub_id, cancel_at_period_end=True)
+        except stripe.StripeError:
+            pass
+
+    # Statut "cancelling" : l'accès reste actif, le webhook customer.subscription.deleted
+    # passera en "free" à la fin de la période facturation.
+    current_user.subscription_status = "cancelling"
     db.commit()
 
     plan_name = "Starter" if current_user.plan == "starter" else "Pro"
     return {
-        "status":  "cancelled",
+        "status":  "cancelling",
         "message": f"Abonnement {plan_name} annulé. Votre accès reste actif jusqu'à la fin de la période en cours.",
     }
