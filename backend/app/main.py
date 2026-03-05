@@ -13,6 +13,7 @@ Middlewares :
 
 
 import io
+import logging
 import os
 import re
 import time
@@ -20,6 +21,8 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import json
 import asyncio
@@ -115,6 +118,32 @@ async def lifespan(app: FastAPI):
 # ─────────────────────────────────────────────────────────────────────────────
 
 _DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sentry — Error tracking (conditionnel : actif seulement si SENTRY_DSN est défini)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+if _SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    sentry_sdk.init(
+        dsn         = _SENTRY_DSN,
+        environment = os.getenv("ENVIRONMENT", "production"),
+        integrations = [
+            StarletteIntegration(transaction_style="endpoint"),
+            FastApiIntegration(transaction_style="endpoint"),
+            SqlalchemyIntegration(),
+            LoggingIntegration(level=logging.WARNING, event_level=logging.ERROR),
+        ],
+        traces_sample_rate = float(os.getenv("SENTRY_TRACES_RATE", "0.05")),  # 5 % des requêtes
+        send_default_pii   = False,   # RGPD : pas d'IP ni d'email dans les events
+    )
+    logger.info("Sentry initialisé (env=%s)", os.getenv("ENVIRONMENT", "production"))
 
 app = FastAPI(
     title       = "CyberHealth Scanner API",

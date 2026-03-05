@@ -64,8 +64,10 @@
         ui_host: 'https://us.posthog.com',
         defaults: '2026-01-30',
         person_profiles: 'always',
-        opt_out_capturing_by_default: true,   // RGPD : opt-out par défaut jusqu'au consentement
-        persistence: 'localStorage',           // évite les cookies tiers avant consentement
+        opt_out_capturing_by_default: true,        // RGPD : opt-out par défaut jusqu'au consentement
+        persistence: 'localStorage',                // évite les cookies tiers avant consentement
+        enable_exception_autocapture: true,         // Capture automatique des erreurs JS non gérées
+        exception_autocapture: { endpoint: '/e/' }, // Route via reverse-proxy wezea.net
       })
     </script>
     <!-- Google Identity Services -->
