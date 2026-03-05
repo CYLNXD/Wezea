@@ -20,6 +20,10 @@ def get_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # Borner limit pour éviter un OOM sur de très grands historiques
+    limit  = max(1, min(limit, 100))
+    offset = max(0, offset)
+
     total = db.query(ScanHistory).filter(ScanHistory.user_id == current_user.id).count()
     scans = (
         db.query(ScanHistory)

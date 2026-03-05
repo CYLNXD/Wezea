@@ -60,6 +60,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 PASSWORD_MIN = 8
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -203,6 +204,7 @@ def register(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("30/minute")
 def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
     ip = request.client.host if request.client else "unknown"
     _check_lockout(ip)
@@ -257,12 +259,9 @@ def update_profile(
     db.refresh(current_user)
 
     # Sync Brevo en arrière-plan (ne bloque pas la réponse)
+    # update_brevo_contact(email, plan) — on transmet le plan, pas le nom (mauvaise signature corrigée)
     def _sync_brevo():
-        asyncio.run(update_brevo_contact(
-            current_user.email,
-            current_user.first_name,
-            current_user.last_name,
-        ))
+        asyncio.run(update_brevo_contact(current_user.email, current_user.plan))
     background_tasks.add_task(_sync_brevo)
 
     return UserResponse(
@@ -287,11 +286,15 @@ def delete_account(
 ):
     """
     Suppression définitive du compte (RGPD — droit à l'effacement).
-    Exige la confirmation du mot de passe.
+    Exige la confirmation du mot de passe (non applicable aux comptes Google).
     Supprime l'utilisateur ET tous ses scans (cascade via SQLAlchemy).
     """
-    if not verify_password(req.password, current_user.password_hash):
-        raise HTTPException(status_code=400, detail="Mot de passe incorrect")
+    is_google = bool(current_user.google_id) and current_user.password_hash.startswith("!google:")
+    if not is_google:
+        # Comptes classiques : vérifier le mot de passe
+        if not verify_password(req.password, current_user.password_hash):
+            raise HTTPException(status_code=400, detail="Mot de passe incorrect")
+    # Comptes Google : pas de mot de passe — l'authentification JWT suffit
 
     email_to_delete = current_user.email  # capturer avant suppression
     db.delete(current_user)
@@ -330,7 +333,9 @@ class ChangePasswordRequest(BaseModel):
 
 
 @router.post("/change-password", status_code=200)
+@limiter.limit("10/hour")
 def change_password(
+    request: Request,
     req: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -355,7 +360,9 @@ class ChangeEmailRequest(BaseModel):
 
 
 @router.post("/change-email", status_code=200)
+@limiter.limit("5/hour")
 def change_email(
+    request: Request,
     req: ChangeEmailRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -402,7 +409,8 @@ def google_auth(
             GOOGLE_CLIENT_ID,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=401, detail=f"Token Google invalide : {exc}")
+        detail = f"Token Google invalide : {exc}" if _DEBUG else "Token Google invalide."
+        raise HTTPException(status_code=401, detail=detail)
 
     email      = (idinfo.get("email") or "").lower().strip()
     google_sub = idinfo.get("sub")
