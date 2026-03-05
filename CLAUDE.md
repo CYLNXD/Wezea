@@ -73,6 +73,8 @@ Toutes les pages doivent utiliser ces classes CSS définies dans `index.css` :
 
 **IMPORTANT** : Ne pas mettre de `backgroundColor` solide sur les wrappers de pages — cela cache les radial-gradients du `body` définis dans `index.css`.
 
+**IMPORTANT** : Le body a `background-attachment: fixed` — les gradients sont fixés au viewport. Ne pas retirer cette propriété, sinon les gradients deviennent invisibles sur les pages longues.
+
 ### Pages stylisées (skeuomorphique ✅)
 - `Dashboard.tsx` ✅
 - `LoginPage.tsx` ✅
@@ -102,6 +104,7 @@ Toutes les pages doivent utiliser ces classes CSS définies dans `index.css` :
 - **"Créer un compte" ouvrait onglet "Connexion"** : `onGoRegister?.() ?? onGoLogin?.()` — les fonctions void retournent `undefined`, le `??` déclenchait toujours le fallback → remplacé par `if (onGoRegister) { onGoRegister(); } else { onGoLogin?.(); }`
 - **Build TS** : `<select>` dans ContactPage avait deux attributs `style` → fusionnés
 - **"hebdomadaire" → "journalière"** : message de limite quota corrigé
+- **Gradients invisibles sur pages longues** : positions `0%`/`100%` hors viewport en scroll → `background-attachment: fixed` + positions `15%`/`85%` dans `index.css`
 
 ---
 
