@@ -1,0 +1,82 @@
+name: 🚀 Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: self-hosted   # ← runner installé sur ton serveur
+
+    steps:
+      # ── 1. Récupérer le code ──────────────────────────────────────────────
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Node.js ──────────────────────────────────────────────────
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # ── 3. Build du frontend React ────────────────────────────────────────
+      - name: 📦 Install & Build frontend
+        working-directory: frontend
+        run: |
+          npm ci --silent
+          npm run build
+
+      # ── 4. Déployer le frontend (nginx) ───────────────────────────────────
+      - name: 🌐 Deploy frontend
+        run: |
+          sudo rm -rf /var/www/cyberhealth/*
+          sudo cp -r frontend/dist/* /var/www/cyberhealth/
+          sudo chown -R www-data:www-data /var/www/cyberhealth/
+          echo "✓ Frontend déployé"
+
+      # ── 5. Déployer le backend ────────────────────────────────────────────
+      - name: 🐍 Deploy backend
+        run: |
+          sudo rsync -a --delete \
+            --exclude='venv/' \
+            --exclude='__pycache__/' \
+            --exclude='.env' \
+            backend/ /home/cyberhealth/app/backend/
+          sudo chown -R cyberhealth:cyberhealth /home/cyberhealth/app/backend/
+          echo "✓ Backend déployé"
+
+      # ── 6. Mise à jour des dépendances Python ─────────────────────────────
+      - name: 📚 Update Python dependencies
+        run: |
+          sudo -u cyberhealth /home/cyberhealth/app/backend/venv/bin/pip install \
+            --quiet -r /home/cyberhealth/app/backend/requirements.txt
+          echo "✓ Dépendances Python à jour"
+
+      # ── 7. Redémarrer l'API ───────────────────────────────────────────────
+      - name: 🔄 Restart API service
+        run: |
+          sudo systemctl restart cyberhealth-api
+          sleep 3
+          sudo systemctl is-active cyberhealth-api
+          echo "✓ Service redémarré"
+
+      # ── 8. Reload nginx ───────────────────────────────────────────────────
+      - name: 🔁 Reload nginx
+        run: |
+          sudo nginx -t && sudo systemctl reload nginx
+          echo "✓ Nginx rechargé"
+
+      # ── 9. Health check ───────────────────────────────────────────────────
+      - name: 🏥 Health check
+        run: |
+          sleep 2
+          HTTP=$(curl -s -o /dev/null -w '%{http_code}' \
+            -X POST http://localhost:8000/scan \
+            -H 'Content-Type: application/json' \
+            -d '{"domain":"wezea.net"}' --max-time 30)
+          echo "API HTTP status: $HTTP"
+          [ "$HTTP" = "200" ] && echo "✓ API OK" || echo "⚠ API status: $HTTP"
