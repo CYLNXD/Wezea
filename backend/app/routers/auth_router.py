@@ -95,6 +95,7 @@ class UserResponse(BaseModel):
     last_name: Optional[str] = None
     google_id: Optional[str] = None
     created_at: str
+    is_admin: bool = False
 
 
 class GoogleAuthRequest(BaseModel):
@@ -232,6 +233,7 @@ def me(current_user: User = Depends(get_current_user)):
         last_name=current_user.last_name,
         google_id=current_user.google_id,
         created_at=current_user.created_at.isoformat(),
+        is_admin=bool(current_user.is_admin),
     )
 
 
@@ -270,6 +272,7 @@ def update_profile(
         last_name=current_user.last_name,
         google_id=current_user.google_id,
         created_at=current_user.created_at.isoformat(),
+        is_admin=bool(current_user.is_admin),
     )
 
 
