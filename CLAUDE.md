@@ -105,6 +105,7 @@ Toutes les pages doivent utiliser ces classes CSS définies dans `index.css` :
 - **Build TS** : `<select>` dans ContactPage avait deux attributs `style` → fusionnés
 - **"hebdomadaire" → "journalière"** : message de limite quota corrigé
 - **Gradients invisibles sur pages longues** : positions `0%`/`100%` hors viewport en scroll → `background-attachment: fixed` + positions `15%`/`85%` dans `index.css`
+- **⚠️ Grille cyber sur pages secondaires** : NE PAS RETENTER — impossible à faire via CSS global (stacking contexts) ou App.tsx (fixed piégé). Seul endroit qui fonctionne : inside hero section du Dashboard (absolute dans relative overflow-hidden).
 
 ---
 
