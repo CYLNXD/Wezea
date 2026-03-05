@@ -51,6 +51,10 @@ jobs:
             --exclude='venv/' \
             --exclude='__pycache__/' \
             --exclude='.env' \
+            --exclude='*.db' \
+            --exclude='*.sqlite' \
+            --exclude='uploads/' \
+            --exclude='logs/' \
             backend/ /home/cyberhealth/app/backend/
           sudo chown -R cyberhealth:cyberhealth /home/cyberhealth/app/backend/
           echo "✓ Backend déployé"
