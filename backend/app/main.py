@@ -54,7 +54,7 @@ from app.routers.newsletter_router import router as newsletter_router
 API_VERSION   = "1.0.0"
 RATE_LIMIT    = os.getenv("RATE_LIMIT", "10/minute")
 # Trim whitespace autour de chaque origine (évite la config accidentelle "http://good.com, http://evil.com")
-CORS_ORIGINS  = [o.strip() for o in os.getenv("CORS_ORIGINS", "https://scan.wezea.net").split(",") if o.strip()]
+CORS_ORIGINS  = [o.strip() for o in os.getenv("CORS_ORIGINS", "https://wezea.net,https://www.wezea.net,https://scan.wezea.net").split(",") if o.strip()]
 MAX_DOMAIN_LEN = 253  # RFC 1035
 
 # Regex permissive pour valider un FQDN (pas les IPs internes)
