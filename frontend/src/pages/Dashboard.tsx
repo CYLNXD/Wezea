@@ -115,7 +115,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   };
   const goRegister = (source: RegisterCtaSource) => {
     captureRegisterCtaClicked(source);
-    onGoRegister?.() ?? onGoLogin?.();
+    if (onGoRegister) { onGoRegister(); } else { onGoLogin?.(); }
   };
   const goLogin = (source: RegisterCtaSource) => {
     captureRegisterCtaClicked(source);
@@ -909,7 +909,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                           : 'Sign up in 30 seconds and get 5 scans per day, analysis history, and more.'}
                       </p>
                       <button
-                        onClick={() => { scanner.reset(); onGoLogin?.(); }}
+                        onClick={() => { scanner.reset(); if (onGoRegister) { onGoRegister(); } else { onGoLogin?.(); } }}
                         className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-sm transition-all shadow-lg shadow-cyan-900/30"
                       >
                         {lang === 'fr' ? 'Créer mon compte gratuit →' : 'Create my free account →'}
