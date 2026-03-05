@@ -128,23 +128,24 @@ body {
   height: 297mm;
   position: relative;
   background: white;
-  display: flex;
-  flex-direction: column;
 }
 
 /* Bande supérieure navy */
 .cover-header {
   background: var(--navy);
   padding: 14mm 18mm 10mm;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: table;
+  width: 100%;
+  box-sizing: border-box;
+}
+.cover-header > div {
+  display: table-cell;
+  vertical-align: middle;
 }
 
 .brand {
-  display: flex;
-  align-items: center;
-  gap: 8pt;
+  display: table-cell;
+  vertical-align: middle;
 }
 .brand-icon {
   width: 34pt;
@@ -171,17 +172,15 @@ body {
   color: #94a3b8;
   text-align: right;
   font-family: var(--font-mono);
+  display: table-cell;
+  vertical-align: middle;
 }
 
 /* Corps de la couverture */
 .cover-body {
-  flex: 1;
   background: var(--bg-light);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16mm 22mm;
+  padding: 16mm 22mm 12mm;
+  text-align: center;
 }
 
 .cover-report-type {
@@ -215,9 +214,7 @@ body {
 
 /* Jauge score SVG sur la couverture */
 .cover-score-block {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  text-align: center;
   margin-bottom: 20pt;
 }
 
@@ -243,19 +240,20 @@ body {
 
 /* Ligne d'infos en bas de couverture */
 .cover-meta {
-  display: flex;
-  gap: 0;
+  display: table;
+  table-layout: fixed;
   width: 100%;
   background: white;
   border: 1pt solid var(--border);
   border-radius: 6pt;
-  overflow: hidden;
 }
 .cover-meta-item {
-  flex: 1;
+  display: table-cell;
   padding: 8pt 12pt;
   text-align: center;
   border-right: 1pt solid var(--border);
+  width: 33.33%;
+  vertical-align: middle;
 }
 .cover-meta-item:last-child { border-right: none; }
 .cover-meta-value {
@@ -269,19 +267,26 @@ body {
   color: var(--slate-light);
   text-transform: uppercase;
   letter-spacing: 0.8pt;
+  display: block;
+  word-break: break-word;
 }
 
 /* Pied de couverture */
 .cover-footer {
   background: var(--navy);
   padding: 8mm 18mm;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: table;
+  width: 100%;
+  box-sizing: border-box;
 }
 .cover-footer p {
   font-size: 7.5pt;
   color: #64748b;
+  display: table-cell;
+  vertical-align: middle;
+}
+.cover-footer p:last-child {
+  text-align: right;
 }
 .cover-footer strong { color: #94a3b8; }
 
@@ -303,12 +308,15 @@ body {
 
 /* En-tête de section */
 .section-header {
-  display: flex;
-  align-items: center;
-  gap: 8pt;
+  display: table;
+  width: 100%;
   margin-bottom: 14pt;
   padding-bottom: 8pt;
   border-bottom: 2pt solid var(--navy);
+}
+.section-header > * {
+  display: table-cell;
+  vertical-align: middle;
 }
 
 .section-number {
@@ -319,9 +327,12 @@ body {
   border-radius: 50%;
   font-size: 9pt;
   font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  text-align: center;
+  line-height: 22pt;
+  padding: 0;
+}
+.section-header > div:last-child {
+  padding-left: 8pt;
 }
 
 .section-title {
@@ -364,19 +375,22 @@ p.lead {
    ③ SYNTHÈSE — Score card + KPIs
    ════════════════════════════════════════════════════════════════════════════ */
 .summary-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8pt;
+  overflow: hidden;
   margin-bottom: 14pt;
 }
 
 .kpi-card {
+  float: left;
+  width: 32%;
+  margin-right: 2%;
   background: var(--bg-light);
   border: 1pt solid var(--border);
   border-radius: 6pt;
   padding: 10pt 12pt;
   text-align: center;
+  box-sizing: border-box;
 }
+.kpi-card:last-child { float: left; margin-right: 0; }
 .kpi-card.alert {
   background: #fef2f2;
   border-color: #fecaca;
@@ -411,11 +425,15 @@ p.lead {
   transition: width 0s;
 }
 .score-bar-labels {
-  display: flex;
-  justify-content: space-between;
   font-size: 7pt;
   color: var(--slate-light);
   margin-top: 2pt;
+  overflow: hidden;
+}
+.score-bar-labels span {
+  float: left;
+  width: 25%;
+  text-align: center;
 }
 
 /* Alerte synthèse */
@@ -423,15 +441,26 @@ p.lead {
   border-radius: 6pt;
   padding: 10pt 14pt;
   margin: 10pt 0;
-  display: flex;
-  gap: 10pt;
-  align-items: flex-start;
+  display: table;
+  width: 100%;
+  box-sizing: border-box;
 }
 .alert-box.danger  { background: #fef2f2; border: 1pt solid #fca5a5; }
 .alert-box.warning { background: #fff7ed; border: 1pt solid #fdba74; }
 .alert-box.ok      { background: #f0fdf4; border: 1pt solid #86efac; }
 
-.alert-icon { font-size: 14pt; line-height: 1; margin-top: 1pt; }
+.alert-icon {
+  font-size: 14pt;
+  line-height: 1.4;
+  display: table-cell;
+  vertical-align: top;
+  width: 20pt;
+  padding-right: 10pt;
+}
+.alert-box > div:last-child {
+  display: table-cell;
+  vertical-align: top;
+}
 .alert-title { font-weight: 700; font-size: 10pt; margin-bottom: 2pt; }
 .alert-text  { font-size: 9pt; line-height: 1.5; color: var(--slate); }
 
@@ -522,10 +551,16 @@ p.lead {
 
 /* Comparaison sectorielle */
 .risk-context {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10pt;
+  overflow: hidden;
   margin-top: 12pt;
+}
+.risk-context-card {
+  float: left;
+  width: 49%;
+  margin-right: 2%;
+}
+.risk-context-card:last-child {
+  margin-right: 0;
 }
 .risk-context-card {
   background: var(--bg-light);
@@ -567,9 +602,7 @@ p.lead {
 }
 
 .finding-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 8pt;
+  overflow: hidden;
   padding: 9pt 12pt;
 }
 .finding-header.critical { background: #fef2f2; border-left: 3pt solid var(--red);    }
@@ -578,7 +611,12 @@ p.lead {
 .finding-header.low      { background: #f0fdf4; border-left: 3pt solid var(--green);  }
 .finding-header.info     { background: #ecfeff; border-left: 3pt solid var(--cyan);   }
 
-.finding-title-block { flex: 1; }
+.finding-title-block { overflow: hidden; }
+.finding-header .badge {
+  float: right;
+  margin-left: 8pt;
+  margin-top: 1pt;
+}
 .finding-title {
   font-size: 9.5pt;
   font-weight: 700;
@@ -597,15 +635,29 @@ p.lead {
   font-weight: 700;
   color: var(--red);
   white-space: nowrap;
-  padding-top: 2pt;
+  float: right;
+  margin-left: 8pt;
 }
 
 .finding-body {
   padding: 9pt 12pt;
   background: white;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10pt;
+}
+.finding-body-row {
+  display: table;
+  table-layout: fixed;
+  width: 100%;
+  margin-bottom: 8pt;
+}
+.finding-body-cell {
+  display: table-cell;
+  vertical-align: top;
+  width: 50%;
+  padding-right: 8pt;
+}
+.finding-body-cell:last-child {
+  padding-right: 0;
+  padding-left: 8pt;
 }
 .finding-section-label {
   font-size: 7pt;
@@ -630,7 +682,6 @@ p.lead {
 }
 
 .finding-tech {
-  grid-column: span 2;
   font-family: var(--font-mono);
   font-size: 8pt;
   color: var(--slate-mid);
@@ -645,16 +696,21 @@ p.lead {
    ⑥ PLAN D'ACTION — 3 phases
    ════════════════════════════════════════════════════════════════════════════ */
 .action-phases {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 10pt;
+  overflow: hidden;
   margin: 14pt 0;
 }
 .action-phase {
+  float: left;
+  width: 32%;
+  margin-right: 2%;
   border-radius: 6pt;
   overflow: hidden;
   border: 1pt solid var(--border);
   page-break-inside: avoid;
+  box-sizing: border-box;
+}
+.action-phase:last-child {
+  margin-right: 0;
 }
 .phase-header {
   padding: 8pt 10pt;
@@ -678,11 +734,10 @@ p.lead {
 .phase-item {
   font-size: 8.5pt;
   color: var(--slate);
-  padding: 3pt 0;
+  padding: 3pt 0 3pt 18pt;
   border-bottom: 0.5pt solid var(--border);
-  display: flex;
-  gap: 6pt;
   line-height: 1.4;
+  position: relative;
 }
 .phase-item:last-child { border-bottom: none; }
 .phase-bullet {
@@ -692,11 +747,12 @@ p.lead {
   color: white;
   font-size: 6.5pt;
   font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-top: 1pt;
+  text-align: center;
+  line-height: 12pt;
+  position: absolute;
+  left: 0;
+  top: 4pt;
+  display: block;
 }
 .phase-bullet.urgent    { background: var(--red);          }
 .phase-bullet.important { background: var(--orange);       }
@@ -744,10 +800,6 @@ p.lead {
    ⑧ PAGE DE CTA FINALE
    ════════════════════════════════════════════════════════════════════════════ */
 .cta-page {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   text-align: center;
   padding: 20pt;
 }
@@ -756,10 +808,11 @@ p.lead {
   height: 56pt;
   background: var(--navy);
   border-radius: 12pt;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 12pt;
+  text-align: center;
+  line-height: 56pt;
+  margin: 0 auto 12pt auto;
+  display: block;
+  overflow: hidden;
 }
 .cta-heading {
   font-size: 18pt;
@@ -797,8 +850,8 @@ p.lead {
   border-top: 0.5pt solid var(--border);
   margin-top: 20pt;
   padding-top: 10pt;
-  max-width: 400pt;
   line-height: 1.5;
+  text-align: left;
 }
 
 /* Séparateur horizontal */
@@ -1097,13 +1150,15 @@ p.lead {
         {% endif %}
       </div>
       <div class="finding-body">
-        <div>
-          <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
-          <div class="finding-plain">{{ f.plain_explanation }}</div>
-        </div>
-        <div>
-          <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
-          <div class="finding-reco">{{ f.recommendation }}</div>
+        <div class="finding-body-row">
+          <div class="finding-body-cell">
+            <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
+            <div class="finding-plain">{{ f.plain_explanation }}</div>
+          </div>
+          <div class="finding-body-cell">
+            <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
+            <div class="finding-reco">{{ f.recommendation }}</div>
+          </div>
         </div>
         <div class="finding-tech">{{ f.technical_detail }}</div>
       </div>
@@ -1127,13 +1182,15 @@ p.lead {
         {% endif %}
       </div>
       <div class="finding-body">
-        <div>
-          <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
-          <div class="finding-plain">{{ f.plain_explanation }}</div>
-        </div>
-        <div>
-          <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
-          <div class="finding-reco">{{ f.recommendation }}</div>
+        <div class="finding-body-row">
+          <div class="finding-body-cell">
+            <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
+            <div class="finding-plain">{{ f.plain_explanation }}</div>
+          </div>
+          <div class="finding-body-cell">
+            <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
+            <div class="finding-reco">{{ f.recommendation }}</div>
+          </div>
         </div>
         <div class="finding-tech">{{ f.technical_detail }}</div>
       </div>
@@ -1157,13 +1214,15 @@ p.lead {
         {% endif %}
       </div>
       <div class="finding-body">
-        <div>
-          <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
-          <div class="finding-plain">{{ f.plain_explanation }}</div>
-        </div>
-        <div>
-          <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
-          <div class="finding-reco">{{ f.recommendation }}</div>
+        <div class="finding-body-row">
+          <div class="finding-body-cell">
+            <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
+            <div class="finding-plain">{{ f.plain_explanation }}</div>
+          </div>
+          <div class="finding-body-cell">
+            <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
+            <div class="finding-reco">{{ f.recommendation }}</div>
+          </div>
         </div>
         <div class="finding-tech">{{ f.technical_detail }}</div>
       </div>
@@ -1521,24 +1580,26 @@ p.lead {
   </div>
 
   <!-- Résumé -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10pt;margin-bottom:18pt;">
-    <div style="background:#f0f9ff;border:1pt solid #bae6fd;border-radius:6pt;padding:12pt;text-align:center;">
-      <div style="font-size:22pt;font-weight:800;color:#0369a1;">{{ subdomain_details.get('total_found', 0) }}</div>
-      <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Subdomains detected{% else %}Sous-domaines détectés{% endif %}</div>
-    </div>
-    <div style="background:#f0fdf4;border:1pt solid #bbf7d0;border-radius:6pt;padding:12pt;text-align:center;">
-      <div style="font-size:22pt;font-weight:800;color:#15803d;">{{ subdomain_details.get('subdomains', []) | selectattr('active') | list | length }}</div>
-      <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Active{% else %}Actifs{% endif %}</div>
-    </div>
-    <div style="background:#fef9c3;border:1pt solid #fde047;border-radius:6pt;padding:12pt;text-align:center;">
-      <div style="font-size:22pt;font-weight:800;color:#ca8a04;">{{ subdomain_details.get('orphaned', []) | length }}</div>
-      <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Orphaned{% else %}Orphelins{% endif %}</div>
-    </div>
-    <div style="background:#fef2f2;border:1pt solid #fecaca;border-radius:6pt;padding:12pt;text-align:center;">
-      <div style="font-size:22pt;font-weight:800;color:#dc2626;">{{ subdomain_details.get('expired_certs', []) | length }}</div>
-      <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Expired certs{% else %}Certs expirés{% endif %}</div>
-    </div>
-  </div>
+  <table style="width:100%;table-layout:fixed;border-collapse:separate;border-spacing:8pt;margin-bottom:18pt;">
+    <tr>
+      <td style="background:#f0f9ff;border:1pt solid #bae6fd;border-radius:6pt;padding:12pt;text-align:center;vertical-align:top;">
+        <div style="font-size:22pt;font-weight:800;color:#0369a1;">{{ subdomain_details.get('total_found', 0) }}</div>
+        <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Subdomains detected{% else %}Sous-domaines détectés{% endif %}</div>
+      </td>
+      <td style="background:#f0fdf4;border:1pt solid #bbf7d0;border-radius:6pt;padding:12pt;text-align:center;vertical-align:top;">
+        <div style="font-size:22pt;font-weight:800;color:#15803d;">{{ subdomain_details.get('subdomains', []) | selectattr('active') | list | length }}</div>
+        <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Active{% else %}Actifs{% endif %}</div>
+      </td>
+      <td style="background:#fef9c3;border:1pt solid #fde047;border-radius:6pt;padding:12pt;text-align:center;vertical-align:top;">
+        <div style="font-size:22pt;font-weight:800;color:#ca8a04;">{{ subdomain_details.get('orphaned', []) | length }}</div>
+        <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Orphaned{% else %}Orphelins{% endif %}</div>
+      </td>
+      <td style="background:#fef2f2;border:1pt solid #fecaca;border-radius:6pt;padding:12pt;text-align:center;vertical-align:top;">
+        <div style="font-size:22pt;font-weight:800;color:#dc2626;">{{ subdomain_details.get('expired_certs', []) | length }}</div>
+        <div style="font-size:8pt;color:#64748b;margin-top:3pt;">{% if lang == 'en' %}Expired certs{% else %}Certs expirés{% endif %}</div>
+      </td>
+    </tr>
+  </table>
 
   <!-- Findings sous-domaines -->
   {% for f in subdomain_findings %}
@@ -1612,9 +1673,9 @@ p.lead {
   {% if vuln_details.get('detected_stack') %}
   <div style="background:#f8fafc;border:1pt solid #e2e8f0;border-radius:8pt;padding:14pt;margin-bottom:16pt;">
     <div style="font-size:9pt;font-weight:700;color:#1e293b;margin-bottom:10pt;">{% if lang == 'en' %}Detected technologies{% else %}Technologies identifiées{% endif %}</div>
-    <div style="display:flex;gap:10pt;flex-wrap:wrap;">
+    <div style="overflow:hidden;">
       {% for tech in vuln_details.detected_stack %}
-      <div style="background:#fff;border:1pt solid #e2e8f0;border-radius:5pt;padding:8pt 12pt;">
+      <div style="float:left;background:#fff;border:1pt solid #e2e8f0;border-radius:5pt;padding:8pt 12pt;margin-right:8pt;margin-bottom:6pt;">
         <span style="font-size:9pt;font-weight:700;color:#0f2544;">{{ tech.tech | upper }}</span>
         <span style="font-size:8pt;color:#64748b;margin-left:4pt;">{{ tech.version }}</span>
       </div>
@@ -1706,32 +1767,34 @@ p.lead {
     </div>
     {% endif %}
 
-    <div style="margin-top: 18pt; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10pt; width: 100%;">
-      <div style="background: #f8fafc; border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 10pt; text-align: center;">
-        <div style="font-size: 11pt; font-weight: 800; color: #0f2544; margin-bottom: 3pt;">
-          {% if lang == 'en' %}Action plan{% else %}Plan d'action{% endif %}
-        </div>
-        <div style="font-size: 8.5pt; color: #64748b; line-height: 1.4;">
-          {% if lang == 'en' %}Prioritised remediation with cost estimates for each fix{% else %}Remédiation priorisée avec estimation de coût pour chaque correction{% endif %}
-        </div>
-      </div>
-      <div style="background: #f8fafc; border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 10pt; text-align: center;">
-        <div style="font-size: 11pt; font-weight: 800; color: #0f2544; margin-bottom: 3pt;">
-          {% if lang == 'en' %}GDPR Compliance{% else %}Conformité RGPD{% endif %}
-        </div>
-        <div style="font-size: 8.5pt; color: #64748b; line-height: 1.4;">
-          {% if lang == 'en' %}Analysis of legal obligations and fine risks under Article 83{% else %}Analyse des obligations légales et risques d'amendes selon l'article 83{% endif %}
-        </div>
-      </div>
-      <div style="background: #f8fafc; border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 10pt; text-align: center;">
-        <div style="font-size: 11pt; font-weight: 800; color: #0f2544; margin-bottom: 3pt;">
-          {% if lang == 'en' %}Monthly monitoring{% else %}Suivi mensuel{% endif %}
-        </div>
-        <div style="font-size: 8.5pt; color: #64748b; line-height: 1.4;">
-          {% if lang == 'en' %}Automatic monthly re-scan to track score progress{% else %}Re-scan automatique mensuel pour mesurer la progression du score{% endif %}
-        </div>
-      </div>
-    </div>
+    <table style="margin-top: 18pt; width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 8pt;">
+      <tr>
+        <td style="background: #f8fafc; border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 10pt; text-align: center; vertical-align: top;">
+          <div style="font-size: 11pt; font-weight: 800; color: #0f2544; margin-bottom: 3pt;">
+            {% if lang == 'en' %}Action plan{% else %}Plan d'action{% endif %}
+          </div>
+          <div style="font-size: 8.5pt; color: #64748b; line-height: 1.4;">
+            {% if lang == 'en' %}Prioritised remediation with cost estimates for each fix{% else %}Remédiation priorisée avec estimation de coût pour chaque correction{% endif %}
+          </div>
+        </td>
+        <td style="background: #f8fafc; border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 10pt; text-align: center; vertical-align: top;">
+          <div style="font-size: 11pt; font-weight: 800; color: #0f2544; margin-bottom: 3pt;">
+            {% if lang == 'en' %}GDPR Compliance{% else %}Conformité RGPD{% endif %}
+          </div>
+          <div style="font-size: 8.5pt; color: #64748b; line-height: 1.4;">
+            {% if lang == 'en' %}Analysis of legal obligations and fine risks under Article 83{% else %}Analyse des obligations légales et risques d'amendes selon l'article 83{% endif %}
+          </div>
+        </td>
+        <td style="background: #f8fafc; border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 10pt; text-align: center; vertical-align: top;">
+          <div style="font-size: 11pt; font-weight: 800; color: #0f2544; margin-bottom: 3pt;">
+            {% if lang == 'en' %}Monthly monitoring{% else %}Suivi mensuel{% endif %}
+          </div>
+          <div style="font-size: 8.5pt; color: #64748b; line-height: 1.4;">
+            {% if lang == 'en' %}Automatic monthly re-scan to track score progress{% else %}Re-scan automatique mensuel pour mesurer la progression du score{% endif %}
+          </div>
+        </td>
+      </tr>
+    </table>
 
     <div class="cta-disclaimer">
       {{ strings.disclaimer.replace('{domain}', domain).replace('{date}', report_date) }}
