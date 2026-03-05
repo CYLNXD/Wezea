@@ -269,6 +269,8 @@ async def health_check():
     )
 
 
+GLOBAL_SCAN_TIMEOUT_SEC = int(os.getenv("GLOBAL_SCAN_TIMEOUT_SEC", "60"))  # timeout absolu d'un scan complet
+
 ANON_SCAN_LIMIT  = int(os.getenv("ANON_SCAN_LIMIT", "1"))    # scans/jour par cookie (anonyme)
 ANON_IP_DAY_CAP  = int(os.getenv("ANON_IP_DAY_CAP", "5"))    # scans/jour par IP (toutes sessions confondues)
 FREE_SCAN_LIMIT  = int(os.getenv("FREE_SCAN_LIMIT", "5"))    # scans/jour free
@@ -541,7 +543,11 @@ async def run_scan(
         try:
             scan_plan = current_user.plan if current_user else "anonymous"
             manager = AuditManager(domain, lang=lang, plan=scan_plan)
-            result  = await manager.run()
+            # Timeout global : filet de sécurité absolu — évite qu'un scan bloque un worker
+            result  = await asyncio.wait_for(manager.run(), timeout=GLOBAL_SCAN_TIMEOUT_SEC)
+        except asyncio.TimeoutError:
+            detail_to: dict = {"error": "Le scan a dépassé le délai maximum autorisé.", "scan_id": scan_id}
+            raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=detail_to)
         except Exception as exc:
             # Ne pas exposer str(exc) en production (fuite d'infos interne)
             detail: dict = {"error": "Erreur interne lors du scan.", "scan_id": scan_id}

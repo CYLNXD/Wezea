@@ -24,6 +24,9 @@ import urllib.error
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
+import dns.resolver
+import dns.exception
+
 from app.scanner import BaseAuditor, Finding, SCAN_TIMEOUT_SEC
 
 
@@ -313,14 +316,18 @@ class SubdomainAuditor(BaseAuditor):
         return sorted(subdomains)[:self.MAX_SUBDOMAINS]
 
     def _resolve_subdomain(self, subdomain: str) -> str | None:
-        """Résout un sous-domaine en IP. Retourne None si inexistant."""
+        """
+        Résout un sous-domaine en IP via dns.resolver (timeout contrôlé).
+        socket.getaddrinfo() peut bloquer 30-60s (timeout OS) — inacceptable en boucle.
+        """
         try:
-            result = socket.getaddrinfo(subdomain, None, socket.AF_INET)
-            if result:
-                return result[0][4][0]
-        except (socket.gaierror, OSError):
-            pass
-        return None
+            resolver = dns.resolver.Resolver()
+            resolver.lifetime = 3.0   # 3s max par résolution (Python-level, pas OS-level)
+            resolver.timeout  = 3.0
+            answers = resolver.resolve(subdomain, "A")
+            return str(answers[0])
+        except (dns.exception.DNSException, Exception):
+            return None
 
     def _check_cert(self, subdomain: str) -> dict | None:
         """
