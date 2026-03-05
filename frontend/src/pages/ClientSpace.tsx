@@ -533,7 +533,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   return (
     <div className="relative min-h-screen text-slate-100">
       {/* Grille cyber — identique au hero Dashboard */}
-      <div className="fixed inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(34,211,238,1) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,1) 1px, transparent 1px)', backgroundSize: '48px 48px', opacity: 0.025 }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(34,211,238,1) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,1) 1px, transparent 1px)', backgroundSize: '48px 48px', opacity: 0.025 }} />
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <PageNavbar
