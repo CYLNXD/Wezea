@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wezea — Audit sécurité de votre site web</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --color-bg:      #0d1117;
+      --color-surface: #161c24;
+      --color-card:    #1a2130;
+      --color-inset:   #0f151e;
+      --color-border:  rgba(255,255,255,0.07);
+      --color-accent:  #22d3ee;
+      --font-mono:     'JetBrains Mono', 'Fira Code', monospace;
+      --font-sans:     'Inter', system-ui, sans-serif;
+      --font-display:  -apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif;
+
+      --shadow-panel:  0 4px 24px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.05) inset;
+      --shadow-card:   0 2px 12px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.06) inset, 0 -1px 0 rgba(0,0,0,0.3) inset;
+      --shadow-inset:  0 2px 6px rgba(0,0,0,0.5) inset, 0 1px 0 rgba(255,255,255,0.04);
+      --shadow-btn:    0 2px 8px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.08) inset, 0 -1px 0 rgba(0,0,0,0.3) inset;
+    }
+
+    html {
+      font-size: 18px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--color-bg);
+      background-image:
+        radial-gradient(ellipse at 20% 0%,   rgba(34,211,238,0.04) 0%, transparent 55%),
+        radial-gradient(ellipse at 80% 100%, rgba(99,102,241,0.03) 0%, transparent 55%);
+      color: #cbd5e1;
+      min-height: 100vh;
+    }
+
+    h1, h2, h3 {
+      font-family: var(--font-display);
+      letter-spacing: -0.02em;
+    }
+
+    ::-webkit-scrollbar       { width: 5px; }
+    ::-webkit-scrollbar-track { background: #0a0f18; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 9999px; }
+
+    /* ══ NAV ══════════════════════════════════════════════════════════════════ */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.85rem 2rem;
+      border-bottom: 1px solid var(--color-border);
+      background: rgba(13,17,23,0.92);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+    }
+    .logo-icon {
+      width: 30px; height: 30px;
+      background: var(--color-card);
+      border: 1.5px solid rgba(34,211,238,0.3);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono);
+      font-weight: 900;
+      font-size: 0.9rem;
+      color: var(--color-accent);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .logo-text {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 0.95rem;
+      color: #f1f5f9;
+      letter-spacing: -0.01em;
+    }
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.72rem;
+      color: #64748b;
+    }
+    .nav-right strong { color: #94a3b8; font-weight: 500; }
+
+    /* ══ HERO ═════════════════════════════════════════════════════════════════ */
+    .hero {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 4.5rem 2rem 2.5rem;
+      text-align: center;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      background: rgba(34,211,238,0.07);
+      border: 1px solid rgba(34,211,238,0.18);
+      border-radius: 999px;
+      padding: 0.28rem 0.85rem;
+      font-size: 0.67rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--color-accent);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 1.6rem;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset;
+    }
+    .pill-dot {
+      width: 6px; height: 6px;
+      background: var(--color-accent);
+      border-radius: 50%;
+      animation: blink 2s infinite;
+      box-shadow: 0 0 6px rgba(34,211,238,0.8);
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 900;
+      color: #f1f5f9;
+      line-height: 1.12;
+      margin-bottom: 1.1rem;
+    }
+    h1 em {
+      font-style: normal;
+      background: linear-gradient(135deg, #22d3ee 0%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 0.95rem;
+      color: #94a3b8;
+      line-height: 1.7;
+      max-width: 520px;
+      margin: 0 auto 2.5rem;
+    }
+
+    /* ══ SCAN PANEL ═══════════════════════════════════════════════════════════ */
+    .scan-panel {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 20px;
+      padding: 1.6rem;
+      box-shadow: var(--shadow-panel);
+      max-width: 560px;
+      margin: 0 auto 1.6rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .scan-panel::before {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(160deg, rgba(255,255,255,0.03) 0%, transparent 40%);
+      pointer-events: none;
+    }
+    .scan-row {
+      display: flex;
+      gap: 0.55rem;
+    }
+    .scan-input {
+      flex: 1;
+      background: var(--color-inset);
+      border: 1px solid rgba(0,0,0,0.5);
+      box-shadow: var(--shadow-inset);
+      border-radius: 11px;
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+      color: #f1f5f9;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .scan-input::placeholder { color: #475569; }
+    .scan-input:focus { border-color: rgba(34,211,238,0.35); box-shadow: var(--shadow-inset), 0 0 0 2px rgba(34,211,238,0.06); }
+
+    /* Bouton primaire skeuomorphique — identique au site */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      background: linear-gradient(180deg, #1fd6ef 0%, #0eb8d4 55%, #0ca0ba 100%);
+      border: 1px solid #0990ab;
+      color: #072030;
+      font-weight: 700;
+      font-size: 0.82rem;
+      font-family: var(--font-sans);
+      border-radius: 11px;
+      padding: 0.75rem 1.2rem;
+      cursor: pointer;
+      white-space: nowrap;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 3px 14px rgba(14,184,212,0.4), 0 1px 0 rgba(255,255,255,0.22) inset, 0 -2px 0 rgba(0,0,0,0.2) inset;
+      transition: box-shadow 0.15s, transform 0.12s;
+      text-decoration: none;
+    }
+    .btn-primary::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 46%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.14), transparent);
+      pointer-events: none;
+    }
+    .btn-primary:hover {
+      box-shadow: 0 5px 20px rgba(14,184,212,0.55), 0 1px 0 rgba(255,255,255,0.28) inset, 0 -2px 0 rgba(0,0,0,0.2) inset;
+      transform: translateY(-1px);
+    }
+    .btn-primary:active { transform: translateY(0); }
+
+    .scan-note {
+      font-size: 0.67rem;
+      color: #475569;
+      text-align: center;
+      margin-top: 0.85rem;
+    }
+    .scan-note b { color: #64748b; }
+
+    /* ══ STATS ════════════════════════════════════════════════════════════════ */
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+      padding: 0 2rem 0.5rem;
+    }
+    .stat {
+      background: linear-gradient(180deg, #1a2235 0%, #141b2d 100%);
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05) inset;
+      border-radius: 12px;
+      padding: 0.7rem 1.3rem;
+      text-align: center;
+      min-width: 100px;
+    }
+    .stat-num {
+      font-size: 1.4rem;
+      font-weight: 900;
+      color: #f1f5f9;
+      font-family: var(--font-mono);
+      line-height: 1;
+    }
+    .stat-num span { color: var(--color-accent); }
+    .stat-label { font-size: 0.65rem; color: #475569; margin-top: 0.25rem; letter-spacing: 0.02em; }
+
+    /* ══ SECTION LAYOUT ═══════════════════════════════════════════════════════ */
+    section {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 3.5rem 2rem;
+    }
+    .section-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--color-accent);
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      margin-bottom: 0.55rem;
+    }
+    h2 {
+      font-size: clamp(1.3rem, 3vw, 1.7rem);
+      font-weight: 800;
+      color: #f1f5f9;
+      margin-bottom: 0.5rem;
+    }
+    .section-sub {
+      color: #64748b;
+      font-size: 0.85rem;
+      margin-bottom: 2rem;
+      max-width: 480px;
+      line-height: 1.65;
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid var(--color-border);
+    }
+
+    /* ══ CHECKS GRID ══════════════════════════════════════════════════════════ */
+    .checks-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+      gap: 0.8rem;
+    }
+    .check-card {
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.85rem;
+      box-shadow: var(--shadow-card);
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .check-card::after {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+      pointer-events: none;
+    }
+    .check-card:hover { border-color: rgba(34,211,238,0.15); }
+    .check-icon {
+      width: 30px; height: 30px;
+      border-radius: 8px;
+      border: 1px solid;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 4px rgba(0,0,0,0.3);
+    }
+    .check-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.2rem;
+      font-family: var(--font-display);
+    }
+    .check-desc { font-size: 0.72rem; color: #64748b; line-height: 1.55; }
+
+    /* ══ RAPPORT PREVIEW ══════════════════════════════════════════════════════ */
+    .report-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    .report-panel {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 16px;
+      padding: 1.3rem;
+      box-shadow: var(--shadow-panel);
+      position: relative;
+      overflow: hidden;
+    }
+    .report-panel::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(160deg, rgba(255,255,255,0.025) 0%, transparent 40%);
+      pointer-events: none;
+    }
+    .report-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      padding-bottom: 0.8rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .report-domain {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 0.78rem;
+      color: #f1f5f9;
+    }
+    .report-meta { font-size: 0.63rem; color: #475569; margin-top: 0.15rem; }
+    .score-pill {
+      background: rgba(34,211,238,0.08);
+      border: 1px solid rgba(34,211,238,0.22);
+      color: var(--color-accent);
+      font-family: var(--font-mono);
+      font-weight: 900;
+      font-size: 1rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9px;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 0 10px rgba(34,211,238,0.1);
+    }
+    .report-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      gap: 0.5rem;
+    }
+    .report-row:last-child { border-bottom: none; }
+    .report-check {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: #64748b;
+      flex: 1;
+    }
+    .st-ok   { font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600; color: #4ade80; white-space: nowrap; }
+    .st-warn { font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600; color: #fb923c; white-space: nowrap; }
+    .st-err  { font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600; color: #f87171; white-space: nowrap; }
+
+    .report-points {
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+    }
+    .point {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    .point-icon {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      border: 1px solid;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset;
+    }
+    .point-title { font-size: 0.78rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.1rem; }
+    .point-desc  { font-size: 0.68rem; color: #64748b; line-height: 1.5; }
+
+    /* ══ AUDIENCE ═════════════════════════════════════════════════════════════ */
+    .audience-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 0.8rem;
+    }
+    .audience-card {
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: 14px;
+      padding: 1.2rem 1rem;
+      text-align: center;
+      box-shadow: var(--shadow-card);
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .audience-card::after {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+      pointer-events: none;
+    }
+    .audience-card:hover { border-color: rgba(34,211,238,0.15); }
+    .audience-icon {
+      width: 40px; height: 40px;
+      border-radius: 11px;
+      border: 1px solid;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 0.75rem;
+      font-size: 1.1rem;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 3px 8px rgba(0,0,0,0.35);
+    }
+    .audience-title { font-size: 0.82rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.3rem; font-family: var(--font-display); }
+    .audience-desc  { font-size: 0.7rem; color: #64748b; line-height: 1.55; }
+
+    /* ══ CTA FINAL ════════════════════════════════════════════════════════════ */
+    .cta-block {
+      text-align: center;
+      padding: 5rem 2rem;
+      background: radial-gradient(ellipse at 50% 0%, rgba(34,211,238,0.05) 0%, transparent 65%);
+      position: relative;
+    }
+    .cta-block h2 { margin-bottom: 0.6rem; }
+    .cta-block p  { color: #64748b; font-size: 0.88rem; margin-bottom: 2rem; }
+    .btn-primary-lg {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: linear-gradient(180deg, #1fd6ef 0%, #0eb8d4 55%, #0ca0ba 100%);
+      border: 1px solid #0990ab;
+      color: #072030;
+      font-weight: 800;
+      font-size: 0.92rem;
+      font-family: var(--font-sans);
+      border-radius: 14px;
+      padding: 0.95rem 2rem;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(14,184,212,0.4), 0 1px 0 rgba(255,255,255,0.22) inset, 0 -2px 0 rgba(0,0,0,0.2) inset;
+      transition: box-shadow 0.15s, transform 0.12s;
+      text-decoration: none;
+    }
+    .btn-primary-lg::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 46%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.14), transparent);
+      pointer-events: none;
+    }
+    .btn-primary-lg:hover {
+      box-shadow: 0 6px 24px rgba(14,184,212,0.55), 0 1px 0 rgba(255,255,255,0.28) inset, 0 -2px 0 rgba(0,0,0,0.2) inset;
+      transform: translateY(-1px);
+    }
+    .cta-sub { font-size: 0.7rem; color: #334155; margin-top: 1rem; }
+
+    /* ══ FOOTER ═══════════════════════════════════════════════════════════════ */
+    footer {
+      border-top: 1px solid var(--color-border);
+      padding: 1.4rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      font-size: 0.67rem;
+      color: #334155;
+    }
+    footer a { color: #475569; text-decoration: none; }
+    footer a:hover { color: #94a3b8; }
+
+    @media (max-width: 700px) {
+      .scan-row { flex-direction: column; }
+      .report-wrap { grid-template-columns: 1fr; }
+      .stats { gap: 0.8rem; }
+      h1 { font-size: 1.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ──────────────────────────────────────────────────────────────── -->
+<nav>
+  <a class="logo" href="#">
+    <div class="logo-icon">W</div>
+    <span class="logo-text">Wezea</span>
+  </a>
+  <div class="nav-right">
+    <svg width="12" height="12" fill="none" stroke="#4ade80" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <strong>Scan gratuit</strong> &nbsp;·&nbsp; Sans inscription &nbsp;·&nbsp; RGPD conforme
+  </div>
+</nav>
+
+<!-- ── HERO ─────────────────────────────────────────────────────────────── -->
+<div class="hero">
+  <div class="pill">
+    <span class="pill-dot"></span>
+    Audit de sécurité instantané
+  </div>
+
+  <h1>Votre site est-il<br/>vraiment <em>sécurisé ?</em></h1>
+
+  <p class="hero-sub">
+    Wezea analyse votre domaine en moins de 60 secondes&nbsp;: SSL, DNS, DMARC, listes noires, ports exposés…
+    Obtenez un score et des recommandations concrètes — gratuitement.
+  </p>
+
+  <!-- SCAN BOX -->
+  <div class="scan-panel">
+    <div class="scan-row">
+      <input class="scan-input" type="text" placeholder="votresite.fr" value="wezea.net" />
+      <a class="btn-primary" href="https://wezea.net" target="_blank">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Analyser maintenant
+      </a>
+    </div>
+    <p class="scan-note"><b>Gratuit</b> · Résultats en &lt; 60 secondes · Aucune installation · Sans compte</p>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num">25<span>+</span></div>
+      <div class="stat-label">points de contrôle</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">&lt;<span>60</span>s</div>
+      <div class="stat-label">temps d'analyse</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">0<span>€</span></div>
+      <div class="stat-label">pour commencer</div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider" />
+
+<!-- ── CE QU'ON VÉRIFIE ──────────────────────────────────────────────────── -->
+<section>
+  <p class="section-label">Ce qu'on analyse</p>
+  <h2>Un audit complet en un clic</h2>
+  <p class="section-sub">Chaque point de contrôle est expliqué avec une recommandation claire — pas de jargon inutile.</p>
+
+  <div class="checks-grid">
+    <div class="check-card">
+      <div class="check-icon" style="background:rgba(34,211,238,0.08);border-color:rgba(34,211,238,0.2);">
+        <svg width="14" height="14" fill="none" stroke="#22d3ee" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div>
+        <div class="check-title">Certificat SSL</div>
+        <div class="check-desc">Validité, expiration, chaîne de certification et configuration HTTPS forcé.</div>
+      </div>
+    </div>
+    <div class="check-card">
+      <div class="check-icon" style="background:rgba(129,140,248,0.08);border-color:rgba(129,140,248,0.2);">
+        <svg width="14" height="14" fill="none" stroke="#818cf8" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      </div>
+      <div>
+        <div class="check-title">SPF / DKIM / DMARC</div>
+        <div class="check-desc">Protection contre l'usurpation de votre domaine et phishing par email.</div>
+      </div>
+    </div>
+    <div class="check-card">
+      <div class="check-icon" style="background:rgba(74,222,128,0.08);border-color:rgba(74,222,128,0.2);">
+        <svg width="14" height="14" fill="none" stroke="#4ade80" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </div>
+      <div>
+        <div class="check-title">DNS &amp; sous-domaines</div>
+        <div class="check-desc">Détection de configurations dangereuses et sous-domaines exposés.</div>
+      </div>
+    </div>
+    <div class="check-card">
+      <div class="check-icon" style="background:rgba(251,146,60,0.08);border-color:rgba(251,146,60,0.2);">
+        <svg width="14" height="14" fill="none" stroke="#fb923c" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+      </div>
+      <div>
+        <div class="check-title">Listes noires</div>
+        <div class="check-desc">Vérification sur +50 blacklists email et IP pour préserver votre délivrabilité.</div>
+      </div>
+    </div>
+    <div class="check-card">
+      <div class="check-icon" style="background:rgba(248,113,113,0.08);border-color:rgba(248,113,113,0.2);">
+        <svg width="14" height="14" fill="none" stroke="#f87171" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div>
+        <div class="check-title">Ports exposés</div>
+        <div class="check-desc">Détection des ports ouverts non nécessaires pouvant représenter des risques.</div>
+      </div>
+    </div>
+    <div class="check-card">
+      <div class="check-icon" style="background:rgba(250,204,21,0.08);border-color:rgba(250,204,21,0.2);">
+        <svg width="14" height="14" fill="none" stroke="#facc15" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <div>
+        <div class="check-title">Expiration du domaine</div>
+        <div class="check-desc">Alerte avant l'expiration de votre nom de domaine pour éviter les interruptions.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ── RAPPORT EXEMPLE ───────────────────────────────────────────────────── -->
+<section>
+  <p class="section-label">Exemple de résultat</p>
+  <h2>Un rapport clair et actionnable</h2>
+  <p class="section-sub">Chaque problème est priorisé par criticité avec une explication et une marche à suivre.</p>
+
+  <div class="report-wrap">
+    <!-- Faux rapport -->
+    <div class="report-panel">
+      <div class="report-header">
+        <div>
+          <div class="report-domain">exemple-agence.fr</div>
+          <div class="report-meta">Analysé il y a 2 minutes</div>
+        </div>
+        <div class="score-pill">74 / 100</div>
+      </div>
+      <div class="report-row"><span class="report-check">✓ Certificat SSL</span><span class="st-ok">Valide · 89j</span></div>
+      <div class="report-row"><span class="report-check">✓ HTTPS forcé</span><span class="st-ok">Actif</span></div>
+      <div class="report-row"><span class="report-check">⚠ DMARC</span><span class="st-warn">p=none</span></div>
+      <div class="report-row"><span class="report-check">⚠ SPF</span><span class="st-warn">+all détecté</span></div>
+      <div class="report-row"><span class="report-check">✗ Port 8080</span><span class="st-err">Exposé</span></div>
+      <div class="report-row"><span class="report-check">✓ Listes noires</span><span class="st-ok">Propre (52)</span></div>
+      <div class="report-row"><span class="report-check">✓ Domaine</span><span class="st-ok">187j restants</span></div>
+    </div>
+
+    <!-- Ce que ça apporte -->
+    <div class="report-points">
+      <div class="point">
+        <div class="point-icon" style="background:rgba(34,211,238,0.08);border-color:rgba(34,211,238,0.2);">
+          <svg width="13" height="13" fill="none" stroke="#22d3ee" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div>
+          <div class="point-title">Score global /100</div>
+          <div class="point-desc">Un score unique pour mesurer la sécurité de votre domaine et suivre son évolution dans le temps.</div>
+        </div>
+      </div>
+      <div class="point">
+        <div class="point-icon" style="background:rgba(129,140,248,0.08);border-color:rgba(129,140,248,0.2);">
+          <svg width="13" height="13" fill="none" stroke="#818cf8" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div>
+          <div class="point-title">Problèmes priorisés</div>
+          <div class="point-desc">Critique, élevé, moyen, faible — traitez d'abord ce qui compte vraiment.</div>
+        </div>
+      </div>
+      <div class="point">
+        <div class="point-icon" style="background:rgba(74,222,128,0.08);border-color:rgba(74,222,128,0.2);">
+          <svg width="13" height="13" fill="none" stroke="#4ade80" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div>
+          <div class="point-title">Rapport PDF Pro</div>
+          <div class="point-desc">Exportez un rapport complet à remettre à votre client, avec votre marque en option.</div>
+        </div>
+      </div>
+      <div class="point">
+        <div class="point-icon" style="background:rgba(251,146,60,0.08);border-color:rgba(251,146,60,0.2);">
+          <svg width="13" height="13" fill="none" stroke="#fb923c" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+        </div>
+        <div>
+          <div class="point-title">Monitoring continu</div>
+          <div class="point-desc">Soyez alerté dès qu'un problème apparaît sur vos domaines clients.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ── POUR QUI ───────────────────────────────────────────────────────────── -->
+<section>
+  <p class="section-label">Pour qui ?</p>
+  <h2>Fait pour les professionnels du web</h2>
+  <p class="section-sub">Wezea est utilisé par des agences, freelances et équipes IT pour surveiller la sécurité de leurs clients.</p>
+
+  <div class="audience-grid">
+    <div class="audience-card">
+      <div class="audience-icon" style="background:rgba(34,211,238,0.08);border-color:rgba(34,211,238,0.2);">
+        <svg width="18" height="18" fill="none" stroke="#22d3ee" stroke-width="1.75" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <div class="audience-title">Agences web</div>
+      <div class="audience-desc">Auditez vos clients et livrez des rapports à votre marque en quelques clics.</div>
+    </div>
+    <div class="audience-card">
+      <div class="audience-icon" style="background:rgba(129,140,248,0.08);border-color:rgba(129,140,248,0.2);">
+        <svg width="18" height="18" fill="none" stroke="#818cf8" stroke-width="1.75" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div class="audience-title">Freelances IT</div>
+      <div class="audience-desc">Proposez la sécurité comme service additionnel à haute valeur perçue.</div>
+    </div>
+    <div class="audience-card">
+      <div class="audience-icon" style="background:rgba(74,222,128,0.08);border-color:rgba(74,222,128,0.2);">
+        <svg width="18" height="18" fill="none" stroke="#4ade80" stroke-width="1.75" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+      </div>
+      <div class="audience-title">MSP &amp; infogérance</div>
+      <div class="audience-desc">Monitoring continu de l'ensemble de votre parc clients depuis un tableau de bord.</div>
+    </div>
+    <div class="audience-card">
+      <div class="audience-icon" style="background:rgba(250,204,21,0.08);border-color:rgba(250,204,21,0.2);">
+        <svg width="18" height="18" fill="none" stroke="#facc15" stroke-width="1.75" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      </div>
+      <div class="audience-title">Développeurs</div>
+      <div class="audience-desc">Vérifiez la configuration sécurité de vos projets avant chaque mise en production.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ── CTA FINAL ─────────────────────────────────────────────────────────── -->
+<div class="cta-block">
+  <h2>Lancez votre premier scan maintenant</h2>
+  <p>Gratuit, sans inscription — résultats en moins de 60 secondes.</p>
+  <a class="btn-primary-lg" href="https://wezea.net" target="_blank">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    Analyser mon site gratuitement
+  </a>
+  <p class="cta-sub">Aucune carte bancaire &nbsp;·&nbsp; Sans engagement &nbsp;·&nbsp; RGPD conforme</p>
+</div>
+
+<!-- ── FOOTER ────────────────────────────────────────────────────────────── -->
+<footer>
+  <span>© 2026 Wezea · Sécurité web pour les professionnels</span>
+  <a href="https://wezea.net">wezea.net</a>
+  <a href="https://wezea.net/legal">Mentions légales</a>
+  <a href="https://wezea.net/legal#confidentialite">Confidentialité</a>
+</footer>
+
+</body>
+</html>
