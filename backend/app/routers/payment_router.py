@@ -85,25 +85,63 @@ def _plan_from_subscription(subscription_id: str) -> str:
     return "pro"
 
 
-def _uid_from_subscription(subscription_id: str) -> str | None:
+def _user_from_subscription(subscription_id: str, db: Session) -> "User | None":
+    """
+    Trouve l'utilisateur lié à un abonnement Stripe.
+    Priorité :
+      1. stripe_customer_id stocké en base (robuste même après recréation de DB)
+      2. email du customer Stripe → match en base
+      3. metadata.user_id (fallback legacy)
+    """
     try:
-        sub = stripe.Subscription.retrieve(subscription_id)
-        return sub.get("metadata", {}).get("user_id")
+        sub         = stripe.Subscription.retrieve(subscription_id)
+        customer_id = sub.get("customer")
+        uid_meta    = sub.get("metadata", {}).get("user_id")
+
+        # 1. Par stripe_customer_id
+        if customer_id:
+            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+            if user:
+                return user
+
+        # 2. Par email du customer Stripe
+        if customer_id:
+            try:
+                customer = stripe.Customer.retrieve(customer_id)
+                email    = (customer.get("email") or "").lower().strip()
+                if email:
+                    user = db.query(User).filter(User.email == email).first()
+                    if user:
+                        # Mettre à jour stripe_customer_id pour les prochaines fois
+                        user.stripe_customer_id = customer_id
+                        db.commit()
+                        return user
+            except Exception:
+                pass
+
+        # 3. Fallback legacy : metadata.user_id
+        if uid_meta:
+            user = db.query(User).filter(User.id == int(uid_meta)).first()
+            if user:
+                if customer_id and not user.stripe_customer_id:
+                    user.stripe_customer_id = customer_id
+                    db.commit()
+                return user
+
     except Exception:
-        return None
+        pass
+    return None
 
 
 def _ensure_plan_from_subscription(subscription_id: str, db: Session) -> None:
     """Active/maintient le bon plan pour l'utilisateur lié à cet abonnement."""
     try:
-        uid  = _uid_from_subscription(subscription_id)
+        user = _user_from_subscription(subscription_id, db)
         plan = _plan_from_subscription(subscription_id)
-        if uid:
-            user = db.query(User).filter(User.id == int(uid)).first()
-            if user and (user.plan != plan or user.subscription_status != "active"):
-                user.plan                = plan
-                user.subscription_status = "active"
-                db.commit()
+        if user and (user.plan != plan or user.subscription_status != "active"):
+            user.plan                = plan
+            user.subscription_status = "active"
+            db.commit()
     except Exception:
         pass
 
@@ -111,13 +149,11 @@ def _ensure_plan_from_subscription(subscription_id: str, db: Session) -> None:
 def _downgrade_from_subscription(subscription_id: str, db: Session) -> None:
     """Repasse l'utilisateur en plan Free."""
     try:
-        uid = _uid_from_subscription(subscription_id)
-        if uid:
-            user = db.query(User).filter(User.id == int(uid)).first()
-            if user:
-                user.plan                = "free"
-                user.subscription_status = "cancelled"
-                db.commit()
+        user = _user_from_subscription(subscription_id, db)
+        if user:
+            user.plan                = "free"
+            user.subscription_status = "cancelled"
+            db.commit()
     except Exception:
         pass
 
@@ -204,9 +240,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
     # ── Paiement initial réussi ──────────────────────────────────────────────
     if event_type == "checkout.session.completed":
-        user_id    = data.get("metadata", {}).get("user_id")
-        plan       = data.get("metadata", {}).get("plan", "pro")
-        session_id = data.get("id")
+        user_id     = data.get("metadata", {}).get("user_id")
+        plan        = data.get("metadata", {}).get("plan", "pro")
+        session_id  = data.get("id")
+        customer_id = data.get("customer")
 
         if user_id:
             user = db.query(User).filter(User.id == int(user_id)).first()
@@ -214,6 +251,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 user.plan                    = plan
                 user.subscription_status     = "active"
                 user.subscription_expires_at = None
+                # Stocker le customer Stripe pour résistance à la recréation de DB
+                if customer_id and not user.stripe_customer_id:
+                    user.stripe_customer_id = customer_id
 
         payment = db.query(Payment).filter(Payment.stripe_session_id == session_id).first()
         if payment:

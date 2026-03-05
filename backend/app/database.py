@@ -41,6 +41,8 @@ def _apply_migrations():
     """
     with engine.connect() as conn:
         _add_column_if_missing(conn, "users", "is_admin", "BOOLEAN DEFAULT 0 NOT NULL")
+        # ── Feature : lien Stripe permanent ──────────────────────────────────
+        _add_column_if_missing(conn, "users", "stripe_customer_id", "TEXT")
         # ── Feature : surveillance élargie ───────────────────────────────
         _add_column_if_missing(conn, "monitored_domains", "last_ssl_expiry_days", "INTEGER")
         _add_column_if_missing(conn, "monitored_domains", "last_open_ports",      "TEXT")

@@ -42,6 +42,7 @@ class User(Base):
     wb_logo_b64      = Column(Text,        nullable=True)   # base64 encoded logo (PNG/JPG/SVG ≤ 200 Ko)
     wb_primary_color = Column(String(7),   nullable=True)   # hex ex. "#3B82F6"
     # ── Abonnement ─────────────────────────────────────────────────────────────
+    stripe_customer_id      = Column(String(64), nullable=True, index=True)  # cus_xxx — lien permanent Stripe
     subscription_status     = Column(String(20), nullable=True)          # active | cancelled | expired
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at    = Column(DateTime(timezone=True), default=utcnow)
