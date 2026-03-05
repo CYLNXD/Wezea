@@ -12,7 +12,7 @@ import {
   Globe, Shield, FileDown, Bell,
   BarChart2, Plus, Trash2, RefreshCw, X, Check,
   AlertTriangle, Clock, TrendingUp, TrendingDown, Minus,
-  Settings, Mail, Key, CreditCard,
+  Settings, Mail, Key, CreditCard, Code, Webhook, Copy, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient, getWhiteLabel, updateWhiteLabel, uploadWhiteLabelLogo, deleteWhiteLabelLogo } from '../lib/api';
@@ -85,7 +85,17 @@ interface ScanDetail {
   scan_duration:   number;
 }
 
-type Tab = 'overview' | 'monitoring' | 'history' | 'settings';
+type Tab = 'overview' | 'monitoring' | 'history' | 'settings' | 'developer';
+
+interface WebhookItem {
+  id:            number;
+  url:           string;
+  events:        string[];
+  is_active:     boolean;
+  created_at:    string;
+  last_fired_at: string | null;
+  last_status:   number | null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers visuels
@@ -279,6 +289,22 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   const [deletePassword, setDeletePassword]   = useState('');
   const [deleteLoading, setDeleteLoading]     = useState(false);
   const [deleteError, setDeleteError]         = useState('');
+
+  // Developer tab state
+  const [webhooks, setWebhooks]               = useState<WebhookItem[]>([]);
+  const [whLoading, setWhLoading]             = useState(false);
+  const [whNewUrl, setWhNewUrl]               = useState('');
+  const [whNewEvents, setWhNewEvents]         = useState<string[]>(['scan.completed', 'alert.triggered']);
+  const [whNewSecret, setWhNewSecret]         = useState('');
+  const [whAddLoading, setWhAddLoading]       = useState(false);
+  const [whAddError, setWhAddError]           = useState('');
+  const [whCreatedSecret, setWhCreatedSecret] = useState<string | null>(null);
+  const [whTestLoading, setWhTestLoading]     = useState<number | null>(null);
+  const [whTestResult, setWhTestResult]       = useState<Record<number, { ok: boolean; status: number }>>({});
+  const [apiKeyVisible, setApiKeyVisible]     = useState(false);
+  const [apiKeyLoading, setApiKeyLoading]     = useState(false);
+  const [apiKeyCopied, setApiKeyCopied]       = useState(false);
+  const [apiKeyMsg, setApiKeyMsg]             = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const [pricingModalOpen, setPricingModalOpen] = useState(false);
   const isPremium = user?.plan === 'starter' || user?.plan === 'pro';
@@ -519,11 +545,89 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
     }
   };
 
+  // ── Developer tab helpers ──────────────────────────────────────────────────
+
+  const fetchWebhooks = useCallback(async () => {
+    if (!user || !['pro', 'team'].includes(user.plan)) return;
+    setWhLoading(true);
+    try {
+      const { data } = await apiClient.get('/webhooks');
+      setWebhooks(data);
+    } catch { /* silencieux */ }
+    finally { setWhLoading(false); }
+  }, [user]);
+
+  const addWebhook = async () => {
+    setWhAddError('');
+    setWhAddLoading(true);
+    setWhCreatedSecret(null);
+    try {
+      const { data } = await apiClient.post('/webhooks', {
+        url: whNewUrl.trim(),
+        events: whNewEvents,
+        secret: whNewSecret.trim() || undefined,
+      });
+      setWhCreatedSecret(data.secret);
+      setWhNewUrl('');
+      setWhNewSecret('');
+      await fetchWebhooks();
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setWhAddError(typeof detail === 'string' ? detail : (lang === 'fr' ? 'Erreur lors de la création.' : 'Creation failed.'));
+    } finally { setWhAddLoading(false); }
+  };
+
+  const deleteWebhook = async (id: number) => {
+    try {
+      await apiClient.delete(`/webhooks/${id}`);
+      setWebhooks(w => w.filter(h => h.id !== id));
+    } catch { /* silencieux */ }
+  };
+
+  const testWebhook = async (id: number) => {
+    setWhTestLoading(id);
+    try {
+      const { data } = await apiClient.post(`/webhooks/${id}/test`);
+      setWhTestResult(r => ({ ...r, [id]: { ok: data.delivered, status: data.status } }));
+    } catch { setWhTestResult(r => ({ ...r, [id]: { ok: false, status: 0 } })); }
+    finally { setWhTestLoading(null); }
+  };
+
+  const regenerateApiKey = async () => {
+    setApiKeyLoading(true);
+    setApiKeyMsg(null);
+    try {
+      await apiClient.post('/auth/api-key/regenerate');
+      setApiKeyMsg({ type: 'ok', text: lang === 'fr' ? 'Clé API régénérée. Rechargez la page pour la voir.' : 'API key regenerated. Reload the page to view it.' });
+    } catch {
+      setApiKeyMsg({ type: 'err', text: lang === 'fr' ? 'Erreur lors de la régénération.' : 'Regeneration failed.' });
+    } finally { setApiKeyLoading(false); }
+  };
+
+  const copyApiKey = async () => {
+    if (!user?.api_key) return;
+    await navigator.clipboard.writeText(user.api_key);
+    setApiKeyCopied(true);
+    setTimeout(() => setApiKeyCopied(false), 2000);
+  };
+
+  // Load webhooks when switching to developer tab
+  useEffect(() => {
+    if (tab === 'developer') fetchWebhooks();
+  }, [tab, fetchWebhooks]);
+
+  const ALLOWED_EVENTS = ['scan.completed', 'alert.triggered', 'score.dropped'];
+
   const tabs: { id: Tab; label: string; icon: JSX.Element }[] = [
     { id: 'overview',   label: lang === 'fr' ? 'Vue d\'ensemble' : 'Overview', icon: <BarChart2 size={14} /> },
     { id: 'monitoring', label: lang === 'fr' ? 'Monitoring' : 'Monitoring',       icon: <Globe size={14} /> },
     { id: 'history',    label: lang === 'fr' ? 'Historique' : 'History',       icon: <RefreshCw size={14} /> },
     { id: 'settings',   label: lang === 'fr' ? 'Paramètres' : 'Settings',           icon: <Settings size={14} /> },
+    ...(user?.plan && ['pro', 'team'].includes(user.plan) ? [{
+      id: 'developer' as const,
+      label: lang === 'fr' ? 'Développeur' : 'Developer',
+      icon: <Code size={14} />,
+    }] : []),
   ];
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1207,6 +1311,290 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════
+                  TAB 5 — DÉVELOPPEUR (Pro/Team uniquement)
+              ══════════════════════════════════════════════════════════════ */}
+              {tab === 'developer' && (
+                <div className="flex flex-col gap-6">
+
+                  {/* ── API Key ── */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+                    <h3 className="text-white font-semibold text-sm mb-1 flex items-center gap-2">
+                      <Key size={14} className="text-cyan-400" />
+                      {lang === 'fr' ? 'Clé API' : 'API Key'}
+                    </h3>
+                    <p className="text-slate-500 text-xs mb-4">
+                      {lang === 'fr'
+                        ? 'Utilisez cette clé comme Bearer token pour accéder à l\'API sans cookie de session.'
+                        : 'Use this key as a Bearer token to access the API without a session cookie.'}
+                    </p>
+
+                    {apiKeyMsg && (
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-3 ${apiKeyMsg.type === 'ok' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                        {apiKeyMsg.type === 'ok' ? <Check size={12} /> : <AlertTriangle size={12} />}
+                        {apiKeyMsg.text}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="flex-1 bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2 font-mono text-xs text-slate-300 overflow-hidden">
+                        {user?.api_key
+                          ? (apiKeyVisible ? user.api_key : user.api_key.slice(0, 8) + '••••••••••••••••••••••••••••••••••••••••••••••••••••••••')
+                          : <span className="text-slate-600">{lang === 'fr' ? 'Aucune clé générée' : 'No key generated'}</span>
+                        }
+                      </div>
+                      {user?.api_key && (
+                        <>
+                          <button
+                            onClick={() => setApiKeyVisible(v => !v)}
+                            className="p-2 rounded-lg border border-slate-700 hover:border-slate-600 text-slate-500 hover:text-slate-300 transition"
+                            title={apiKeyVisible ? (lang === 'fr' ? 'Masquer' : 'Hide') : (lang === 'fr' ? 'Afficher' : 'Show')}
+                          >
+                            <Shield size={13} />
+                          </button>
+                          <button
+                            onClick={copyApiKey}
+                            className="p-2 rounded-lg border border-slate-700 hover:border-slate-600 text-slate-500 hover:text-cyan-400 transition"
+                            title={lang === 'fr' ? 'Copier' : 'Copy'}
+                          >
+                            {apiKeyCopied ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={regenerateApiKey}
+                      disabled={apiKeyLoading}
+                      className="flex items-center gap-2 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-400 px-4 py-2 rounded-lg text-xs font-semibold transition disabled:opacity-40"
+                    >
+                      {apiKeyLoading ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                      {lang === 'fr' ? 'Régénérer la clé' : 'Regenerate key'}
+                    </button>
+
+                    <div className="mt-4 bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
+                      <p className="text-slate-500 text-xs font-mono leading-relaxed">
+                        <span className="text-cyan-500">Authorization:</span> Bearer {'<your-api-key>'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* ── Badge SVG ── */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+                    <h3 className="text-white font-semibold text-sm mb-1 flex items-center gap-2">
+                      <Shield size={14} className="text-cyan-400" />
+                      {lang === 'fr' ? 'Badge de sécurité' : 'Security badge'}
+                    </h3>
+                    <p className="text-slate-500 text-xs mb-4">
+                      {lang === 'fr'
+                        ? 'Affichez votre score de sécurité en temps réel sur votre site, README GitHub, ou emails.'
+                        : 'Display your real-time security score on your website, GitHub README, or emails.'}
+                    </p>
+                    {domains.length === 0 ? (
+                      <p className="text-slate-600 text-xs">{lang === 'fr' ? 'Ajoutez un domaine en monitoring pour obtenir un badge.' : 'Add a monitored domain to get a badge.'}</p>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {domains.slice(0, 3).map(d => {
+                          const badgeUrl = `/api/public/badge/${d.domain}`;
+                          const embedMd  = `![Security Score](https://scan.wezea.net/api/public/badge/${d.domain})`;
+                          const embedHtml = `<img src="https://scan.wezea.net/api/public/badge/${d.domain}" alt="Security Score" />`;
+                          return (
+                            <div key={d.domain} className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-slate-300 font-mono text-xs">{d.domain}</span>
+                                <a href={badgeUrl} target="_blank" rel="noreferrer"
+                                  className="flex items-center gap-1 text-xs text-slate-500 hover:text-cyan-400 transition">
+                                  <ExternalLink size={11} />
+                                  {lang === 'fr' ? 'Aperçu' : 'Preview'}
+                                </a>
+                              </div>
+                              <div className="flex flex-col gap-1.5">
+                                <div>
+                                  <p className="text-slate-600 text-[10px] mb-0.5 uppercase font-mono tracking-wider">Markdown</p>
+                                  <div className="flex items-center gap-2">
+                                    <code className="flex-1 text-[10px] text-slate-400 font-mono bg-slate-900/60 rounded px-2 py-1 overflow-hidden text-ellipsis whitespace-nowrap">{embedMd}</code>
+                                    <button onClick={() => navigator.clipboard.writeText(embedMd)}
+                                      className="p-1.5 rounded border border-slate-700 hover:border-slate-600 text-slate-500 hover:text-cyan-400 transition shrink-0">
+                                      <Copy size={11} />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-slate-600 text-[10px] mb-0.5 uppercase font-mono tracking-wider">HTML</p>
+                                  <div className="flex items-center gap-2">
+                                    <code className="flex-1 text-[10px] text-slate-400 font-mono bg-slate-900/60 rounded px-2 py-1 overflow-hidden text-ellipsis whitespace-nowrap">{embedHtml}</code>
+                                    <button onClick={() => navigator.clipboard.writeText(embedHtml)}
+                                      className="p-1.5 rounded border border-slate-700 hover:border-slate-600 text-slate-500 hover:text-cyan-400 transition shrink-0">
+                                      <Copy size={11} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Webhooks ── */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+                    <h3 className="text-white font-semibold text-sm mb-1 flex items-center gap-2">
+                      <Webhook size={14} className="text-cyan-400" />
+                      Webhooks
+                    </h3>
+                    <p className="text-slate-500 text-xs mb-4">
+                      {lang === 'fr'
+                        ? 'Recevez les événements de scan en temps réel dans votre système (Zapier, Slack, CI/CD…). Max 5 webhooks.'
+                        : 'Receive scan events in real-time in your system (Zapier, Slack, CI/CD…). Max 5 webhooks.'}
+                    </p>
+
+                    {/* Created secret banner */}
+                    {whCreatedSecret && (
+                      <div className="mb-4 bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                        <p className="text-green-400 text-xs font-semibold mb-1 flex items-center gap-1">
+                          <Check size={12} />
+                          {lang === 'fr' ? 'Webhook créé — conservez ce secret (affiché une seule fois) :' : 'Webhook created — save this secret (shown once):'}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 text-green-300 font-mono text-xs bg-green-500/5 rounded px-2 py-1 break-all">{whCreatedSecret}</code>
+                          <button onClick={() => navigator.clipboard.writeText(whCreatedSecret)}
+                            className="p-1.5 rounded border border-green-500/30 text-green-400 hover:text-green-200 transition shrink-0">
+                            <Copy size={11} />
+                          </button>
+                        </div>
+                        <button onClick={() => setWhCreatedSecret(null)}
+                          className="mt-2 text-[10px] text-green-600 hover:text-green-400 transition">
+                          {lang === 'fr' ? 'Fermer' : 'Dismiss'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Add webhook form */}
+                    <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4 mb-4">
+                      <p className="text-slate-400 text-xs font-semibold mb-3">{lang === 'fr' ? 'Nouveau webhook' : 'New webhook'}</p>
+                      <div className="flex flex-col gap-2">
+                        <input
+                          type="url"
+                          placeholder="https://hooks.zapier.com/…"
+                          value={whNewUrl}
+                          onChange={e => setWhNewUrl(e.target.value)}
+                          className="w-full bg-slate-900/60 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-cyan-500/50 placeholder-slate-600 font-mono"
+                        />
+                        <input
+                          type="text"
+                          placeholder={lang === 'fr' ? 'Secret HMAC (optionnel)' : 'HMAC secret (optional)'}
+                          value={whNewSecret}
+                          onChange={e => setWhNewSecret(e.target.value)}
+                          className="w-full bg-slate-900/60 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-cyan-500/50 placeholder-slate-600 font-mono"
+                        />
+                        {/* Events checkboxes */}
+                        <div className="flex flex-wrap gap-2">
+                          {ALLOWED_EVENTS.map(ev => (
+                            <label key={ev} className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={whNewEvents.includes(ev)}
+                                onChange={e => setWhNewEvents(prev =>
+                                  e.target.checked ? [...prev, ev] : prev.filter(x => x !== ev)
+                                )}
+                                className="w-3 h-3 accent-cyan-500"
+                              />
+                              <span className="text-slate-400 text-xs font-mono">{ev}</span>
+                            </label>
+                          ))}
+                        </div>
+                        {whAddError && (
+                          <div className="flex items-center gap-1.5 text-red-400 text-xs">
+                            <AlertTriangle size={11} />{whAddError}
+                          </div>
+                        )}
+                        <button
+                          onClick={addWebhook}
+                          disabled={whAddLoading || !whNewUrl || whNewEvents.length === 0}
+                          className="self-start flex items-center gap-2 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-400 px-4 py-2 rounded-lg text-xs font-semibold transition disabled:opacity-40"
+                        >
+                          {whAddLoading ? <RefreshCw size={12} className="animate-spin" /> : <Plus size={12} />}
+                          {lang === 'fr' ? 'Créer' : 'Create'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Webhook list */}
+                    {whLoading ? (
+                      <div className="flex items-center gap-2 text-slate-600 text-xs py-4">
+                        <RefreshCw size={12} className="animate-spin" />
+                        {lang === 'fr' ? 'Chargement…' : 'Loading…'}
+                      </div>
+                    ) : webhooks.length === 0 ? (
+                      <p className="text-slate-600 text-xs py-4 text-center">
+                        {lang === 'fr' ? 'Aucun webhook configuré.' : 'No webhook configured.'}
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {webhooks.map(hook => (
+                          <div key={hook.id} className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="min-w-0">
+                                <p className="text-slate-300 text-xs font-mono truncate">{hook.url}</p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {hook.events.map(ev => (
+                                    <span key={ev} className="text-[10px] bg-slate-700/60 border border-slate-600/40 text-slate-400 rounded px-1.5 py-0.5 font-mono">{ev}</span>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {/* Test button */}
+                                <button
+                                  onClick={() => testWebhook(hook.id)}
+                                  disabled={whTestLoading === hook.id}
+                                  className="flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-slate-700 hover:border-cyan-500/40 text-slate-500 hover:text-cyan-400 transition font-semibold"
+                                  title={lang === 'fr' ? 'Envoyer un test' : 'Send a test'}
+                                >
+                                  {whTestLoading === hook.id
+                                    ? <RefreshCw size={10} className="animate-spin" />
+                                    : <Bell size={10} />}
+                                  Test
+                                </button>
+                                {/* Delete button */}
+                                <button
+                                  onClick={() => deleteWebhook(hook.id)}
+                                  className="p-1.5 rounded border border-slate-700 hover:border-red-500/40 text-slate-500 hover:text-red-400 transition"
+                                  title={lang === 'fr' ? 'Supprimer' : 'Delete'}
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            </div>
+                            {/* Status / last fired */}
+                            <div className="flex items-center gap-3 text-[10px] font-mono text-slate-600">
+                              {hook.last_fired_at && (
+                                <span className="flex items-center gap-1">
+                                  <Clock size={9} />
+                                  {new Date(hook.last_fired_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                              {hook.last_status !== null && (
+                                <span className={hook.last_status >= 200 && hook.last_status < 400 ? 'text-green-500' : 'text-red-400'}>
+                                  HTTP {hook.last_status || 'timeout'}
+                                </span>
+                              )}
+                              {/* Test result */}
+                              {whTestResult[hook.id] !== undefined && (
+                                <span className={whTestResult[hook.id].ok ? 'text-green-400' : 'text-red-400'}>
+                                  {whTestResult[hook.id].ok ? '✓ delivered' : `✗ HTTP ${whTestResult[hook.id].status || 'timeout'}`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               )}
 

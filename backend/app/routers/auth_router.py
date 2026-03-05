@@ -119,7 +119,7 @@ class DeleteAccountRequest(BaseModel):
     password: str  # confirmation obligatoire
 
 
-# ─── Dependency : get current user from Bearer token ─────────────────────────
+# ─── Dependency : get current user from Bearer token OR API key ───────────────
 def get_current_user(
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
@@ -127,13 +127,22 @@ def get_current_user(
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
     token = authorization.split(" ", 1)[1]
+
+    # Essayer JWT d'abord
     payload = decode_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    user = db.query(User).filter(User.id == int(payload["sub"])).first()
-    if not user or not user.is_active:
-        raise HTTPException(status_code=401, detail="User not found")
-    return user
+    if payload:
+        user = db.query(User).filter(User.id == int(payload["sub"])).first()
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user
+
+    # Fallback : API key (64 hex chars, plan Pro/Team uniquement)
+    if len(token) == 64 and token.isalnum():
+        user = db.query(User).filter(User.api_key == token).first()
+        if user and user.is_active and user.plan in ("pro", "team"):
+            return user
+
+    raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
 def get_optional_user(

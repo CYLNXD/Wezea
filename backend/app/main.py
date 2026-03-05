@@ -49,6 +49,7 @@ from app.routers.monitoring_router import router as monitoring_router
 from app.routers.contact_router import router as contact_router
 from app.routers.public_router import router as public_router
 from app.routers.newsletter_router import router as newsletter_router
+from app.routers.webhook_router import router as webhook_router
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration
@@ -181,6 +182,7 @@ app.include_router(monitoring_router)
 app.include_router(contact_router)
 app.include_router(public_router)
 app.include_router(newsletter_router)
+app.include_router(webhook_router)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

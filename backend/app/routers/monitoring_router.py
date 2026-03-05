@@ -74,7 +74,7 @@ def _validate_monitored_domain(raw: str) -> str:
     return v
 
 # Limites par plan (None = illimité)
-DOMAIN_LIMITS: dict[str, int | None] = {"starter": 1, "pro": None, "team": None}
+DOMAIN_LIMITS: dict[str, int | None] = {"starter": 3, "pro": 10, "team": None}
 
 
 class AddDomainRequest(BaseModel):

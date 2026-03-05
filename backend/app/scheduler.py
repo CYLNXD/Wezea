@@ -247,8 +247,43 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
             reason      = alert_reason,
             findings    = critical_findings[:3],
         )
+        # Webhooks : alert.triggered
+        try:
+            from app.routers.webhook_router import fire_webhooks
+            await fire_webhooks(
+                user_id = user.id,
+                event   = "alert.triggered",
+                payload = {"data": {
+                    "domain":     monitored.domain,
+                    "new_score":  new_score,
+                    "prev_score": prev_score,
+                    "risk_level": new_risk,
+                    "reason":     alert_reason,
+                }},
+                db = db,
+            )
+        except Exception as _wh_err:
+            logger.error(f"Webhook alert.triggered {monitored.domain}: {_wh_err}")
     else:
         logger.info(f"Monitoring OK : {monitored.domain} — score {new_score} (stable)")
+
+    # Webhooks : score.dropped (indépendant de should_alert)
+    if prev_score is not None and (prev_score - new_score) >= monitored.alert_threshold:
+        try:
+            from app.routers.webhook_router import fire_webhooks
+            await fire_webhooks(
+                user_id = user.id,
+                event   = "score.dropped",
+                payload = {"data": {
+                    "domain":     monitored.domain,
+                    "new_score":  new_score,
+                    "prev_score": prev_score,
+                    "drop":       prev_score - new_score,
+                }},
+                db = db,
+            )
+        except Exception as _wh_err:
+            logger.error(f"Webhook score.dropped {monitored.domain}: {_wh_err}")
 
     # ── Feature 3 : Envoi du rapport PDF programmé ────────────────────────────
     if monitored.email_report:

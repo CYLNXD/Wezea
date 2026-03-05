@@ -189,3 +189,20 @@ class NewsletterSubscription(Base):
     unsubscribed = Column(Boolean, default=False, nullable=False)
     created_at   = Column(DateTime(timezone=True), default=utcnow, index=True)
     ip_address   = Column(String(45), nullable=True)   # IPv4/IPv6, pour preuve RGPD
+
+
+class Webhook(Base):
+    """Webhooks sortants — appelés après scan/alerte (plan Pro uniquement)."""
+    __tablename__ = "webhooks"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    user_id       = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    url           = Column(String(512), nullable=False)
+    secret        = Column(String(64), nullable=True)   # secret HMAC-SHA256 pour la signature
+    events        = Column(Text, nullable=True)         # JSON: ["scan.completed", "alert.triggered"]
+    is_active     = Column(Boolean, default=True)
+    created_at    = Column(DateTime(timezone=True), default=utcnow)
+    last_fired_at = Column(DateTime(timezone=True), nullable=True)
+    last_status   = Column(Integer, nullable=True)      # HTTP status de la dernière livraison
+
+    user = relationship("User", backref="webhooks")

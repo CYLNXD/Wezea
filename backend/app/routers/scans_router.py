@@ -1,8 +1,13 @@
 """
-Scans Router — History, detail, delete
+Scans Router — History, detail, delete, export
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+import csv
+import io
+import json as _json
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -89,6 +94,77 @@ def get_scan_detail(
         "subdomain_details": details.get("subdomain_details", {}),
         "vuln_details":      details.get("vuln_details", {}),
     }
+
+
+@router.get("/history/{scan_uuid}/export")
+def export_scan(
+    scan_uuid:    str,
+    format:       str  = Query("json", pattern="^(json|csv)$"),
+    current_user: User    = Depends(get_current_user),
+    db:           Session = Depends(get_db),
+):
+    """
+    Exporte un scan en JSON ou CSV.
+    GET /scans/history/{uuid}/export?format=json
+    GET /scans/history/{uuid}/export?format=csv
+    """
+    scan = (
+        db.query(ScanHistory)
+        .filter(ScanHistory.scan_uuid == scan_uuid, ScanHistory.user_id == current_user.id)
+        .first()
+    )
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    details  = scan.get_scan_details()
+    findings = scan.get_findings()
+    filename_base = f"wezea-scan-{scan.domain}-{scan.created_at.strftime('%Y%m%d')}"
+
+    if format == "json":
+        data = {
+            "scan_uuid":      scan.scan_uuid,
+            "domain":         scan.domain,
+            "scanned_at":     scan.created_at.isoformat(),
+            "security_score": scan.security_score,
+            "risk_level":     scan.risk_level,
+            "findings":       findings,
+            "dns_details":    details.get("dns_details", {}),
+            "ssl_details":    details.get("ssl_details", {}),
+            "port_details":   details.get("port_details", {}),
+            "recommendations": details.get("recommendations", []),
+        }
+        return Response(
+            content     = _json.dumps(data, ensure_ascii=False, indent=2),
+            media_type  = "application/json",
+            headers     = {"Content-Disposition": f'attachment; filename="{filename_base}.json"'},
+        )
+
+    # CSV — une ligne par finding
+    output  = io.StringIO()
+    writer  = csv.writer(output)
+    writer.writerow(["domain", "scanned_at", "security_score", "risk_level",
+                     "finding_title", "category", "severity", "penalty",
+                     "plain_explanation", "recommendation", "technical_detail"])
+    for f in findings:
+        writer.writerow([
+            scan.domain,
+            scan.created_at.isoformat(),
+            scan.security_score,
+            scan.risk_level,
+            f.get("title", ""),
+            f.get("category", ""),
+            f.get("severity", ""),
+            f.get("penalty", ""),
+            f.get("plain_explanation", ""),
+            f.get("recommendation", ""),
+            f.get("technical_detail", ""),
+        ])
+
+    return Response(
+        content     = output.getvalue(),
+        media_type  = "text/csv; charset=utf-8",
+        headers     = {"Content-Disposition": f'attachment; filename="{filename_base}.csv"'},
+    )
 
 
 @router.delete("/history/{scan_uuid}", status_code=204)
