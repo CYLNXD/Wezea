@@ -53,6 +53,20 @@ body {
   background-size: 100% 100%;
 }
 
+/* ── Grille cyber globale (même effet que le hero Dashboard) ──────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.025;
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 1) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
 /* ── Polices ──────────────────────────────────────────────────────────────── */
 code, pre, .font-mono, [class*="font-mono"] {
   font-family: var(--font-mono) !important;
