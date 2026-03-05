@@ -10,18 +10,68 @@ DELETE /monitoring/domains/{domain} → supprimer un domaine
 GET  /monitoring/status           → état du scheduler + prochain scan
 """
 
+import ipaddress
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.limiter import limiter
 from app.models import MonitoredDomain, User
 from app.routers.auth_router import get_current_user
 
 router = APIRouter(prefix="/monitoring", tags=["Monitoring"])
+
+# ── Validation de domaine (anti-SSRF) ────────────────────────────────────────
+# Dupliqué depuis main.py pour éviter l'import circulaire
+
+_DOMAIN_REGEX = re.compile(
+    r"^(?!-)[A-Za-z0-9\-]{1,63}(?<!-)"
+    r"(\.[A-Za-z0-9\-]{1,63})*\.[A-Za-z]{2,}$"
+)
+_BLOCKED_DOMAINS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "metadata.google.internal"}
+_PRIVATE_CIDRS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("::1/128"),
+]
+
+
+def _validate_monitored_domain(raw: str) -> str:
+    """
+    Nettoie et valide un FQDN pour le monitoring.
+    Lève HTTPException 422 si invalide ou adresse interne (anti-SSRF).
+    """
+    v = raw.strip().lower()
+    for prefix in ("https://", "http://", "www."):
+        if v.startswith(prefix):
+            v = v[len(prefix):]
+    v = v.split("/")[0].split("?")[0]
+
+    if len(v) > 253:
+        raise HTTPException(status_code=422, detail="Nom de domaine trop long (max 253 caractères).")
+    if v in _BLOCKED_DOMAINS:
+        raise HTTPException(status_code=422, detail="Domaine non autorisé (adresses locales).")
+    try:
+        addr = ipaddress.ip_address(v)
+        if any(addr in cidr for cidr in _PRIVATE_CIDRS):
+            raise HTTPException(status_code=422, detail="Domaine non autorisé (plages IP privées/réservées).")
+    except ValueError:
+        pass  # c'est un FQDN, pas une IP — la regex s'en charge
+    if not _DOMAIN_REGEX.match(v):
+        raise HTTPException(
+            status_code=422,
+            detail=f"'{v}' n'est pas un nom de domaine valide. Exemple : exemple.fr"
+        )
+    return v
 
 # Limites par plan (None = illimité)
 DOMAIN_LIMITS: dict[str, int | None] = {"starter": 1, "pro": None, "team": None}
@@ -125,13 +175,18 @@ def list_monitored_domains(
 
 
 @router.post("/domains", status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/hour")
 def add_monitored_domain(
+    request: Request,
     body: AddDomainRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Ajoute un domaine à la liste de surveillance."""
     _require_premium(current_user)
+
+    # Valider le domaine (FQDN + anti-SSRF) — critique car le scheduler scannera ce host
+    domain = _validate_monitored_domain(body.domain)
 
     # Vérifier la limite du plan (None = illimité)
     limit = DOMAIN_LIMITS.get(current_user.plan, 1)
@@ -150,8 +205,7 @@ def add_monitored_domain(
             },
         )
 
-    # Vérifier si déjà présent
-    domain = body.domain.lower().strip()
+    # Vérifier si déjà présent (domain déjà nettoyé par _validate_monitored_domain)
     existing = db.query(MonitoredDomain).filter(
         MonitoredDomain.user_id == current_user.id,
         MonitoredDomain.domain  == domain,
@@ -169,11 +223,13 @@ def add_monitored_domain(
         return {"message": f"'{domain}' remis sous surveillance.", "domain": domain}
 
     import json as _json
+    # Borner alert_threshold (cohérent avec le PATCH)
+    threshold = max(1, min(50, body.alert_threshold)) if body.alert_threshold is not None else 10
     # Ajouter
     monitored = MonitoredDomain(
         user_id         = current_user.id,
         domain          = domain,
-        alert_threshold = body.alert_threshold,
+        alert_threshold = threshold,
         checks_config   = _json.dumps(body.checks_config) if body.checks_config else None,
     )
     db.add(monitored)
