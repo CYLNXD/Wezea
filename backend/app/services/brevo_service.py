@@ -239,7 +239,6 @@ async def send_upgrade_email(email: str, plan: str) -> bool:
     features = {
         "starter": "Scans illimit&eacute;s &middot; 1 domaine en surveillance &middot; Rapports PDF",
         "pro":     "Scans illimit&eacute;s &middot; Domaines illimit&eacute;s en surveillance &middot; Rapports PDF &middot; White-label",
-        "team":    "Tout le plan Pro &middot; Gestion d&apos;&eacute;quipe &middot; API d&eacute;di&eacute;e",
     }
     feature_text = features.get(plan, "Toutes les fonctionnalit&eacute;s avanc&eacute;es")
 

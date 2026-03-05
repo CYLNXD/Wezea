@@ -19,7 +19,6 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 PLAN_PRICES: dict[str, int] = {
     "starter": 990,
     "pro":     1990,
-    "team":    1990,
 }
 
 
@@ -89,8 +88,8 @@ def update_user(
         raise HTTPException(status_code=400, detail="Vous ne pouvez pas modifier votre propre compte ici")
 
     if req.plan is not None:
-        if req.plan not in ("free", "starter", "pro", "team"):
-            raise HTTPException(status_code=400, detail="Plan invalide (free / starter / pro / team)")
+        if req.plan not in ("free", "starter", "pro"):
+            raise HTTPException(status_code=400, detail="Plan invalide (free / starter / pro)")
         user.plan = req.plan
         if req.plan == "free":
             user.subscription_status = None
@@ -141,7 +140,7 @@ def admin_stats(
     """Statistiques globales de la plateforme (version compacte)."""
     total_users  = db.query(func.count(User.id)).scalar() or 0
     active_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 0
-    pro_users    = db.query(func.count(User.id)).filter(User.plan.in_(["starter", "pro", "team"])).scalar() or 0
+    pro_users    = db.query(func.count(User.id)).filter(User.plan.in_(["starter", "pro"])).scalar() or 0
     total_scans  = db.query(func.count(ScanHistory.id)).scalar() or 0
     return {
         "total_users":  total_users,
@@ -176,7 +175,7 @@ def admin_metrics(
 
     # ── Plan breakdown ────────────────────────────────────────────────────────
     plan_breakdown: dict[str, int] = {}
-    for p in ("free", "starter", "pro", "team"):
+    for p in ("free", "starter", "pro"):
         plan_breakdown[p] = db.query(func.count(User.id)).filter(User.plan == p).scalar() or 0
 
     # ── Revenue last 30d ──────────────────────────────────────────────────────
@@ -210,7 +209,7 @@ def admin_metrics(
 
     # ── Conversion rate (paid / total) ────────────────────────────────────────
     total_users = db.query(func.count(User.id)).scalar() or 1
-    paid_users  = sum(plan_breakdown.get(p, 0) for p in ("starter", "pro", "team"))
+    paid_users  = sum(plan_breakdown.get(p, 0) for p in ("starter", "pro"))
     conversion_rate = round(paid_users / total_users * 100, 1)
 
     # ── Signups per day (last 30d) ────────────────────────────────────────────

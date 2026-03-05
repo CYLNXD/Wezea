@@ -44,7 +44,7 @@ ALLOWED_EVENTS = {
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _require_pro(user: User) -> None:
-    if user.plan not in ("pro", "team"):
+    if user.plan not in ("pro",):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={

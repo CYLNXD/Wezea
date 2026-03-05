@@ -130,7 +130,7 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
     if not user or not user.is_active:
         return
 
-    plan       = user.plan if user.plan in ("starter", "pro", "team") else "starter"
+    plan       = user.plan if user.plan in ("starter", "pro") else "starter"
     checks_cfg = monitored.get_checks_config()
 
     logger.info(f"Scan monitoring : {monitored.domain} (user {user.email}, plan {plan})")

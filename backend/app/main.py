@@ -835,7 +835,7 @@ async def generate_pdf_report(
 
     # ── White-label : récupérer le branding Pro de l'utilisateur ─────────────
     white_label = None
-    if current_user and current_user.plan in ("pro", "team") and current_user.wb_enabled:
+    if current_user and current_user.plan in ("pro",) and current_user.wb_enabled:
         white_label = {
             "enabled":       True,
             "company_name":  current_user.wb_company_name,

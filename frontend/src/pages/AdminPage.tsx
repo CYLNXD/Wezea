@@ -442,7 +442,6 @@ function UsersTab({
                     <option value="free"    className="bg-slate-900 text-slate-400">Free</option>
                     <option value="starter" className="bg-slate-900 text-emerald-400">Starter</option>
                     <option value="pro"     className="bg-slate-900 text-cyan-400">Pro</option>
-                    <option value="team"    className="bg-slate-900 text-purple-400">Team</option>
                   </select>
                 </td>
 
