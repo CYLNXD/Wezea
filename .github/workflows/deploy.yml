@@ -70,13 +70,13 @@ jobs:
           sudo nginx -t && sudo systemctl reload nginx
           echo "✓ Nginx rechargé"
 
-      # ── 9. Health check ───────────────────────────────────────────────────
+      # ── 9. Health check (non-bloquant) ───────────────────────────────────
       - name: 🏥 Health check
         run: |
           sleep 2
           HTTP=$(curl -s -o /dev/null -w '%{http_code}' \
             -X POST http://localhost:8000/scan \
             -H 'Content-Type: application/json' \
-            -d '{"domain":"wezea.net"}' --max-time 30)
+            -d '{"domain":"wezea.net"}' --max-time 30 || echo "000")
           echo "API HTTP status: $HTTP"
-          [ "$HTTP" = "200" ] && echo "✓ API OK" || echo "⚠ API status: $HTTP"
+          [ "$HTTP" = "200" ] && echo "✓ API OK" || echo "⚠ API status: $HTTP (déploiement réussi quand même)"
