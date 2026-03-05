@@ -53,12 +53,12 @@ export default function App() {
             position: 'fixed',
             inset: 0,
             pointerEvents: 'none',
-            zIndex: 10,
+            zIndex: 1,
             backgroundImage:
               'linear-gradient(rgba(34,211,238,1) 1px, transparent 1px),' +
               'linear-gradient(90deg, rgba(34,211,238,1) 1px, transparent 1px)',
             backgroundSize: '48px 48px',
-            opacity: 0.15,
+            opacity: 0.03,
           }}
         />
 
