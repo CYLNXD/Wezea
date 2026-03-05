@@ -111,7 +111,7 @@ export default function LoginPage({ onBack, initialMode }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg)' }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -119,28 +119,32 @@ export default function LoginPage({ onBack, initialMode }: Props) {
       >
         {/* Logo */}
         <div className="flex items-center gap-2.5 justify-center mb-8">
-          <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+          <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20" style={{ boxShadow: '0 2px 8px rgba(34,211,238,0.08)' }}>
             <Shield size={20} className="text-cyan-400" />
           </div>
-          <span className="font-bold text-white text-lg" style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.03em' }}>
-            We<span className="text-cyan-400">zea</span>
+          <span className="font-black text-white text-lg" style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.03em' }}>
+            We<span style={{ color: 'var(--color-accent)' }}>zea</span>
           </span>
-          <span className="text-xs text-slate-600 font-medium">Scanner</span>
+          <span className="text-xs font-mono font-bold px-1.5 py-0.5 rounded" style={{ color: '#22d3ee', background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.15)' }}>Scanner</span>
         </div>
 
         {/* Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
+        <div className="sku-panel rounded-2xl p-8">
           {/* Tabs */}
-          <div className="flex bg-slate-800/50 rounded-xl p-1 mb-6">
+          <div className="flex rounded-xl p-1 mb-6 sku-inset">
             {(['login', 'register'] as const).map(m => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(''); }}
                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                   mode === m
-                    ? 'bg-slate-700 text-white'
+                    ? 'text-white'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
+                style={mode === m ? {
+                  background: 'linear-gradient(180deg,#1e2d3d,#162433)',
+                  boxShadow: '0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 6px rgba(0,0,0,0.3)',
+                } : {}}
               >
                 {m === 'login'
                   ? (lang === 'fr' ? 'Connexion' : 'Sign in')
@@ -163,7 +167,8 @@ export default function LoginPage({ onBack, initialMode }: Props) {
                   onChange={e => setEmail(e.target.value)}
                   required
                   placeholder="vous@exemple.com"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 transition"
+                  className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition sku-inset"
+                  style={{ border: '1px solid rgba(255,255,255,0.08)' }}
                 />
               </div>
             </div>
@@ -182,7 +187,8 @@ export default function LoginPage({ onBack, initialMode }: Props) {
                   required
                   minLength={8}
                   placeholder={lang === 'fr' ? 'Minimum 8 caractères' : 'Minimum 8 characters'}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 transition"
+                  className="w-full rounded-xl pl-9 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition sku-inset"
+                  style={{ border: '1px solid rgba(255,255,255,0.08)' }}
                 />
                 <button
                   type="button"
@@ -206,7 +212,7 @@ export default function LoginPage({ onBack, initialMode }: Props) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-900 font-semibold py-2.5 rounded-xl transition-all text-sm"
+              className="w-full flex items-center justify-center gap-2 sku-btn-primary disabled:opacity-50 py-2.5 rounded-xl transition-all text-sm"
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin" />
@@ -234,11 +240,11 @@ export default function LoginPage({ onBack, initialMode }: Props) {
 
           {/* ── Séparateur ── */}
           <div className="flex items-center gap-3 mt-5">
-            <div className="flex-1 h-px bg-slate-800" />
-            <span className="text-slate-600 text-xs font-medium">
+            <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
+            <span className="text-slate-600 text-xs font-mono font-medium">
               {lang === 'fr' ? 'ou' : 'or'}
             </span>
-            <div className="flex-1 h-px bg-slate-800" />
+            <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
           </div>
 
           {/* ── Bouton Google ── */}
@@ -247,7 +253,7 @@ export default function LoginPage({ onBack, initialMode }: Props) {
               type="button"
               onClick={handleGoogleClick}
               disabled={!gsiReady || loading}
-              className="w-full flex items-center justify-center gap-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded-xl py-2.5 text-sm font-medium text-white transition-all"
+              className="w-full flex items-center justify-center gap-3 sku-btn-ghost disabled:opacity-50 disabled:cursor-not-allowed rounded-xl py-2.5 text-sm font-medium text-white transition-all"
             >
               {!gsiReady ? (
                 <>

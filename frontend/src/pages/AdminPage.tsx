@@ -159,7 +159,7 @@ function KpiCard({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-2"
+      className="sku-card rounded-xl p-4 flex flex-col gap-2"
     >
       <div className="flex items-center justify-between">
         <span className="text-slate-500 text-[11px] font-mono uppercase tracking-wider">{label}</span>
@@ -252,7 +252,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Plan breakdown */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <div className="sku-card rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 size={14} className="text-slate-500" />
             <h3 className="text-white text-sm font-bold">Répartition des plans</h3>
@@ -269,7 +269,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
                     <span className="text-xs text-slate-400 font-mono">{labels[plan]}</span>
                     <span className="text-xs text-slate-300 font-mono font-bold">{count} <span className="text-slate-600">({pct}%)</span></span>
                   </div>
-                  <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-1.5 sku-progress-track rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-700 ${barColor}`}
                       style={{ width: `${pct}%` }}
@@ -279,7 +279,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
               );
             })}
           </div>
-          <div className="mt-4 pt-4 border-t border-slate-800 grid grid-cols-2 gap-2">
+          <div className="mt-4 pt-4 grid grid-cols-2 gap-2" style={{ borderTop: '1px solid var(--color-border)' }}>
             <div className="text-center">
               <p className="text-white font-black font-mono text-lg">{stats.total_users}</p>
               <p className="text-slate-600 text-[10px] font-mono">total inscrits</p>
@@ -294,7 +294,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
         {/* Sparkline charts */}
         <div className="space-y-4">
           {/* Signups 30d */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <div className="sku-card rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <UserPlus size={13} className="text-yellow-400" />
@@ -306,7 +306,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
           </div>
 
           {/* Scans 14d */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <div className="sku-card rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Zap size={13} className="text-cyan-400" />
@@ -364,7 +364,7 @@ function UsersTab({
             { label: 'Payants', value: stats.pro_users, color: 'text-cyan-400' },
             { label: 'Scans', value: stats.total_scans, color: 'text-purple-400' },
           ].map(s => (
-            <div key={s.label} className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
+            <div key={s.label} className="sku-stat rounded-xl">
               <p className={`text-xl font-black font-mono ${s.color}`}>{s.value}</p>
               <p className="text-slate-600 text-[10px] font-mono mt-0.5">{s.label}</p>
             </div>
@@ -379,7 +379,8 @@ function UsersTab({
           placeholder="Rechercher un email…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full sm:w-72 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 transition"
+          className="w-full sm:w-72 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/40 transition sku-inset"
+          style={{ border: '1px solid rgba(255,255,255,0.08)' }}
         />
       </div>
 
@@ -387,11 +388,11 @@ function UsersTab({
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden"
+        className="sku-panel rounded-2xl overflow-hidden"
       >
         <table className="w-full">
           <thead>
-            <tr className="border-b border-slate-800">
+            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
               <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider">Email</th>
               <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider">Plan</th>
               <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider hidden sm:table-cell">Scans</th>
@@ -410,7 +411,10 @@ function UsersTab({
             ) : filtered.map(u => (
               <tr
                 key={u.id}
-                className={`border-b border-slate-800/50 hover:bg-slate-800/30 transition ${updating === u.id ? 'opacity-50 pointer-events-none' : ''}`}
+                className={`transition ${updating === u.id ? 'opacity-50 pointer-events-none' : ''}`}
+                style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.025)')}
+                onMouseLeave={e => (e.currentTarget.style.background = '')}
               >
                 {/* Email */}
                 <td className="px-4 py-3">
@@ -566,7 +570,7 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen text-slate-100" style={{ backgroundColor: 'var(--color-bg)' }}>
 
       {/* Nav */}
       <PageNavbar
@@ -590,7 +594,7 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
       <div className="max-w-6xl mx-auto px-4 py-6">
 
         {/* Tab bar */}
-        <div className="flex gap-1 mb-6 bg-slate-900 border border-slate-800 rounded-xl p-1 w-fit">
+        <div className="flex gap-1 mb-6 sku-panel rounded-xl p-1 w-fit">
           {([
             { key: 'metrics', label: 'Métriques', icon: TrendingUp },
             { key: 'users',   label: 'Utilisateurs', icon: Users },
@@ -600,7 +604,7 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
               onClick={() => setTab(key)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition ${
                 tab === key
-                  ? 'bg-slate-800 text-white'
+                  ? 'text-white'
                   : 'text-slate-500 hover:text-slate-300'
               }`}
             >

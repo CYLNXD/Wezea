@@ -474,10 +474,17 @@ export default function LegalPage({ onBack, section = 'mentions', onGoClientSpac
               key={s.id}
               onClick={() => setActive(s.id)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
-                active === s.id
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                  : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600/60 hover:text-slate-300'
+                active === s.id ? 'text-cyan-300' : 'text-slate-400 hover:text-slate-200'
               }`}
+              style={active === s.id ? {
+                background: 'linear-gradient(180deg,rgba(34,211,238,0.12),rgba(34,211,238,0.06))',
+                border: '1px solid rgba(34,211,238,0.3)',
+                boxShadow: '0 2px 8px rgba(34,211,238,0.08), 0 1px 0 rgba(255,255,255,0.05) inset',
+              } : {
+                background: 'linear-gradient(180deg,rgba(255,255,255,0.03),rgba(0,0,0,0.06))',
+                border: '1px solid rgba(255,255,255,0.07)',
+                boxShadow: 'var(--shadow-btn)',
+              }}
             >
               {s.icon}
               {s.label}
@@ -491,7 +498,7 @@ export default function LegalPage({ onBack, section = 'mentions', onGoClientSpac
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
-          className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 sm:p-8"
+          className="sku-panel rounded-2xl p-6 sm:p-8"
         >
           {content[active]}
         </motion.div>

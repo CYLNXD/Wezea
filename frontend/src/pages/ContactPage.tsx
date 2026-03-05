@@ -141,7 +141,7 @@ export default function ContactPage({ onBack, onGoClientSpace, onGoHistory, onGo
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
             onSubmit={handleSubmit}
-            className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 sm:p-8 flex flex-col gap-5"
+            className="sku-panel rounded-2xl p-6 sm:p-8 flex flex-col gap-5"
           >
             {/* Nom + Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -155,7 +155,8 @@ export default function ContactPage({ onBack, onGoClientSpace, onGoHistory, onGo
                   placeholder={t('contact_placeholder_name')}
                   value={form.name}
                   onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setErrors(x => ({ ...x, name: '' })); }}
-                  className={`rounded-xl px-4 py-2.5 text-sm bg-slate-800/60 border text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all ${errors.name ? 'border-red-500/60' : 'border-slate-700/60 hover:border-slate-600/80'}`}
+                  className={`rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all sku-inset ${errors.name ? 'border-red-500/60' : ''}`}
+              style={{ border: errors.name ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(255,255,255,0.07)' }}
                 />
                 {errors.name && <span className="text-xs text-red-400">{errors.name}</span>}
               </div>
@@ -169,7 +170,8 @@ export default function ContactPage({ onBack, onGoClientSpace, onGoHistory, onGo
                   placeholder={t('contact_placeholder_email')}
                   value={form.email}
                   onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setErrors(x => ({ ...x, email: '' })); }}
-                  className={`rounded-xl px-4 py-2.5 text-sm bg-slate-800/60 border text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all ${errors.email ? 'border-red-500/60' : 'border-slate-700/60 hover:border-slate-600/80'}`}
+                  className={`rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all sku-inset`}
+                  style={{ border: errors.email ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(255,255,255,0.07)' }}
                 />
                 {errors.email && <span className="text-xs text-red-400">{errors.email}</span>}
               </div>
@@ -184,7 +186,8 @@ export default function ContactPage({ onBack, onGoClientSpace, onGoHistory, onGo
               <select
                 value={form.subject}
                 onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
-                className="rounded-xl px-4 py-2.5 text-sm bg-slate-800/60 border border-slate-700/60 text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all hover:border-slate-600/80 appearance-none cursor-pointer"
+                className="rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all appearance-none cursor-pointer sku-inset"
+                style={{ border: '1px solid rgba(255,255,255,0.07)' }}
                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center' }}
               >
                 {SUBJECTS.map(s => (
@@ -204,7 +207,8 @@ export default function ContactPage({ onBack, onGoClientSpace, onGoHistory, onGo
                 placeholder={t('contact_placeholder_message')}
                 value={form.message}
                 onChange={e => { setForm(f => ({ ...f, message: e.target.value })); setErrors(x => ({ ...x, message: '' })); }}
-                className={`rounded-xl px-4 py-2.5 text-sm bg-slate-800/60 border text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all resize-none ${errors.message ? 'border-red-500/60' : 'border-slate-700/60 hover:border-slate-600/80'}`}
+                className="rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all resize-none sku-inset"
+                style={{ border: errors.message ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(255,255,255,0.07)' }}
               />
               <div className="flex justify-between items-center">
                 {errors.message
@@ -259,14 +263,14 @@ export default function ContactPage({ onBack, onGoClientSpace, onGoHistory, onGo
             transition={{ delay: 0.3 }}
             className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3"
           >
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 flex items-start gap-3">
+            <div className="sku-card rounded-xl px-4 py-3 flex items-start gap-3">
               <Mail size={15} className="text-cyan-400 shrink-0 mt-0.5" />
               <div>
                 <div className="text-xs font-semibold text-slate-300 mb-0.5">{t('contact_info_email_title')}</div>
                 <div className="text-xs text-slate-500">{t('contact_info_email_delay')}</div>
               </div>
             </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 flex items-start gap-3">
+            <div className="sku-card rounded-xl px-4 py-3 flex items-start gap-3">
               <CheckCircle size={15} className="text-green-400 shrink-0 mt-0.5" />
               <div>
                 <div className="text-xs font-semibold text-slate-300 mb-0.5">{t('contact_info_ack_title')}</div>

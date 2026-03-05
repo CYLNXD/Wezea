@@ -81,7 +81,7 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
       <PageNavbar
         onBack={onBack}
         title={lang === 'fr' ? 'Historique des scans' : 'Scan history'}
@@ -103,17 +103,17 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
         {/* Stats bar */}
         {scans.length > 0 && (
           <div className="grid grid-cols-3 gap-3 mb-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
+            <div className="sku-stat rounded-xl">
               <div className="text-2xl font-bold text-white font-mono">{scans.length}</div>
               <div className="text-xs text-slate-500 mt-0.5">{lang === 'fr' ? 'Scans total' : 'Total scans'}</div>
             </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
+            <div className="sku-stat rounded-xl">
               <div className={`text-2xl font-bold font-mono ${scoreColor(Math.round(scans.reduce((a, s) => a + s.security_score, 0) / scans.length))}`}>
                 {Math.round(scans.reduce((a, s) => a + s.security_score, 0) / scans.length)}
               </div>
               <div className="text-xs text-slate-500 mt-0.5">{lang === 'fr' ? 'Score moyen' : 'Avg score'}</div>
             </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
+            <div className="sku-stat rounded-xl">
               <div className="text-2xl font-bold text-white font-mono">
                 {new Set(scans.map(s => s.domain)).size}
               </div>

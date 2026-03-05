@@ -124,13 +124,13 @@ export default function PricingModal({ open, onClose }: Props) {
 
           {/* Panel */}
           <motion.div
-            className="relative z-10 w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl"
+            className="relative z-10 w-full max-w-4xl sku-panel rounded-2xl overflow-hidden"
             initial={{ scale: 0.95, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.95, y: 20 }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
               <div>
                 <h2 className="text-lg font-semibold text-white">
                   {lang === 'fr' ? 'Choisissez votre plan' : 'Choose your plan'}
@@ -162,7 +162,7 @@ export default function PricingModal({ open, onClose }: Props) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
 
               {/* ── FREE ── */}
-              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5 flex flex-col">
+              <div className="sku-card rounded-xl p-5 flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-sm font-medium text-slate-400">Free</span>
                   {plan === 'free' && (
@@ -188,8 +188,8 @@ export default function PricingModal({ open, onClose }: Props) {
               {/* ── STARTER ── */}
               <div className={`relative rounded-xl p-5 overflow-hidden flex flex-col ${
                 isStarter
-                  ? 'bg-slate-900 border-2 border-emerald-500/40'
-                  : 'bg-slate-800/50 border border-slate-600'
+                  ? 'sku-card border-2 border-emerald-500/40'
+                  : 'sku-card'
               }`}>
                 {isStarter && <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />}
 
@@ -231,7 +231,7 @@ export default function PricingModal({ open, onClose }: Props) {
               </div>
 
               {/* ── PRO ── */}
-              <div className="relative bg-slate-900 border-2 border-cyan-500/40 rounded-xl p-5 overflow-hidden flex flex-col">
+              <div className="relative sku-panel rounded-xl p-5 overflow-hidden flex flex-col" style={{ border: '2px solid rgba(34,211,238,0.35)', boxShadow: 'var(--shadow-panel), 0 0 30px rgba(34,211,238,0.06)' }}>
                 <div className="absolute inset-0 bg-cyan-500/5 pointer-events-none" />
 
                 <div className="flex items-center justify-between mb-4 relative">
