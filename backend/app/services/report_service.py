@@ -201,10 +201,12 @@ def generate_pdf(
     try:
         from weasyprint import HTML
         from weasyprint.text.fonts import FontConfiguration
-    except ImportError as exc:
+    except (ImportError, OSError) as exc:
+        # ImportError : paquet pip manquant
+        # OSError    : libs système manquantes (libpango, libcairo…)
+        logger.error("WeasyPrint init error: %s", exc)
         raise RuntimeError(
-            "WeasyPrint n'est pas installé. "
-            "Exécutez : pip install weasyprint"
+            f"WeasyPrint indisponible (dépendances système manquantes ?) : {exc}"
         ) from exc
 
     env      = _build_jinja_env()

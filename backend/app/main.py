@@ -822,12 +822,14 @@ async def generate_pdf_report(
             report_service.generate_pdf, audit_data, lang, white_label
         )
     except RuntimeError as exc:
-        # WeasyPrint non installé ou erreur de rendu
+        # WeasyPrint non installé, libs système manquantes, ou erreur de rendu
+        logger.error("PDF generation failed (RuntimeError): %s", exc)
         pdf_detail: dict = {"error": "Service de génération PDF indisponible."}
         if _DEBUG:
             pdf_detail["message"] = str(exc)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=pdf_detail)
     except Exception as exc:
+        logger.error("PDF generation failed (Exception): %s", exc)
         pdf_detail2: dict = {"error": "Erreur lors de la génération du rapport."}
         if _DEBUG:
             pdf_detail2["message"] = str(exc)
