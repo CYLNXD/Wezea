@@ -559,11 +559,11 @@
   <!-- SCAN BOX -->
   <div class="scan-panel">
     <div class="scan-row">
-      <input class="scan-input" type="text" placeholder="votresite.fr" value="wezea.net" />
-      <a class="btn-primary" href="https://wezea.net" target="_blank">
+      <input id="hero-domain" class="scan-input" type="text" placeholder="votresite.fr" />
+      <button class="btn-primary" onclick="launchScan()">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         Analyser maintenant
-      </a>
+      </button>
     </div>
     <p class="scan-note"><b>Gratuit</b> · Résultats en &lt; 60 secondes · Aucune installation · Sans compte</p>
   </div>
@@ -781,5 +781,16 @@
   <a href="https://wezea.net/legal#confidentialite">Confidentialité</a>
 </footer>
 
+<script>
+  function launchScan() {
+    const domain = document.getElementById('hero-domain').value.trim();
+    const base = 'https://wezea.net';
+    const url = domain ? base + '?domain=' + encodeURIComponent(domain) : base;
+    window.location.href = url;
+  }
+  document.getElementById('hero-domain').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') launchScan();
+  });
+</script>
 </body>
 </html>

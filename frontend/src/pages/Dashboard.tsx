@@ -148,6 +148,12 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
       window.history.replaceState({}, '', window.location.pathname);
       setTimeout(() => setNewsletterConfirmed(false), 6000);
     }
+    const domainParam = params.get('domain');
+    if (domainParam) {
+      setDomain(domainParam);
+      window.history.replaceState({}, '', window.location.pathname);
+      setTimeout(() => inputRef.current?.focus(), 300);
+    }
   }, []);
 
   // ── Téléchargement PDF direct (Starter / Pro) ──────────────────────────────
