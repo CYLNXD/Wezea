@@ -76,7 +76,7 @@ export default function ContactPage({ onBack, onGoClientSpace, onGoHistory, onGo
   };
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="min-h-screen text-slate-100">
 
       {/* Nav */}
       <PageNavbar

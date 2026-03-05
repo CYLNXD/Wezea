@@ -570,7 +570,7 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
   };
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="min-h-screen text-slate-100">
 
       {/* Nav */}
       <PageNavbar

@@ -287,7 +287,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const isError    = scanner.status === 'error';
 
   return (
-    <div className="min-h-screen flex flex-col text-slate-100" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="min-h-screen flex flex-col text-slate-100">
 
 
 

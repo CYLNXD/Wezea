@@ -81,7 +81,7 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="min-h-screen flex flex-col">
       <PageNavbar
         onBack={onBack}
         title={lang === 'fr' ? 'Historique des scans' : 'Scan history'}

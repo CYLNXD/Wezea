@@ -452,7 +452,7 @@ export default function LegalPage({ onBack, section = 'mentions', onGoClientSpac
   };
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="min-h-screen text-slate-100">
 
       {/* Nav */}
       <PageNavbar

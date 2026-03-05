@@ -531,7 +531,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="min-h-screen text-slate-100">
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <PageNavbar
