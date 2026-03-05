@@ -115,12 +115,10 @@ async def submit_contact(
         email   = body.email,
         subject = body.subject,
         message = body.message,
-        msg_id  = msg.id,
     ))
     asyncio.create_task(brevo_service.send_contact_confirmation(
-        name    = body.name,
-        email   = body.email,
-        subject = body.subject,
+        name  = body.name,
+        email = body.email,
     ))
 
     return {

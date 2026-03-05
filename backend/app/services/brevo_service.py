@@ -32,9 +32,15 @@ from __future__ import annotations
 
 import base64
 import datetime
+import html as _html
 import logging
 import os
 from typing import Any
+
+
+def _esc(value: str) -> str:
+    """Échappe les caractères HTML dans les valeurs fournies par les utilisateurs."""
+    return _html.escape(str(value), quote=True)
 
 import httpx
 
@@ -408,17 +414,22 @@ async def send_monitoring_alert_email(
         color = "#ef4444" if diff < 0 else "#34d399"
         score_diff = f'<span style="font-size:14px; color:{color};">{arrow} {abs(diff)} pts</span>'
 
+    # Échapper les champs pouvant contenir des caractères HTML
+    safe_first_name = _esc(first_name)
+    safe_domain     = _esc(domain)
+    safe_reason     = _esc(reason)
+
     findings_html = ""
     for f in findings[:3]:
-        title = getattr(f, "title", str(f))
+        title = _esc(getattr(f, "title", str(f)))
         findings_html += f'<div class="finding">&#9888; {title}</div>'
 
     html = _base_html(f"""
     <div class="card">
-      <h1>Alerte s&eacute;curit&eacute; &mdash; {domain}</h1>
-      <p>Bonjour {first_name},<br/>
+      <h1>Alerte s&eacute;curit&eacute; &mdash; {safe_domain}</h1>
+      <p>Bonjour {safe_first_name},<br/>
       Un changement a &eacute;t&eacute; d&eacute;tect&eacute; sur le domaine
-      <strong style="color:#e2e8f0;">{domain}</strong>
+      <strong style="color:#e2e8f0;">{safe_domain}</strong>
       lors du scan automatique de cette semaine.</p>
 
       <div class="panel" style="text-align:center;">
@@ -431,13 +442,13 @@ async def send_monitoring_alert_email(
       </div>
 
       <p class="label" style="margin-top:16px;">RAISON DE L&apos;ALERTE</p>
-      <div class="panel"><p>{reason}</p></div>
+      <div class="panel"><p>{safe_reason}</p></div>
 
       {findings_html}
 
-      <a href="{FRONTEND_URL}?domain={domain}" class="btn">&rarr; Voir le rapport complet</a>
+      <a href="{FRONTEND_URL}?domain={safe_domain}" class="btn">&rarr; Voir le rapport complet</a>
       <p style="font-size:12px; color:#475569; margin-top:16px;">
-        Vous recevez cet email car <strong>{domain}</strong> est sous surveillance
+        Vous recevez cet email car <strong>{safe_domain}</strong> est sous surveillance
         sur votre compte Wezea. Pour d&eacute;sactiver les alertes, rendez-vous dans
         votre dashboard.
       </p>
@@ -499,15 +510,20 @@ async def send_contact_notification(
     message: str,
 ) -> bool:
     """Notification interne — nouvelle demande de contact."""
+    # Échapper les champs utilisateur pour éviter l'injection HTML dans l'email
+    safe_name    = _esc(name)
+    safe_email   = _esc(email)
+    safe_subject = _esc(subject)
+    safe_message = _esc(message)
     html = _base_html(f"""
     <div class="card">
       <h1>Nouveau message de contact</h1>
       <div class="panel">
-        <p><span class="label">DE :</span> {name} &lt;{email}&gt;</p>
-        <p><span class="label">SUJET :</span> {subject}</p>
+        <p><span class="label">DE :</span> {safe_name} &lt;{safe_email}&gt;</p>
+        <p><span class="label">SUJET :</span> {safe_subject}</p>
       </div>
       <div class="panel">
-        <p style="white-space:pre-wrap; color:#e2e8f0;">{message}</p>
+        <p style="white-space:pre-wrap; color:#e2e8f0;">{safe_message}</p>
       </div>
     </div>
     """)
@@ -522,10 +538,11 @@ async def send_contact_notification(
 
 async def send_contact_confirmation(name: str, email: str) -> bool:
     """Confirmation envoyée à l'utilisateur après soumission du formulaire."""
+    safe_name = _esc(name)
     html = _base_html(f"""
     <div class="card">
       <h1>Votre message a bien &eacute;t&eacute; re&ccedil;u</h1>
-      <p>Bonjour {name},</p>
+      <p>Bonjour {safe_name},</p>
       <p>
         Nous avons bien re&ccedil;u votre message et nous vous r&eacute;pondrons
         dans les plus brefs d&eacute;lais (g&eacute;n&eacute;ralement sous 24h en jours ouvr&eacute;s).
