@@ -13,9 +13,9 @@
    VARIABLES & RESET
    ════════════════════════════════════════════════════════════════════════════ */
 :root {
-  --navy:      #0f2544;
-  --navy-mid:  #1e3a5f;
-  --navy-light:#2d5282;
+  --navy:      #0f172a;
+  --navy-mid:  #1e3a8a;
+  --navy-light:#4f46e5;
   --slate:     #475569;
   --slate-mid: #64748b;
   --slate-light:#94a3b8;
@@ -27,6 +27,11 @@
   --amber:     #d97706;
   --green:     #16a34a;
   --cyan:      #0891b2;
+  --gold:      #f59e0b;
+  --indigo:    #4f46e5;
+  --cover-grad-start: #0f172a;
+  --cover-grad-mid:   #1e3a8a;
+  --cover-grad-end:   #312e81;
   --font:      'Inter', 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
 }
@@ -127,16 +132,17 @@ body {
   width: 210mm;
   height: 297mm;
   position: relative;
-  background: white;
+  background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 52%, #312e81 100%);
 }
 
-/* Bande supérieure navy */
+/* Bande supérieure — transparente sur le dégradé */
 .cover-header {
-  background: var(--navy);
-  padding: 14mm 18mm 10mm;
+  background: transparent;
+  padding: 12mm 18mm 10mm;
   display: table;
   width: 100%;
   box-sizing: border-box;
+  border-bottom: 0.5pt solid rgba(255,255,255,0.15);
 }
 .cover-header > div {
   display: table-cell;
@@ -161,7 +167,7 @@ body {
 .brand-name span { color: #22d3ee; }
 .brand-tagline {
   font-size: 7.5pt;
-  color: #64748b;
+  color: rgba(255,255,255,0.55);
   margin-top: 2pt;
   letter-spacing: 1.2pt;
   text-transform: uppercase;
@@ -169,72 +175,73 @@ body {
 
 .cover-label {
   font-size: 7.5pt;
-  color: #94a3b8;
+  color: rgba(255,255,255,0.5);
   text-align: right;
   font-family: var(--font-mono);
   display: table-cell;
   vertical-align: middle;
 }
 
-/* Corps de la couverture */
+/* Corps de la couverture — transparent sur le dégradé */
 .cover-body {
-  background: var(--bg-light);
-  padding: 16mm 22mm 12mm;
+  background: transparent;
+  padding: 14mm 22mm 10mm;
   text-align: center;
 }
 
 .cover-report-type {
-  font-size: 9pt;
+  font-size: 8pt;
   font-weight: 600;
-  letter-spacing: 3pt;
+  letter-spacing: 3.5pt;
   text-transform: uppercase;
-  color: var(--cyan);
-  margin-bottom: 8pt;
+  color: #22d3ee;
+  margin-bottom: 10pt;
 }
 
 .cover-title {
-  font-size: 26pt;
+  font-size: 28pt;
   font-weight: 900;
-  color: var(--navy);
+  color: white;
   text-align: center;
-  line-height: 1.2;
-  margin-bottom: 6pt;
+  line-height: 1.15;
+  margin-bottom: 8pt;
 }
 
 .cover-domain {
   font-family: var(--font-mono);
-  font-size: 13pt;
-  color: var(--navy-light);
-  background: white;
-  border: 1pt solid var(--border);
-  padding: 5pt 14pt;
-  border-radius: 4pt;
-  margin-bottom: 20pt;
+  font-size: 12pt;
+  color: #e2e8f0;
+  background: rgba(255,255,255,0.1);
+  border: 1pt solid rgba(255,255,255,0.22);
+  padding: 5pt 16pt;
+  border-radius: 5pt;
+  margin-bottom: 18pt;
+  display: inline-block;
 }
 
 /* Jauge score SVG sur la couverture */
 .cover-score-block {
   text-align: center;
-  margin-bottom: 20pt;
+  margin-bottom: 18pt;
 }
 
 .cover-score-label {
   font-size: 8pt;
   font-weight: 700;
-  letter-spacing: 2pt;
+  letter-spacing: 2.5pt;
   text-transform: uppercase;
-  color: var(--slate-mid);
+  color: rgba(255,255,255,0.6);
   margin-bottom: 8pt;
 }
 
 .cover-risk-badge {
   display: inline-block;
-  margin-top: 10pt;
-  padding: 4pt 16pt;
+  margin-top: 8pt;
+  padding: 4pt 18pt;
   border-radius: 20pt;
-  font-size: 10pt;
+  font-size: 9.5pt;
   font-weight: 800;
-  letter-spacing: 1pt;
+  letter-spacing: 1.2pt;
   text-transform: uppercase;
 }
 
@@ -243,52 +250,54 @@ body {
   display: table;
   table-layout: fixed;
   width: 100%;
-  background: white;
-  border: 1pt solid var(--border);
-  border-radius: 6pt;
+  background: rgba(255,255,255,0.1);
+  border: 1pt solid rgba(255,255,255,0.2);
+  border-radius: 8pt;
 }
 .cover-meta-item {
   display: table-cell;
-  padding: 8pt 12pt;
+  padding: 10pt 12pt;
   text-align: center;
-  border-right: 1pt solid var(--border);
+  border-right: 1pt solid rgba(255,255,255,0.15);
   width: 33.33%;
   vertical-align: middle;
 }
 .cover-meta-item:last-child { border-right: none; }
 .cover-meta-value {
-  font-size: 11pt;
-  font-weight: 700;
-  color: var(--navy);
+  font-size: 13pt;
+  font-weight: 800;
+  color: white;
   display: block;
 }
 .cover-meta-key {
   font-size: 7pt;
-  color: var(--slate-light);
+  color: rgba(255,255,255,0.55);
   text-transform: uppercase;
   letter-spacing: 0.8pt;
   display: block;
   word-break: break-word;
+  margin-top: 2pt;
 }
 
 /* Pied de couverture */
 .cover-footer {
-  background: var(--navy);
-  padding: 8mm 18mm;
+  background: transparent;
+  padding: 6mm 18mm;
   display: table;
   width: 100%;
   box-sizing: border-box;
+  border-top: 0.5pt solid rgba(255,255,255,0.15);
 }
 .cover-footer p {
   font-size: 7.5pt;
-  color: #64748b;
+  color: rgba(255,255,255,0.45);
   display: table-cell;
   vertical-align: middle;
 }
 .cover-footer p:last-child {
   text-align: right;
 }
-.cover-footer strong { color: #94a3b8; }
+.cover-footer strong { color: rgba(255,255,255,0.65); }
 
 /* String caché pour WeasyPrint running header */
 .domain-running {
@@ -322,7 +331,7 @@ body {
 .section-number {
   width: 22pt;
   height: 22pt;
-  background: var(--navy);
+  background: linear-gradient(135deg, #1e3a8a, #4f46e5);
   color: white;
   border-radius: 50%;
   font-size: 9pt;
@@ -353,7 +362,7 @@ h2.section-inner {
   color: var(--navy-mid);
   margin: 14pt 0 8pt;
   padding-left: 8pt;
-  border-left: 3pt solid var(--cyan);
+  border-left: 3pt solid var(--gold);
 }
 
 h3.sub {
@@ -599,6 +608,7 @@ p.lead {
   overflow: hidden;
   margin-bottom: 10pt;
   page-break-inside: avoid;
+  box-shadow: 0 1pt 6pt rgba(15, 23, 42, 0.08);
 }
 
 .finding-header {
@@ -719,7 +729,7 @@ p.lead {
 }
 .phase-header.urgent  { background: var(--red);         }
 .phase-header.important { background: var(--orange);    }
-.phase-header.optimize  { background: var(--navy-light); }
+.phase-header.optimize  { background: linear-gradient(135deg, #1e3a8a, #4f46e5); }
 .phase-deadline {
   font-size: 7pt;
   font-weight: 400;
@@ -769,14 +779,14 @@ p.lead {
   margin-bottom: 12pt;
 }
 .annex-table th {
-  background: var(--bg-light);
+  background: linear-gradient(135deg, #1e3a8a, #312e81);
+  color: white;
   padding: 6pt 10pt;
   text-align: left;
   font-size: 7.5pt;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5pt;
-  color: var(--slate);
   border-bottom: 1pt solid var(--border);
 }
 .annex-table td {
@@ -831,7 +841,7 @@ p.lead {
 }
 .cta-button {
   display: inline-block;
-  background: var(--navy);
+  background: linear-gradient(135deg, #1e3a8a, #4f46e5);
   color: white;
   padding: 9pt 24pt;
   border-radius: 6pt;
@@ -882,7 +892,7 @@ p.lead {
       <div>
         {% if wb_active and wb_logo %}
           <img src="{{ wb_logo }}" alt="{{ wb_company }}" style="max-height:36pt; max-width:160pt; object-fit:contain; margin-bottom:4pt;" />
-          <div class="brand-tagline" style="color:#94a3b8;">{{ strings.report_type }}</div>
+          <div class="brand-tagline">{{ strings.report_type }}</div>
         {% elif wb_active %}
           <div class="brand-name" style="color:#ffffff;">{{ wb_company }}</div>
           <div class="brand-tagline">Security Report · {{ strings.report_type }}</div>
@@ -918,7 +928,7 @@ p.lead {
       <svg viewBox="0 0 200 200" width="150" height="150">
         <!-- Arc fond -->
         <circle cx="100" cy="100" r="85"
-                fill="none" stroke="#e2e8f0" stroke-width="14"
+                fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="14"
                 stroke-dasharray="400 134"
                 transform="rotate(135 100 100)"
                 stroke-linecap="round"/>
@@ -937,7 +947,7 @@ p.lead {
         <text x="100" y="113"
               text-anchor="middle"
               font-family="Inter, Helvetica, sans-serif"
-              font-size="12" fill="#94a3b8">{{ strings.out_of }}</text>
+              font-size="12" fill="rgba(255,255,255,0.5)">{{ strings.out_of }}</text>
         <text x="100" y="130"
               text-anchor="middle"
               font-family="Inter, Helvetica, sans-serif"
