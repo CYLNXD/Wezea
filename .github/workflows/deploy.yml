@@ -65,8 +65,12 @@ jobs:
       - name: 🔄 Restart API service
         run: |
           sudo systemctl restart cyberhealth-api
-          sleep 3
-          sudo systemctl is-active cyberhealth-api
+          for i in 1 2 3 4 5 6; do
+            sleep 2
+            STATUS=$(sudo systemctl is-active cyberhealth-api || true)
+            echo "Status ($i): $STATUS"
+            [ "$STATUS" = "active" ] && break
+          done
           echo "✓ Service redémarré"
 
       # ── 8. Reload nginx ───────────────────────────────────────────────────
