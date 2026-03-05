@@ -24,10 +24,18 @@ build/
 # ===========================
 node_modules/
 frontend/dist/
+frontend/dist_new/
 frontend/.env
 frontend/.env.*
 !frontend/.env.example
 frontend-latest/
+frontend/frontend-latest.tar.gz
+frontend/*.tar.gz
+
+# Fichiers temporaires Vite
+frontend/vite.config.js.timestamp-*.mjs
+frontend/tsconfig.tsbuildinfo
+frontend/tsconfig.node.tsbuildinfo
 
 # ===========================
 # Fichiers de déploiement
