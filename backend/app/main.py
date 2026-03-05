@@ -566,15 +566,25 @@ async def run_scan(
 
         # ── Sauvegarder dans l'historique si connecté ─────────────────────────
         if current_user:
+            # Persister les détails du scan pour la génération PDF depuis l'historique
+            _scan_details = {
+                "dns_details":       result_dict.get("dns_details", {}),
+                "ssl_details":       result_dict.get("ssl_details", {}),
+                "port_details":      result_dict.get("port_details", {}),
+                "recommendations":   result_dict.get("recommendations", []),
+                "subdomain_details": result_dict.get("subdomain_details", {}),
+                "vuln_details":      result_dict.get("vuln_details", {}),
+            }
             history = ScanHistory(
-                user_id        = current_user.id,
-                scan_uuid      = scan_id,
-                domain         = result_dict["domain"],
-                security_score = result_dict["security_score"],
-                risk_level     = result_dict["risk_level"],
-                findings_count = len(result_dict.get("findings", [])),
-                findings_json  = json.dumps(result_dict.get("findings", [])),
-                scan_duration  = result_dict.get("scan_duration_ms"),
+                user_id           = current_user.id,
+                scan_uuid         = scan_id,
+                domain            = result_dict["domain"],
+                security_score    = result_dict["security_score"],
+                risk_level        = result_dict["risk_level"],
+                findings_count    = len(result_dict.get("findings", [])),
+                findings_json     = json.dumps(result_dict.get("findings", [])),
+                scan_details_json = json.dumps(_scan_details),
+                scan_duration     = result_dict.get("scan_duration_ms"),
             )
             db.add(history)
             db.commit()
@@ -745,11 +755,14 @@ class PDFRequest(BaseModel):
     findings:         list[dict[str, Any]]
     dns_details:      dict[str, Any]          = {}
     ssl_details:      dict[str, Any]          = {}
-    port_details:     dict[str, Any]          = {}
-    recommendations:  list[str]               = []
-    scan_duration_ms: int                     = 0
-    meta:             dict[str, Any]          = {}
-    lang:             str                     = "fr"
+    port_details:      dict[str, Any]         = {}
+    recommendations:   list[str]              = []
+    scan_duration_ms:  int                    = 0
+    meta:              dict[str, Any]         = {}
+    lang:              str                    = "fr"
+    # Champs premium (optionnels — absents pour les scans free)
+    subdomain_details: dict[str, Any]         = {}
+    vuln_details:      dict[str, Any]         = {}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

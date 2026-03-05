@@ -70,6 +70,7 @@ def get_scan_detail(
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
 
+    details = scan.get_scan_details()
     return {
         "id": scan.id,
         "scan_uuid": scan.scan_uuid,
@@ -80,6 +81,13 @@ def get_scan_detail(
         "findings": scan.get_findings(),
         "scan_duration": scan.scan_duration,
         "created_at": scan.created_at.isoformat(),
+        # Champs pour la génération PDF (persistés depuis la v2)
+        "dns_details":       details.get("dns_details", {}),
+        "ssl_details":       details.get("ssl_details", {}),
+        "port_details":      details.get("port_details", {}),
+        "recommendations":   details.get("recommendations", []),
+        "subdomain_details": details.get("subdomain_details", {}),
+        "vuln_details":      details.get("vuln_details", {}),
     }
 
 

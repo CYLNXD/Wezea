@@ -84,6 +84,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [pricingModalOpen, setPricingModalOpen] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError,   setPdfError]   = useState<string | null>(null);
   // Monitoring
   const [monitoringOpen, setMonitoringOpen] = useState(false);
   const [monitoredDomains, setMonitoredDomains] = useState<Array<{domain:string;last_score:number|null;last_risk_level:string|null;last_scan_at:string|null;}>>([]);
@@ -160,6 +161,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const downloadPdf = useCallback(async () => {
     if (!scanner.result || pdfLoading) return;
     setPdfLoading(true);
+    setPdfError(null);
     try {
       const { data } = await apiClient.post('/generate-pdf', scanner.result, { responseType: 'blob' });
       const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
@@ -169,9 +171,21 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
       a.click();
       URL.revokeObjectURL(url);
       capturePdfDownloaded(scanner.result.domain, scanner.result.security_score, user?.plan ?? 'free');
-    } catch { /* silencieux */ }
-    finally { setPdfLoading(false); }
-  }, [scanner.result, pdfLoading, user?.plan]);
+    } catch (err: any) {
+      // Quand responseType: 'blob', les erreurs HTTP arrivent aussi sous forme de Blob
+      let msg = lang === 'fr' ? 'Erreur lors de la génération du PDF. Réessayez.' : 'Error generating PDF. Please try again.';
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          msg = json?.detail?.message ?? json?.detail ?? json?.message ?? text;
+        } catch { /* ignore parse error */ }
+      } else {
+        msg = err?.response?.data?.detail?.message ?? err?.response?.data?.message ?? err?.message ?? msg;
+      }
+      setPdfError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally { setPdfLoading(false); }
+  }, [scanner.result, pdfLoading, user?.plan, lang]);
 
   // ── Monitoring ──────────────────────────────────────────────────────────────
   const isPremium = user?.plan === 'starter' || user?.plan === 'pro';
@@ -1119,6 +1133,11 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                   : `${nonInfoCount} risk(s) found — See correction plan`)
                               : (lang === 'fr' ? 'Télécharger le rapport complet' : 'Download full report')}
                       </button>
+                      {pdfError && (
+                        <p className="text-center text-red-400 text-[10px] font-mono px-2 py-1 bg-red-500/10 rounded-lg border border-red-500/20">
+                          ⚠ {pdfError}
+                        </p>
+                      )}
                       <p className="text-center text-slate-700 text-[10px] font-mono">
                         {t('scan_duration', { ms: (r.scan_duration_ms / 1000).toFixed(1), date: new Date(r.scanned_at).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US') })}
                       </p>

@@ -69,6 +69,7 @@ class ScanHistory(Base):
     risk_level     = Column(String(20), nullable=False)
     findings_count = Column(Integer, default=0)
     findings_json  = Column(Text, nullable=True)   # full JSON blob
+    scan_details_json = Column(Text, nullable=True) # dns_details, ssl_details, port_details, recommendations, subdomain_details, vuln_details
     scan_duration  = Column(Float, nullable=True)  # ms
     created_at     = Column(DateTime(timezone=True), default=utcnow)
 
@@ -78,6 +79,11 @@ class ScanHistory(Base):
         if self.findings_json:
             return json.loads(self.findings_json)
         return []
+
+    def get_scan_details(self) -> dict:
+        if self.scan_details_json:
+            return json.loads(self.scan_details_json)
+        return {}
 
 
 class Payment(Base):

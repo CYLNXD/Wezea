@@ -55,6 +55,8 @@ def _apply_migrations():
         _add_column_if_missing(conn, "users", "wb_company_name",  "TEXT")
         _add_column_if_missing(conn, "users", "wb_logo_b64",      "TEXT")
         _add_column_if_missing(conn, "users", "wb_primary_color", "TEXT")
+        # ── Feature : détails complets du scan pour le PDF ──────────────
+        _add_column_if_missing(conn, "scan_history", "scan_details_json", "TEXT")
 
 
 def _add_column_if_missing(conn, table: str, column: str, column_def: str):
