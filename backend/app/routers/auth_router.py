@@ -169,7 +169,9 @@ def _send_welcome_sync(email: str) -> None:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
+@limiter.limit("10/hour")
 def register(
+    request: Request,
     req: RegisterRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -376,7 +378,9 @@ def change_email(
 # ─── Google OAuth ───────────────────────────────────────────────────────────────
 
 @router.post("/google", response_model=TokenResponse, status_code=200)
+@limiter.limit("20/hour")
 def google_auth(
+    request: Request,
     req: GoogleAuthRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),

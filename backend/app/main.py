@@ -114,6 +114,8 @@ async def lifespan(app: FastAPI):
 # Application FastAPI
 # ─────────────────────────────────────────────────────────────────────────────
 
+_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+
 app = FastAPI(
     title       = "CyberHealth Scanner API",
     description = (
@@ -122,8 +124,10 @@ app = FastAPI(
     ),
     version     = API_VERSION,
     lifespan    = lifespan,
-    docs_url    = "/docs",
-    redoc_url   = "/redoc",
+    # Swagger/ReDoc désactivés en production (DEBUG=false)
+    docs_url    = "/docs"  if _DEBUG else None,
+    redoc_url   = "/redoc" if _DEBUG else None,
+    openapi_url = "/openapi.json" if _DEBUG else None,
 )
 
 # Attacher le gestionnaire de rate limit
@@ -539,13 +543,13 @@ async def run_scan(
             manager = AuditManager(domain, lang=lang, plan=scan_plan)
             result  = await manager.run()
         except Exception as exc:
+            # Ne pas exposer str(exc) en production (fuite d'infos interne)
+            detail: dict = {"error": "Erreur interne lors du scan.", "scan_id": scan_id}
+            if _DEBUG:
+                detail["message"] = str(exc)
             raise HTTPException(
                 status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail      = {
-                    "error":   "Erreur interne lors du scan.",
-                    "message": str(exc),
-                    "scan_id": scan_id,
-                },
+                detail      = detail,
             )
 
         result_dict = result.to_dict()
@@ -763,6 +767,7 @@ class PDFRequest(BaseModel):
         }
     },
 )
+@limiter.limit("10/minute")
 async def generate_pdf_report(
     request: Request,
     body: PDFRequest,
@@ -799,21 +804,15 @@ async def generate_pdf_report(
         )
     except RuntimeError as exc:
         # WeasyPrint non installé ou erreur de rendu
-        raise HTTPException(
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail      = {
-                "error":   "Service de génération PDF indisponible.",
-                "message": str(exc),
-            },
-        )
+        pdf_detail: dict = {"error": "Service de génération PDF indisponible."}
+        if _DEBUG:
+            pdf_detail["message"] = str(exc)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=pdf_detail)
     except Exception as exc:
-        raise HTTPException(
-            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail      = {
-                "error":   "Erreur lors de la génération du rapport.",
-                "message": str(exc),
-            },
-        )
+        pdf_detail2: dict = {"error": "Erreur lors de la génération du rapport."}
+        if _DEBUG:
+            pdf_detail2["message"] = str(exc)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=pdf_detail2)
 
     return Response(
         content      = pdf_bytes,
@@ -839,11 +838,12 @@ async def _run_in_executor(fn, *args):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    # En production : ne jamais exposer str(exc) ni le chemin complet (fuite d'infos)
+    if _DEBUG:
+        detail = {"error": "Erreur interne du serveur.", "detail": str(exc), "path": str(request.url.path)}
+    else:
+        detail = {"error": "Erreur interne du serveur. Veuillez réessayer plus tard."}
     return JSONResponse(
         status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content     = {
-            "error":   "Erreur interne du serveur.",
-            "detail":  str(exc),
-            "path":    str(request.url),
-        },
+        content     = detail,
     )
