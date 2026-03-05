@@ -6,15 +6,13 @@ Endpoints :
   GET  /newsletter/confirm/{token} Confirmation double opt-in (lien dans l'email)
   POST /newsletter/unsubscribe     Désabonnement par email
 """
-from __future__ import annotations
-
 import asyncio
 import logging
 import os
 import secrets
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
@@ -56,8 +54,8 @@ def _get_ip(request: Request) -> str:
 @router.post("/subscribe", status_code=202)
 @limiter.limit("5/minute")
 async def subscribe(
-    body: SubscribeRequest,
     request: Request,
+    body: SubscribeRequest = Body(...),
     db: Session = Depends(get_db),
 ):
     """

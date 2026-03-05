@@ -1,6 +1,6 @@
 // ─── NewsletterWidget.tsx — Bloc d'abonnement à la newsletter ────────────────
 import { useState, FormEvent } from 'react';
-import { Mail, ArrowRight, CheckCircle, Loader } from 'lucide-react';
+import { Mail, ArrowRight, CheckCircle, Loader, Newspaper, ShieldCheck, CalendarDays, X } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { useLanguage } from '../i18n/LanguageContext';
 
@@ -15,9 +15,22 @@ interface Props {
 
 export default function NewsletterWidget({ prefillEmail = '', variant = 'full' }: Props) {
   const { lang } = useLanguage();
-  const [email, setEmail]   = useState(prefillEmail);
-  const [status, setStatus] = useState<Status>('idle');
-  const [error, setError]   = useState('');
+  const [email, setEmail]         = useState(prefillEmail);
+  const [status, setStatus]       = useState<Status>('idle');
+  const [error, setError]         = useState('');
+  const [showUnsub, setShowUnsub] = useState(false);
+  const [unsubStatus, setUnsubStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+
+  async function handleUnsubscribe() {
+    if (!email.trim()) return;
+    setUnsubStatus('loading');
+    try {
+      await apiClient.post('/newsletter/unsubscribe', { email: email.trim().toLowerCase() });
+      setUnsubStatus('done');
+    } catch {
+      setUnsubStatus('error');
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -108,17 +121,33 @@ export default function NewsletterWidget({ prefillEmail = '', variant = 'full' }
       </p>
 
       {/* Badges */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
-        {(lang === 'fr'
-          ? ['📰 Nouveaux articles', '🔒 Conseils sécurité', '📅 Mensuel']
-          : ['📰 New articles', '🔒 Security tips', '📅 Monthly']
-        ).map(label => (
-          <span
-            key={label}
-            className="text-xs text-slate-400 bg-slate-800/60 border border-slate-700/50 px-2 py-0.5 rounded-full"
-          >
-            {label}
-          </span>
+      <div className="flex flex-wrap gap-3 mb-4">
+        {([
+          {
+            Icon: Newspaper,
+            bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', color: 'text-cyan-400',
+            fr: 'Nouveaux articles', en: 'New articles',
+          },
+          {
+            Icon: ShieldCheck,
+            bg: 'bg-violet-500/10', border: 'border-violet-500/20', color: 'text-violet-400',
+            fr: 'Conseils sécurité', en: 'Security tips',
+          },
+          {
+            Icon: CalendarDays,
+            bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', color: 'text-emerald-400',
+            fr: 'Mensuel', en: 'Monthly',
+          },
+        ] as const).map((item) => (
+          <div key={item.fr} className="flex items-center gap-2 text-xs text-slate-300">
+            <div
+              className={`w-6 h-6 rounded-lg border flex items-center justify-center shrink-0 ${item.bg} ${item.border}`}
+              style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 4px rgba(0,0,0,0.25)' }}
+            >
+              <item.Icon size={11} className={item.color} />
+            </div>
+            <span>{lang === 'fr' ? item.fr : item.en}</span>
+          </div>
         ))}
       </div>
 
@@ -148,11 +177,64 @@ export default function NewsletterWidget({ prefillEmail = '', variant = 'full' }
         <p className="text-xs text-red-400 mt-2">{error}</p>
       )}
 
-      <p className="text-slate-600 text-xs mt-3">
-        {lang === 'fr'
-          ? 'Double opt-in — confirmation par email requise.'
-          : 'Double opt-in — email confirmation required.'}
-      </p>
+      <div className="flex items-center justify-between mt-3">
+        <p className="text-slate-600 text-xs">
+          {lang === 'fr'
+            ? 'Double opt-in — confirmation par email requise.'
+            : 'Double opt-in — email confirmation required.'}
+        </p>
+        {!showUnsub && unsubStatus === 'idle' && (
+          <button
+            type="button"
+            onClick={() => setShowUnsub(true)}
+            className="text-slate-600 hover:text-slate-400 text-xs transition flex items-center gap-1"
+          >
+            <X size={10} />
+            {lang === 'fr' ? 'Se désabonner' : 'Unsubscribe'}
+          </button>
+        )}
+      </div>
+
+      {/* Confirmation désabonnement */}
+      {showUnsub && unsubStatus === 'idle' && (
+        <div className="mt-3 flex items-center gap-2 p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
+          <p className="text-slate-400 text-xs flex-1">
+            {lang === 'fr'
+              ? `Se désabonner avec ${email || 'cet email'} ?`
+              : `Unsubscribe ${email || 'this email'} ?`}
+          </p>
+          <button
+            type="button"
+            onClick={handleUnsubscribe}
+            className="text-xs text-red-400 hover:text-red-300 font-medium transition shrink-0"
+          >
+            {lang === 'fr' ? 'Confirmer' : 'Confirm'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowUnsub(false)}
+            className="text-xs text-slate-500 hover:text-slate-300 transition shrink-0"
+          >
+            {lang === 'fr' ? 'Annuler' : 'Cancel'}
+          </button>
+        </div>
+      )}
+      {unsubStatus === 'loading' && (
+        <p className="text-xs text-slate-500 mt-2 flex items-center gap-1.5">
+          <Loader size={11} className="animate-spin" />
+          {lang === 'fr' ? 'Désabonnement…' : 'Unsubscribing…'}
+        </p>
+      )}
+      {unsubStatus === 'done' && (
+        <p className="text-xs text-slate-400 mt-2">
+          {lang === 'fr' ? '✓ Vous avez été désabonné.' : '✓ You have been unsubscribed.'}
+        </p>
+      )}
+      {unsubStatus === 'error' && (
+        <p className="text-xs text-red-400 mt-2">
+          {lang === 'fr' ? 'Erreur lors du désabonnement.' : 'Error while unsubscribing.'}
+        </p>
+      )}
     </div>
   );
 }
