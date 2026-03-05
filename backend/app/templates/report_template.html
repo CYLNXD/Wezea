@@ -1080,6 +1080,7 @@ p.lead {
       <div class="kpi-value" style="color: {{ score_color }}">{{ security_score }}<span style="font-size: 11pt; font-weight: 500; color: #94a3b8">/100</span></div>
       <div class="kpi-label">Security Score</div>
     </div>
+    <div style="clear:both;"></div>
   </div>
 
   <!-- Barre de score -->
@@ -1094,6 +1095,7 @@ p.lead {
       <span style="color: #ea580c; font-weight: 600;">● {% if lang == 'en' %}High{% else %}Élevé{% endif %} 40–59</span>
       <span style="color: #d97706; font-weight: 600;">● {% if lang == 'en' %}Moderate{% else %}Modéré{% endif %} 60–79</span>
       <span style="color: #16a34a; font-weight: 600;">● {% if lang == 'en' %}Low{% else %}Faible{% endif %} 80–100</span>
+      <div style="clear:both;"></div>
     </div>
   </div>
 
@@ -1130,12 +1132,12 @@ p.lead {
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     ③ DÉTAIL DES VULNÉRABILITÉS
+     ② DÉTAIL DES VULNÉRABILITÉS
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="section page-break">
 
   <div class="section-header">
-    <div class="section-number">3</div>
+    <div class="section-number">2</div>
     <div>
       <div class="section-title">{% if lang == 'en' %}Vulnerability Details{% else %}Détail des Vulnérabilités{% endif %}</div>
       <div class="section-subtitle">{{ findings | length }} finding(s) — {% if lang == 'en' %}sorted by criticality{% else %}classés par ordre de criticité{% endif %}</div>
@@ -1259,7 +1261,7 @@ p.lead {
 <div class="section page-break">
 
   <div class="section-header">
-    <div class="section-number">4</div>
+    <div class="section-number">3</div>
     <div>
       <div class="section-title">{% if lang == 'en' %}Immediate Action Plan{% else %}Plan d'Action Immédiat{% endif %}</div>
       <div class="section-subtitle">{% if lang == 'en' %}3-phase remediation roadmap{% else %}Feuille de route de remédiation en 3 phases{% endif %}</div>
@@ -1382,7 +1384,7 @@ p.lead {
 <div class="section page-break">
 
   <div class="section-header">
-    <div class="section-number">5</div>
+    <div class="section-number">4</div>
     <div>
       <div class="section-title">{% if lang == 'en' %}Technical Annexes{% else %}Annexes Techniques{% endif %}</div>
       <div class="section-subtitle">{% if lang == 'en' %}Raw data for your IT provider{% else %}Données brutes pour votre prestataire IT{% endif %}</div>
@@ -1736,7 +1738,7 @@ p.lead {
 <div class="section page-break">
 
   <div class="section-header">
-    <div class="section-number">6</div>
+    <div class="section-number">5</div>
     <div>
       <div class="section-title">{% if lang == 'en' %}Next Steps{% else %}Prochaines Étapes{% endif %}</div>
       <div class="section-subtitle">{% if lang == 'en' %}Turn this report into a concrete action plan{% else %}Transformer ce rapport en plan d'action concret{% endif %}</div>
