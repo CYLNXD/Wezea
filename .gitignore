@@ -64,7 +64,6 @@ preview_navbar.html
 # ===========================
 patch_*.py
 /brevo_service.py
-extra_checks.py
 create_admin.py
 diagnose.sh
 
