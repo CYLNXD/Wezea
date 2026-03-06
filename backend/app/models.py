@@ -45,6 +45,9 @@ class User(Base):
     stripe_customer_id      = Column(String(64), nullable=True, index=True)  # cus_xxx — lien permanent Stripe
     subscription_status     = Column(String(20), nullable=True)          # active | cancelled | expired
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
+    # ── Réinitialisation du mot de passe ───────────────────────────────────────
+    password_reset_token    = Column(String(64), nullable=True, index=True)
+    password_reset_expires  = Column(DateTime(timezone=True), nullable=True)
     created_at    = Column(DateTime(timezone=True), default=utcnow)
     updated_at    = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

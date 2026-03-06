@@ -23,6 +23,7 @@ export default function App() {
   const [loginMode, setLoginMode]       = useState<'login' | 'register'>('login');
   const [publicScanUuid, setPublicScanUuid]   = useState<string | null>(null);
   const [pendingScanUuid, setPendingScanUuid] = useState<string | null>(null);
+  const [resetToken, setResetToken]     = useState<string | null>(null);
 
   // Initialise le cookie d'identification anonyme et restaure le consentement analytics
   useEffect(() => {
@@ -53,6 +54,14 @@ export default function App() {
       setPage('legal');
       window.history.replaceState({}, '', window.location.pathname);
     }
+
+    // Lien de réinitialisation de mot de passe — ?reset_token=xxx
+    const rt = params.get('reset_token');
+    if (rt) {
+      setResetToken(rt);
+      setPage('login');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, []);
 
   return (
@@ -77,7 +86,11 @@ export default function App() {
           />
         )}
         {page === 'login' && (
-          <LoginPage onBack={() => setPage('dashboard')} initialMode={loginMode} />
+          <LoginPage
+            onBack={() => { setPage('dashboard'); setResetToken(null); }}
+            initialMode={loginMode}
+            resetToken={resetToken}
+          />
         )}
         {page === 'history' && (
           <HistoryPage

@@ -33,6 +33,7 @@ def _patch_scheduler():
         yield
 
 
+
 @pytest.fixture(scope="session", autouse=True)
 def _patch_brevo():
     """Mock tous les appels Brevo (email) pour éviter des envois réels."""
@@ -41,6 +42,7 @@ def _patch_brevo():
         patch("app.services.brevo_service.add_registered_user_contact", new=AsyncMock(return_value=True)),
         patch("app.services.brevo_service.update_brevo_contact", new=AsyncMock(return_value=True)),
         patch("app.services.brevo_service.delete_brevo_contact", new=AsyncMock(return_value=True)),
+        patch("app.services.brevo_service.send_password_reset_email", new=AsyncMock(return_value=True)),
     ):
         yield
 
@@ -91,6 +93,29 @@ def client(db_session):
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def db_user(db_session):
+    """
+    Crée un utilisateur directement en DB (sans appel HTTP /auth/register).
+    Évite le rate limit sur /auth/register pour les tests qui n'ont pas besoin du flow HTTP.
+    """
+    from app.models import User
+    from app.auth import hash_password, generate_api_key
+
+    email = f"dbuser-{uuid.uuid4().hex[:8]}@example.com"
+    password = "TestPassword123"
+    user = User(
+        email=email,
+        password_hash=hash_password(password),
+        plan="free",
+        api_key=generate_api_key(),
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return {"email": email, "password": password, "user_id": user.id}
 
 
 @pytest.fixture()

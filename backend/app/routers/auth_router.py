@@ -3,6 +3,7 @@ Auth Router — Register, Login, Me, Profile (RGPD), Delete Account, Regenerate 
 """
 
 import re
+import secrets
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -27,6 +28,7 @@ from app.services.brevo_service import (
     add_registered_user_contact,
     update_brevo_contact,
     delete_brevo_contact,
+    send_password_reset_email,
 )
 import asyncio
 
@@ -492,6 +494,112 @@ def google_auth(
             "is_admin": bool(user.is_admin),
         },
     )
+
+
+# ─── Mot de passe oublié / Réinitialisation ───────────────────────────────────
+
+_FRONTEND_URL = os.getenv("FRONTEND_URL", "https://wezea.net")
+_RESET_TOKEN_EXPIRY_HOURS = 1
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        if len(v) < PASSWORD_MIN:
+            raise ValueError(f"Password must be at least {PASSWORD_MIN} characters")
+        return v
+
+
+@router.post("/forgot-password", status_code=200)
+@limiter.limit("5/hour")
+def forgot_password(
+    request: Request,
+    req: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Envoie un email de réinitialisation de mot de passe.
+    Retourne toujours 200 pour éviter l'énumération d'emails (user valide/invalide indiscernables).
+    Ne fonctionne pas pour les comptes Google (pas de mot de passe local).
+    """
+    _MSG = "Si cet email est enregistré, vous recevrez un lien de réinitialisation dans quelques minutes."
+
+    user = db.query(User).filter(User.email == req.email).first()
+    if user and not (user.google_id and user.password_hash.startswith("!google:")):
+        token = secrets.token_urlsafe(32)
+        user.password_reset_token   = token
+        user.password_reset_expires = datetime.now(timezone.utc) + timedelta(hours=_RESET_TOKEN_EXPIRY_HOURS)
+        db.commit()
+
+        reset_url = f"{_FRONTEND_URL}/?reset_token={token}"
+
+        def _send_reset_email():
+            import asyncio
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(send_password_reset_email(req.email, reset_url))
+            except Exception:
+                pass
+            finally:
+                loop.close()
+
+        background_tasks.add_task(_send_reset_email)
+
+    return {"message": _MSG}
+
+
+@router.post("/reset-password", status_code=200)
+@limiter.limit("10/hour")
+def reset_password(
+    request: Request,
+    req: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Réinitialise le mot de passe via le token reçu par email.
+    Le token est à usage unique et expire après 1 heure.
+    """
+    if not req.token or len(req.token) < 10:
+        raise HTTPException(status_code=400, detail="Token invalide.")
+
+    user = (
+        db.query(User)
+        .filter(User.password_reset_token == req.token)
+        .first()
+    )
+
+    if not user or not user.password_reset_expires:
+        raise HTTPException(status_code=400, detail="Lien invalide ou déjà utilisé.")
+
+    # SQLite retourne des datetimes naïfs — normalisation timezone-safe
+    expires = user.password_reset_expires
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+
+    if datetime.now(timezone.utc) > expires:
+        user.password_reset_token   = None
+        user.password_reset_expires = None
+        db.commit()
+        raise HTTPException(
+            status_code=400,
+            detail="Ce lien a expiré. Faites une nouvelle demande de réinitialisation.",
+        )
+
+    user.password_hash          = hash_password(req.new_password)
+    user.password_reset_token   = None
+    user.password_reset_expires = None
+    db.commit()
+
+    return {"message": "Mot de passe mis à jour avec succès."}
 
 
 # ── White-label endpoints (Pro) ───────────────────────────────────────────────

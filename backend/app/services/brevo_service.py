@@ -229,6 +229,35 @@ async def delete_brevo_contact(email: str) -> bool:
     return await _contacts_request("delete", f"{BREVO_CONTACTS}/{email}")
 
 
+async def send_password_reset_email(email: str, reset_url: str) -> bool:
+    """Email de réinitialisation du mot de passe (lien valide 1 heure)."""
+    safe_url = _esc(reset_url)
+    html = _base_html(f"""
+    <div class="card">
+      <h1>R&eacute;initialiser votre mot de passe</h1>
+      <p>
+        Vous avez demand&eacute; la r&eacute;initialisation de votre mot de passe Wezea.
+        Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe.
+      </p>
+      <p>
+        Ce lien est valable <strong>1&nbsp;heure</strong>.
+        Apr&egrave;s ce d&eacute;lai, vous devrez faire une nouvelle demande.
+      </p>
+      <a href="{safe_url}" class="btn">&rarr; R&eacute;initialiser mon mot de passe</a>
+      <p style="margin-top:1.5rem;font-size:13px;color:#64748b;">
+        Si vous n&apos;&ecirc;tes pas &agrave; l&apos;origine de cette demande,
+        ignorez simplement cet email — votre mot de passe ne sera pas modifi&eacute;.
+      </p>
+    </div>
+    """)
+    return await _send({
+        "sender":      SENDER,
+        "to":          [{"email": email}],
+        "subject":     "Réinitialisation de votre mot de passe Wezea",
+        "htmlContent": html,
+    })
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Paiement / upgrade
 # ─────────────────────────────────────────────────────────────────────────────

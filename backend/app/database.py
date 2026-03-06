@@ -117,6 +117,12 @@ def _apply_migrations():
             # Rien à ALTER TABLE — la table est gérée par SQLAlchemy ORM
             _mark_applied("008_login_attempts_table")
 
+        # ── 009 : mot de passe oublié — reset token ───────────────────────────
+        if not _applied("009_password_reset"):
+            _add_column_if_missing(conn, "users", "password_reset_token",   "TEXT")
+            _add_column_if_missing(conn, "users", "password_reset_expires", "DATETIME")
+            _mark_applied("009_password_reset")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente

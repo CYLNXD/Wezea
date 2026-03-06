@@ -1,7 +1,8 @@
 """
-Tests : authentification (register, login, JWT, lockout)
+Tests : authentification (register, login, JWT, lockout, forgot/reset password)
 """
 import pytest
+from datetime import datetime, timedelta, timezone
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -117,3 +118,172 @@ def test_login_lockout_after_5_failures(client, registered_user):
     })
     assert resp.status_code == 429
     assert "tentatives" in resp.json()["detail"].lower() or "réessayez" in resp.json()["detail"].lower()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mot de passe oublié — POST /auth/forgot-password
+# ─────────────────────────────────────────────────────────────────────────────
+# Note : on utilise `db_user` (création directe en DB) pour éviter le rate
+# limit sur /auth/register qui est à 10/heure en production.
+
+def test_forgot_password_returns_200_for_valid_email(client, db_user):
+    """forgot-password retourne 200 même si l'email existe (anti-énumération)."""
+    resp = client.post("/auth/forgot-password", json={"email": db_user["email"]})
+    assert resp.status_code == 200
+    assert "lien" in resp.json()["message"].lower() or "reset" in resp.json()["message"].lower()
+
+
+def test_forgot_password_returns_200_for_unknown_email(client):
+    """forgot-password retourne toujours 200 même si l'email n'existe pas."""
+    resp = client.post("/auth/forgot-password", json={"email": "nope@example.com"})
+    assert resp.status_code == 200
+
+
+def test_forgot_password_stores_token_in_db(client, db_user, db_session):
+    """forgot-password stocke un token de réinitialisation en DB."""
+    from app.models import User
+    client.post("/auth/forgot-password", json={"email": db_user["email"]})
+    db_session.expire_all()   # recharge depuis la DB
+    user = db_session.query(User).filter(User.email == db_user["email"]).first()
+    assert user is not None
+    assert user.password_reset_token is not None
+    assert len(user.password_reset_token) >= 20
+    assert user.password_reset_expires is not None
+    # Expiry dans moins d'1h10min (on tolère la marge d'exécution du test)
+    # SQLite peut retourner des datetimes naïfs — normalisation timezone-safe
+    now = datetime.now(timezone.utc)
+    expires = user.password_reset_expires
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    delta = expires - now
+    assert timedelta(minutes=0) < delta <= timedelta(hours=1, minutes=5)
+
+
+def test_forgot_password_no_token_for_google_account(client, db_session):
+    """forgot-password ne génère pas de token pour un compte Google."""
+    from app.models import User
+    google_user = User(
+        email="google@example.com",
+        password_hash="!google:fake_sub_id",
+        plan="free",
+        google_id="fake_sub_id",
+    )
+    db_session.add(google_user)
+    db_session.commit()
+
+    client.post("/auth/forgot-password", json={"email": "google@example.com"})
+    db_session.expire_all()
+    user = db_session.query(User).filter(User.email == "google@example.com").first()
+    assert user.password_reset_token is None  # pas de token pour les comptes Google
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Réinitialisation — POST /auth/reset-password
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_reset_password_valid_token(client, db_user, db_session):
+    """Un token valide permet de changer le mot de passe et de se reconnecter."""
+    from app.models import User
+
+    # Demander un reset
+    client.post("/auth/forgot-password", json={"email": db_user["email"]})
+    db_session.expire_all()
+    user = db_session.query(User).filter(User.email == db_user["email"]).first()
+    token = user.password_reset_token
+    assert token is not None
+
+    # Réinitialiser le mot de passe
+    resp = client.post("/auth/reset-password", json={
+        "token": token,
+        "new_password": "NewSuperPass456",
+    })
+    assert resp.status_code == 200
+    assert "succès" in resp.json()["message"].lower() or "success" in resp.json()["message"].lower()
+
+    # Vérifier que le token a été effacé
+    db_session.expire_all()
+    user = db_session.query(User).filter(User.email == db_user["email"]).first()
+    assert user.password_reset_token is None
+    assert user.password_reset_expires is None
+
+    # Se connecter avec le nouveau mot de passe
+    login_resp = client.post("/auth/login", json={
+        "email": db_user["email"],
+        "password": "NewSuperPass456",
+    })
+    assert login_resp.status_code == 200
+
+
+def test_reset_password_invalid_token(client):
+    """Un token inconnu retourne 400."""
+    resp = client.post("/auth/reset-password", json={
+        "token": "totalement-invalide-aaabbbccc",
+        "new_password": "NewPassword123",
+    })
+    assert resp.status_code == 400
+
+
+def test_reset_password_token_already_used(client, db_user, db_session):
+    """Un token utilisé une fois ne peut pas être réutilisé."""
+    import secrets as _secrets
+    from app.models import User
+
+    # Injecter le token directement en DB (pas d'appel HTTP) pour éviter le rate limit
+    user = db_session.query(User).filter(User.email == db_user["email"]).first()
+    token = _secrets.token_urlsafe(32)
+    user.password_reset_token   = token
+    user.password_reset_expires = datetime.now() + timedelta(hours=1)
+    db_session.commit()
+
+    # Première utilisation — OK
+    resp1 = client.post("/auth/reset-password", json={
+        "token": token,
+        "new_password": "Password123First",
+    })
+    assert resp1.status_code == 200
+
+    # Deuxième utilisation — doit échouer (token effacé)
+    resp2 = client.post("/auth/reset-password", json={
+        "token": token,
+        "new_password": "Password456Second",
+    })
+    assert resp2.status_code == 400
+
+
+def test_reset_password_expired_token(client, db_user, db_session):
+    """Un token expiré retourne 400."""
+    import secrets as _secrets
+    from app.models import User
+
+    # Injecter un token expiré directement en DB
+    user = db_session.query(User).filter(User.email == db_user["email"]).first()
+    token = _secrets.token_urlsafe(32)
+    user.password_reset_token   = token
+    user.password_reset_expires = datetime.now() - timedelta(hours=2)   # déjà expiré
+    db_session.commit()
+
+    resp = client.post("/auth/reset-password", json={
+        "token": token,
+        "new_password": "NewPassword123",
+    })
+    assert resp.status_code == 400
+    assert "expir" in resp.json()["detail"].lower()
+
+
+def test_reset_password_short_password(client, db_user, db_session):
+    """Un nouveau mot de passe trop court est rejeté par Pydantic (422)."""
+    import secrets as _secrets
+    from app.models import User
+
+    # Injecter un token valide directement en DB
+    user = db_session.query(User).filter(User.email == db_user["email"]).first()
+    token = _secrets.token_urlsafe(32)
+    user.password_reset_token   = token
+    user.password_reset_expires = datetime.now() + timedelta(hours=1)
+    db_session.commit()
+
+    resp = client.post("/auth/reset-password", json={
+        "token": token,
+        "new_password": "short",  # < 8 chars
+    })
+    assert resp.status_code == 422

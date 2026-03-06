@@ -1,15 +1,17 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { Shield, Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Shield, Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle, KeyRound } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import { apiClient } from '../lib/api';
 
 interface Props {
   onBack:       () => void;
   initialMode?: 'login' | 'register';
+  resetToken?:  string | null;
 }
 
-export default function LoginPage({ onBack, initialMode }: Props) {
+export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
   const { login, register, googleLogin } = useAuth();
   const { lang } = useLanguage();
 
@@ -19,6 +21,21 @@ export default function LoginPage({ onBack, initialMode }: Props) {
   const [showPwd,  setShowPwd]  = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
+
+  // ── Sous-vues mot de passe oublié / réinitialisation ─────────────────────
+  type SubView = 'form' | 'forgot' | 'forgot-sent' | 'reset' | 'reset-done';
+  const [subView,      setSubView]      = useState<SubView>('form');
+  const [forgotEmail,  setForgotEmail]  = useState('');
+  const [newPassword,  setNewPassword]  = useState('');
+  const [newPassword2, setNewPassword2] = useState('');
+  const [showNewPwd,   setShowNewPwd]   = useState(false);
+  const [subError,     setSubError]     = useState('');
+  const [subLoading,   setSubLoading]   = useState(false);
+
+  // Si un reset_token est passé en prop → afficher directement la vue reset
+  useEffect(() => {
+    if (resetToken) setSubView('reset');
+  }, [resetToken]);
 
   const isLogin = mode === 'login';
 
@@ -110,6 +127,45 @@ export default function LoginPage({ onBack, initialMode }: Props) {
     }
   }
 
+  // ── Handler : demande de réinitialisation ────────────────────────────────
+  async function handleForgotSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSubError('');
+    setSubLoading(true);
+    try {
+      await apiClient.post('/auth/forgot-password', { email: forgotEmail });
+      setSubView('forgot-sent');
+    } catch {
+      setSubError(lang === 'fr'
+        ? 'Une erreur est survenue. Réessayez dans quelques instants.'
+        : 'An error occurred. Please try again.');
+    } finally {
+      setSubLoading(false);
+    }
+  }
+
+  // ── Handler : nouveau mot de passe ───────────────────────────────────────
+  async function handleResetSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSubError('');
+    if (newPassword !== newPassword2) {
+      setSubError(lang === 'fr' ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.');
+      return;
+    }
+    setSubLoading(true);
+    try {
+      await apiClient.post('/auth/reset-password', { token: resetToken, new_password: newPassword });
+      setSubView('reset-done');
+    } catch (err: any) {
+      setSubError(
+        err?.response?.data?.detail ||
+        (lang === 'fr' ? 'Lien invalide ou expiré.' : 'Invalid or expired link.')
+      );
+    } finally {
+      setSubLoading(false);
+    }
+  }
+
   return (
     <div className="relative min-h-screen flex items-center justify-center px-4">
       {/* Grille cyber — identique au hero Dashboard */}
@@ -132,6 +188,189 @@ export default function LoginPage({ onBack, initialMode }: Props) {
 
         {/* Card */}
         <div className="sku-panel rounded-2xl p-8">
+
+          {/* ── Sous-vue : Mot de passe oublié ──────────────────────────── */}
+          <AnimatePresence mode="wait">
+          {subView === 'forgot' && (
+            <motion.div key="forgot" initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="shrink-0 flex items-center justify-center relative overflow-hidden"
+                  style={{ width:36, height:36, borderRadius:10,
+                    background:'linear-gradient(150deg,#22d3ee30 0%,#22d3ee0d 100%)',
+                    border:'1px solid #22d3ee40',
+                    boxShadow:'0 4px 16px #22d3ee22,0 1px 3px rgba(0,0,0,0.4),inset 0 1px 0 #22d3ee30,inset 0 -1px 0 rgba(0,0,0,0.3)' }}>
+                  <div className="absolute inset-0 pointer-events-none" style={{ borderRadius:10, background:'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
+                  <KeyRound size={16} className="text-cyan-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">{lang === 'fr' ? 'Mot de passe oublié' : 'Forgot password'}</p>
+                  <p className="text-xs text-slate-400">{lang === 'fr' ? 'Nous vous enverrons un lien par email' : "We'll send you a reset link"}</p>
+                </div>
+              </div>
+              <form onSubmit={handleForgotSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs text-slate-400 font-medium mb-1.5">
+                    {lang === 'fr' ? 'Adresse email' : 'Email address'}
+                  </label>
+                  <div className="relative">
+                    <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
+                      required placeholder="vous@exemple.com"
+                      className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition sku-inset"
+                      style={{ border:'1px solid rgba(255,255,255,0.08)' }}
+                    />
+                  </div>
+                </div>
+                {subError && (
+                  <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+                    <AlertCircle size={14} />{subError}
+                  </div>
+                )}
+                <button type="submit" disabled={subLoading}
+                  className="w-full flex items-center justify-center gap-2 sku-btn-primary disabled:opacity-50 py-2.5 rounded-xl transition-all text-sm">
+                  {subLoading
+                    ? <div className="w-4 h-4 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin" />
+                    : <>{lang === 'fr' ? 'Envoyer le lien' : 'Send reset link'}<ArrowRight size={15}/></>}
+                </button>
+                <button type="button" onClick={() => { setSubView('form'); setSubError(''); }}
+                  className="w-full text-slate-500 hover:text-slate-300 text-sm font-medium transition text-center">
+                  ← {lang === 'fr' ? 'Retour à la connexion' : 'Back to sign in'}
+                </button>
+              </form>
+            </motion.div>
+          )}
+
+          {/* ── Sous-vue : Email envoyé ──────────────────────────────────── */}
+          {subView === 'forgot-sent' && (
+            <motion.div key="forgot-sent" initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }}
+              className="text-center py-4">
+              <div className="flex justify-center mb-4">
+                <div className="shrink-0 flex items-center justify-center relative overflow-hidden"
+                  style={{ width:52, height:52, borderRadius:14,
+                    background:'linear-gradient(150deg,#4ade8030 0%,#4ade800d 100%)',
+                    border:'1px solid #4ade8040',
+                    boxShadow:'0 4px 16px #4ade8022,0 1px 3px rgba(0,0,0,0.4),inset 0 1px 0 #4ade8030,inset 0 -1px 0 rgba(0,0,0,0.3)' }}>
+                  <div className="absolute inset-0 pointer-events-none" style={{ borderRadius:14, background:'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
+                  <CheckCircle size={24} className="text-green-300" />
+                </div>
+              </div>
+              <p className="text-white font-semibold text-base mb-2">
+                {lang === 'fr' ? 'Email envoyé !' : 'Email sent!'}
+              </p>
+              <p className="text-slate-400 text-sm mb-5">
+                {lang === 'fr'
+                  ? `Si l'adresse ${forgotEmail} est enregistrée, vous recevrez un lien dans quelques minutes. Vérifiez aussi vos spams.`
+                  : `If ${forgotEmail} is registered, you'll receive a link shortly. Check your spam folder too.`}
+              </p>
+              <button onClick={() => { setSubView('form'); setForgotEmail(''); }}
+                className="text-slate-500 hover:text-slate-300 text-sm font-medium transition">
+                ← {lang === 'fr' ? 'Retour à la connexion' : 'Back to sign in'}
+              </button>
+            </motion.div>
+          )}
+
+          {/* ── Sous-vue : Nouveau mot de passe ─────────────────────────── */}
+          {subView === 'reset' && (
+            <motion.div key="reset" initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="shrink-0 flex items-center justify-center relative overflow-hidden"
+                  style={{ width:36, height:36, borderRadius:10,
+                    background:'linear-gradient(150deg,#818cf830 0%,#818cf80d 100%)',
+                    border:'1px solid #818cf840',
+                    boxShadow:'0 4px 16px #818cf822,0 1px 3px rgba(0,0,0,0.4),inset 0 1px 0 #818cf830,inset 0 -1px 0 rgba(0,0,0,0.3)' }}>
+                  <div className="absolute inset-0 pointer-events-none" style={{ borderRadius:10, background:'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
+                  <Lock size={16} className="text-indigo-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">{lang === 'fr' ? 'Nouveau mot de passe' : 'New password'}</p>
+                  <p className="text-xs text-slate-400">{lang === 'fr' ? 'Choisissez un mot de passe sécurisé' : 'Choose a strong password'}</p>
+                </div>
+              </div>
+              <form onSubmit={handleResetSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs text-slate-400 font-medium mb-1.5">
+                    {lang === 'fr' ? 'Nouveau mot de passe' : 'New password'}
+                  </label>
+                  <div className="relative">
+                    <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type={showNewPwd ? 'text' : 'password'} value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      required minLength={8}
+                      placeholder={lang === 'fr' ? 'Minimum 8 caractères' : 'Minimum 8 characters'}
+                      className="w-full rounded-xl pl-9 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition sku-inset"
+                      style={{ border:'1px solid rgba(255,255,255,0.08)' }}
+                    />
+                    <button type="button" onClick={() => setShowNewPwd(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                      {showNewPwd ? <EyeOff size={15}/> : <Eye size={15}/>}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 font-medium mb-1.5">
+                    {lang === 'fr' ? 'Confirmer le mot de passe' : 'Confirm password'}
+                  </label>
+                  <div className="relative">
+                    <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type={showNewPwd ? 'text' : 'password'} value={newPassword2}
+                      onChange={e => setNewPassword2(e.target.value)}
+                      required minLength={8}
+                      placeholder={lang === 'fr' ? 'Répétez votre mot de passe' : 'Repeat your password'}
+                      className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition sku-inset"
+                      style={{ border:'1px solid rgba(255,255,255,0.08)' }}
+                    />
+                  </div>
+                </div>
+                {subError && (
+                  <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+                    <AlertCircle size={14}/>{subError}
+                  </div>
+                )}
+                <button type="submit" disabled={subLoading}
+                  className="w-full flex items-center justify-center gap-2 sku-btn-primary disabled:opacity-50 py-2.5 rounded-xl transition-all text-sm">
+                  {subLoading
+                    ? <div className="w-4 h-4 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin" />
+                    : <>{lang === 'fr' ? 'Enregistrer le mot de passe' : 'Save new password'}<ArrowRight size={15}/></>}
+                </button>
+              </form>
+            </motion.div>
+          )}
+
+          {/* ── Sous-vue : Réinitialisation réussie ─────────────────────── */}
+          {subView === 'reset-done' && (
+            <motion.div key="reset-done" initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }}
+              className="text-center py-4">
+              <div className="flex justify-center mb-4">
+                <div className="shrink-0 flex items-center justify-center relative overflow-hidden"
+                  style={{ width:52, height:52, borderRadius:14,
+                    background:'linear-gradient(150deg,#4ade8030 0%,#4ade800d 100%)',
+                    border:'1px solid #4ade8040',
+                    boxShadow:'0 4px 16px #4ade8022,0 1px 3px rgba(0,0,0,0.4),inset 0 1px 0 #4ade8030,inset 0 -1px 0 rgba(0,0,0,0.3)' }}>
+                  <div className="absolute inset-0 pointer-events-none" style={{ borderRadius:14, background:'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
+                  <CheckCircle size={24} className="text-green-300" />
+                </div>
+              </div>
+              <p className="text-white font-semibold text-base mb-2">
+                {lang === 'fr' ? 'Mot de passe mis à jour !' : 'Password updated!'}
+              </p>
+              <p className="text-slate-400 text-sm mb-5">
+                {lang === 'fr'
+                  ? 'Votre nouveau mot de passe est actif. Vous pouvez maintenant vous connecter.'
+                  : 'Your new password is active. You can now sign in.'}
+              </p>
+              <button onClick={() => { setSubView('form'); setNewPassword(''); setNewPassword2(''); setMode('login'); }}
+                className="w-full flex items-center justify-center gap-2 sku-btn-primary py-2.5 rounded-xl transition-all text-sm">
+                {lang === 'fr' ? 'Se connecter' : 'Sign in'}<ArrowRight size={15}/>
+              </button>
+            </motion.div>
+          )}
+          </AnimatePresence>
+
+          {/* ── Vue principale : Tabs + formulaire login/register ────────── */}
+          {subView === 'form' && (<>
           {/* Tabs */}
           <div className="flex rounded-xl p-1 mb-6 sku-inset">
             {(['login', 'register'] as const).map(m => (
@@ -240,6 +479,19 @@ export default function LoginPage({ onBack, initialMode }: Props) {
             </div>
           )}
 
+          {/* Lien Mot de passe oublié — uniquement en mode login */}
+          {isLogin && (
+            <div className="mt-3 text-center">
+              <button
+                type="button"
+                onClick={() => { setSubError(''); setSubView('forgot'); }}
+                className="text-slate-500 hover:text-cyan-400 text-xs font-medium transition"
+              >
+                {lang === 'fr' ? 'Mot de passe oublié ?' : 'Forgot your password?'}
+              </button>
+            </div>
+          )}
+
           {/* ── Séparateur ── */}
           <div className="flex items-center gap-3 mt-5">
             <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
@@ -276,6 +528,8 @@ export default function LoginPage({ onBack, initialMode }: Props) {
               )}
             </button>
           </div>
+          </>)}
+          {/* ── fin subView === 'form' ── */}
         </div>
 
         {/* Back */}
