@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06
+> Dernière mise à jour : 2026-03-06 (session 2)
 
 ---
 
@@ -126,6 +126,7 @@ Toutes les pages doivent utiliser ces classes CSS définies dans `index.css` :
 - **`is_admin` absent après reload** : `UserResponse` Pydantic n'avait pas le champ → ajouté
 - **Stripe résilience** : après wipe DB, `metadata.user_id` devenait invalide → résolution par `stripe_customer_id` > email > metadata
 - **login_failures dict non partagé entre workers** : remplacé par table `login_attempts` en DB (2026-03-06)
+- **`None` crash dans `_derive_checks_overview`** : `data.get("dns_details", {})` retourne `None` quand la clé existe mais vaut `None` → ajouté `or {}` : `dns_det = data.get("dns_details", {}) or {}`
 
 ### Frontend
 - **"Créer un compte" ouvrait onglet "Connexion"** : `onGoRegister?.() ?? onGoLogin?.()` — les fonctions void retournent `undefined`, le `??` déclenchait toujours le fallback → remplacé par `if (onGoRegister) { onGoRegister(); } else { onGoLogin?.(); }`
@@ -214,7 +215,17 @@ cd backend
 # CORS_ORIGINS=http://testserver
 ```
 
-Fichiers : `tests/conftest.py`, `test_auth.py`, `test_scan_validation.py`, `test_rate_limit.py`
+Fichiers : `tests/conftest.py`, `test_auth.py`, `test_scan_validation.py`, `test_rate_limit.py`, `test_report_service.py`
+
+### `test_report_service.py` — formats de données importants
+```python
+# SSL : utiliser status/tls_version/days_left (PAS valid/protocols)
+"ssl_details": {"status": "valid", "tls_version": "TLSv1.3", "days_left": 90}
+# Ports : dict par numéro de port (PAS open_ports list)
+"port_details": {"443": {"open": True}, "3389": {"open": False}}
+# DNS : status + champ spécifique (policy pour DMARC, records pour SPF)
+"dns_details": {"spf": {"status": "ok"}, "dmarc": {"status": "ok", "policy": "reject"}}
+```
 
 ---
 
@@ -231,6 +242,30 @@ sudo crontab -u cyberhealth -e
 ```bash
 ls -lh /home/cyberhealth/backups/
 ```
+
+---
+
+## 🆕 Fonctionnalités récentes (2026-03-06)
+
+### Rapport PDF — numérotation des sections
+- Sections renumérotées : ①②③④⑤⑥ (Plan d'Action était ③, Annexes ④, CTA ⑤ → décalés +1)
+- Contexte enrichi : `passed_checks_count`, `warn_checks_count`, `fail_checks_count` via `_checks_context()`
+
+### Dashboard — onglet Recommandations
+- 4ème onglet `reco` ajouté : Résumé / Vulnérabilités / **Recommandations** / Avancé
+- Dot indicateur orange sur l'onglet quand des recommandations existent
+- Affichage numéroté avec badge de priorité (HIGH=rouge, MEDIUM=amber, LOW=gris)
+
+### HistoryPage — export PDF + partage public
+- Migré `fetch()` → `apiClient` (Axios)
+- Bouton Export PDF : `GET /scans/history/{uuid}/export?format=pdf&lang={lang}` → blob download
+- Bouton Share : `PATCH /scans/history/{uuid}/share` → toggle `public_share`, copie le lien dans le presse-papiers
+- Badge "public" affiché sur les scans partagés, feedback ✓ 2.5s après copie
+
+### ClientSpace — monitoring enrichi
+- Colonne "Tendance" ajoutée dans le tableau de surveillance (sparkline SVG des derniers scores)
+- Limit historique augmentée 20→100 pour alimenter les sparklines
+- Label hardcodé corrigé → dynamique
 
 ---
 

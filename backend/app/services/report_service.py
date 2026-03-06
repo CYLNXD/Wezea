@@ -444,9 +444,9 @@ def _derive_checks_overview(
       detail_en: str,
     }
     """
-    dns_det  = data.get("dns_details",  {})
-    ssl_det  = data.get("ssl_details",  {})
-    port_det = data.get("port_details", {})
+    dns_det  = data.get("dns_details",  {}) or {}
+    ssl_det  = data.get("ssl_details",  {}) or {}
+    port_det = data.get("port_details", {}) or {}
 
     # Titres de findings en minuscules pour recherche rapide
     failed_titles = {f.get("title", "").lower() for f in findings}
