@@ -161,8 +161,14 @@ class TestDecodeToken:
         """Modifier la signature doit invalider le token."""
         from app.auth import create_access_token, decode_token
         token = create_access_token(1, "a@a.com", "free")
-        # Remplace le dernier caractère pour casser la signature
-        tampered = token[:-1] + ("X" if token[-1] != "X" else "Y")
+        # Modifie un char AU MILIEU de la signature (évite l'edge case
+        # base64url trailing-padding où le dernier char peut être insignifiant
+        # quand la longueur de signature % 3 == 1 → 2 chars réels + padding nul)
+        parts = token.split(".")
+        sig = parts[2]
+        mid = len(sig) // 2
+        tampered_sig = sig[:mid] + ("A" if sig[mid] != "A" else "B") + sig[mid + 1:]
+        tampered = ".".join(parts[:2] + [tampered_sig])
         assert decode_token(tampered) is None
 
     def test_random_string_returns_none(self):
