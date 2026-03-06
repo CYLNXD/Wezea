@@ -733,3 +733,259 @@ class TestAuditManagerRun:
             result  = await manager.run()
         assert result.security_score == 100
         assert result.risk_level     == "LOW"
+
+
+# =============================================================================
+# Finding.to_dict() — line 94
+# ScanResult.to_dict() — lines 122-123
+# BaseAuditor.get_details() — lines 166-167
+# =============================================================================
+
+class TestFindingToDict:
+    """Finding.to_dict() doit retourner tous les champs."""
+
+    def test_to_dict_returns_all_fields(self):
+        from app.scanner import Finding
+        f = Finding(
+            category="DNS",
+            severity="HIGH",
+            title="SPF manquant",
+            technical_detail="Aucun enregistrement SPF trouvé",
+            plain_explanation="Sans SPF, des spammeurs peuvent usurper votre domaine.",
+            penalty=15,
+            recommendation="Ajoutez un enregistrement TXT SPF à votre DNS.",
+        )
+        d = f.to_dict()
+        assert d["category"]          == "DNS"
+        assert d["severity"]          == "HIGH"
+        assert d["title"]             == "SPF manquant"
+        assert d["technical_detail"]  == "Aucun enregistrement SPF trouvé"
+        assert d["plain_explanation"] == "Sans SPF, des spammeurs peuvent usurper votre domaine."
+        assert d["penalty"]           == 15
+        assert d["recommendation"]    == "Ajoutez un enregistrement TXT SPF à votre DNS."
+
+
+class TestScanResultToDict:
+    """ScanResult.to_dict() doit sérialiser tous les champs."""
+
+    def test_to_dict_basic_fields(self):
+        from app.scanner import ScanResult, Finding
+        f = Finding(
+            category="SSL",
+            severity="CRITICAL",
+            title="Certificat expiré",
+            technical_detail="CN=example.com, expiry=-5d",
+            plain_explanation="Le certificat SSL a expiré.",
+            penalty=40,
+            recommendation="Renouvelez votre certificat SSL.",
+        )
+        result = ScanResult(
+            domain="example.com",
+            scanned_at="2026-03-06T12:00:00Z",
+            security_score=60,
+            risk_level="HIGH",
+            findings=[f],
+            dns_details={"spf": {"status": "ok"}},
+            ssl_details={"status": "expired"},
+            port_details={443: {"open": True}},
+        )
+        d = result.to_dict()
+        assert d["domain"]          == "example.com"
+        assert d["security_score"]  == 60
+        assert d["risk_level"]      == "HIGH"
+        assert len(d["findings"])   == 1
+        assert d["findings"][0]["severity"] == "CRITICAL"
+        assert d["dns_details"]     == {"spf": {"status": "ok"}}
+        assert "443" in d["port_details"]   # int keys → str
+
+
+class TestBaseAuditorGetDetails:
+    """BaseAuditor.get_details() doit retourner _details."""
+
+    def test_get_details_returns_internal_dict(self):
+        from app.scanner import DNSAuditor
+        auditor = DNSAuditor("example.com")
+        auditor._details["spf"] = {"status": "ok"}
+        details = auditor.get_details()
+        assert details == {"spf": {"status": "ok"}}
+        assert details is auditor._details  # même objet
+
+
+# =============================================================================
+# DNSAuditor.audit() — lines 177-182
+# SSLAuditor.audit() — lines 361-364
+# =============================================================================
+
+class TestDNSAuditorAuditMethod:
+    """Appel de la méthode audit() complète (appelle _check_spf + _check_dmarc)."""
+
+    @pytest.mark.asyncio
+    async def test_audit_calls_both_checks_and_returns_findings(self):
+        from app.scanner import DNSAuditor
+        auditor = DNSAuditor("example.com")
+        with patch.object(auditor, "_check_spf"),  \
+             patch.object(auditor, "_check_dmarc"):
+            findings = await auditor.audit()
+        assert isinstance(findings, list)
+
+    @pytest.mark.asyncio
+    async def test_audit_returns_same_list_as_internal_findings(self):
+        from app.scanner import DNSAuditor, Finding
+        auditor = DNSAuditor("example.com")
+        sentinel = Finding(
+            category="DNS", severity="INFO", title="OK",
+            technical_detail="", plain_explanation="", penalty=0, recommendation="",
+        )
+        def _inject_finding():
+            auditor._findings.append(sentinel)
+
+        with patch.object(auditor, "_check_spf", side_effect=_inject_finding), \
+             patch.object(auditor, "_check_dmarc"):
+            findings = await auditor.audit()
+        assert sentinel in findings
+
+
+class TestSSLAuditorAuditMethod:
+    """Appel de la méthode audit() complète (appelle _check_ssl)."""
+
+    @pytest.mark.asyncio
+    async def test_audit_calls_check_ssl_and_returns_findings(self):
+        from app.scanner import SSLAuditor
+        auditor = SSLAuditor("example.com")
+        with patch.object(auditor, "_check_ssl"):
+            findings = await auditor.audit()
+        assert isinstance(findings, list)
+
+    @pytest.mark.asyncio
+    async def test_audit_returns_findings_from_check_ssl(self):
+        from app.scanner import SSLAuditor, Finding
+        auditor = SSLAuditor("example.com")
+        sentinel = Finding(
+            category="SSL", severity="CRITICAL", title="Expiré",
+            technical_detail="", plain_explanation="", penalty=40, recommendation="",
+        )
+        def _inject():
+            auditor._findings.append(sentinel)
+
+        with patch.object(auditor, "_check_ssl", side_effect=_inject):
+            findings = await auditor.audit()
+        assert sentinel in findings
+
+
+# =============================================================================
+# _detect_shared_hosting() — lines 589-601
+# =============================================================================
+
+class TestDetectSharedHosting:
+
+    def test_known_shared_hosting_ptr_returns_true(self):
+        """PTR du domaine contient un pattern OVH → hébergement mutualisé détecté."""
+        from app.scanner import _detect_shared_hosting
+        with patch("app.scanner.socket.gethostbyname", return_value="1.2.3.4"), \
+             patch("app.scanner.socket.gethostbyaddr", return_value=("hosting.ovh.net", [], [])):
+            is_shared, provider = _detect_shared_hosting("example.com")
+        assert is_shared is True
+        assert provider  != ""
+
+    def test_unknown_ptr_returns_false(self):
+        """PTR ne correspond à aucun pattern → pas mutualisé."""
+        from app.scanner import _detect_shared_hosting
+        with patch("app.scanner.socket.gethostbyname", return_value="1.2.3.4"), \
+             patch("app.scanner.socket.gethostbyaddr", return_value=("dedicated.myserver.com", [], [])):
+            is_shared, provider = _detect_shared_hosting("example.com")
+        assert is_shared is False
+        assert provider  == ""
+
+    def test_ptr_lookup_fails_returns_empty_string(self):
+        """gethostbyaddr lève une exception → ptr_host="" → no match."""
+        from app.scanner import _detect_shared_hosting
+        with patch("app.scanner.socket.gethostbyname", return_value="1.2.3.4"), \
+             patch("app.scanner.socket.gethostbyaddr", side_effect=Exception("PTR timeout")):
+            is_shared, provider = _detect_shared_hosting("example.com")
+        assert is_shared is False
+
+    def test_dns_resolution_fails_returns_false(self):
+        """gethostbyname lève une exception → (False, '')."""
+        from app.scanner import _detect_shared_hosting
+        with patch("app.scanner.socket.gethostbyname", side_effect=Exception("NXDOMAIN")):
+            is_shared, provider = _detect_shared_hosting("nonexistent.invalid")
+        assert is_shared is False
+        assert provider  == ""
+
+
+# =============================================================================
+# PortAuditor._check_port() — asyncio.TimeoutError (lines 709-711)
+# PortAuditor._tcp_connect() — lines 718-728
+# =============================================================================
+
+class TestPortAuditorLowLevel:
+
+    @pytest.mark.asyncio
+    async def test_check_port_timeout_returns_closed(self):
+        """asyncio.TimeoutError dans _check_port → port marqué fermé."""
+        from app.scanner import PortAuditor, MONITORED_PORTS
+        auditor = PortAuditor("example.com")
+        port = next(iter(MONITORED_PORTS))
+        meta = MONITORED_PORTS[port]
+        with patch("app.scanner.asyncio.wait_for",
+                   side_effect=asyncio.TimeoutError()):
+            result = await auditor._check_port(port, meta)
+        assert result[port]["open"] is False
+
+    @pytest.mark.asyncio
+    async def test_check_port_generic_exception_returns_closed(self):
+        """Exception quelconque dans _check_port → port marqué fermé."""
+        from app.scanner import PortAuditor, MONITORED_PORTS
+        auditor = PortAuditor("example.com")
+        port = next(iter(MONITORED_PORTS))
+        meta = MONITORED_PORTS[port]
+        with patch("app.scanner.asyncio.wait_for",
+                   side_effect=OSError("connection refused")):
+            result = await auditor._check_port(port, meta)
+        assert result[port]["open"] is False
+
+    def test_tcp_connect_returns_true_on_success(self):
+        """_tcp_connect: connexion réussie (connect_ex=0) → True."""
+        from app.scanner import PortAuditor
+        auditor = PortAuditor("example.com")
+        mock_sock = MagicMock()
+        mock_sock.connect_ex.return_value = 0
+        with patch("app.scanner.socket.socket", return_value=mock_sock):
+            result = auditor._tcp_connect(443)
+        assert result is True
+        mock_sock.close.assert_called_once()
+
+    def test_tcp_connect_returns_false_on_refused(self):
+        """_tcp_connect: connexion refusée (connect_ex=111) → False."""
+        from app.scanner import PortAuditor
+        auditor = PortAuditor("example.com")
+        mock_sock = MagicMock()
+        mock_sock.connect_ex.return_value = 111
+        with patch("app.scanner.socket.socket", return_value=mock_sock):
+            result = auditor._tcp_connect(443)
+        assert result is False
+        mock_sock.close.assert_called_once()
+
+    def test_tcp_connect_exception_returns_false(self):
+        """_tcp_connect: exception → False, socket toujours fermé."""
+        from app.scanner import PortAuditor
+        auditor = PortAuditor("example.com")
+        mock_sock = MagicMock()
+        mock_sock.connect_ex.side_effect = OSError("network error")
+        with patch("app.scanner.socket.socket", return_value=mock_sock):
+            result = auditor._tcp_connect(443)
+        assert result is False
+        mock_sock.close.assert_called_once()
+
+    def test_tcp_connect_uses_resolved_ip_if_available(self):
+        """_tcp_connect utilise _resolved_ip quand défini."""
+        from app.scanner import PortAuditor
+        auditor = PortAuditor("example.com")
+        auditor._resolved_ip = "1.2.3.4"
+        mock_sock = MagicMock()
+        mock_sock.connect_ex.return_value = 0
+        with patch("app.scanner.socket.socket", return_value=mock_sock):
+            result = auditor._tcp_connect(80)
+        assert result is True
+        # connect_ex appelé avec l'IP pré-résolue, pas le domaine
+        mock_sock.connect_ex.assert_called_once_with(("1.2.3.4", 80))

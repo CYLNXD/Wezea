@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 19)
+> Dernière mise à jour : 2026-03-06 (session 20)
 
 ---
 
@@ -313,6 +313,47 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 20)
+
+### Tests — payment_router + scanner + advanced_checks + extra_checks + monitoring_router (+56 tests) → 821 tests, 93%
+
+#### test_payment.py (+21 tests)
+- `TestUserFromSubscriptionCacheUpdate` (2) : uid_meta fallback → stripe_customer_id mis en cache, pas d'écrasement si déjà défini
+- `TestEnsureAndDowngradeAdminGuard` (4) : admin guard bloque `_ensure_plan` et `_downgrade`, exceptions silencieuses
+- `TestCreateCheckoutStripeError` (1) : appel direct de `create_checkout()` (bypass rate limiter 5/hour) → 502 sur StripeError
+- `TestWebhookEdgeCases` (5) : Customer.retrieve fallback (patch `app.routers.payment_router.stripe`), exception silencieuse, asyncio.create_task RuntimeError silencieux, invoice.payment_failed → downgrade appelé, no sub_id → no-op
+- `TestCustomerPortalEdgeCases` (4) : cache depuis checkout.Session, Session.retrieve StripeError → fallback Customer.list, Customer.list → cache + portal, Customer.list StripeError → 404
+- `TestCancelSubscriptionStripeErrors` (3) : Subscription.list StripeError, Session.retrieve StripeError, Subscription.modify StripeError → tous silencieux, status=cancelling quand même
+- `TestWebhookConstructEventException` (1) : Exception générique dans construct_event → 400 (lines 246-248)
+- `TestCancelViaSessionRetrieve` (1) : sub_id depuis Session.retrieve quand Subscription.list vide (line 455)
+- **payment_router.py : 87% → 100%**
+
+#### test_scanner.py (+22 tests)
+- `TestFindingToDict` (1) : `Finding.to_dict()` retourne tous les champs (line 94)
+- `TestScanResultToDict` (1) : `ScanResult.to_dict()` sérialise findings + port_details int→str (lines 122-123)
+- `TestBaseAuditorGetDetails` (1) : `BaseAuditor.get_details()` retourne `_details` (lines 166-167)
+- `TestDNSAuditorAuditMethod` (2) : appel `audit()` complet → appelle `_check_spf` + `_check_dmarc` (lines 177-182)
+- `TestSSLAuditorAuditMethod` (2) : appel `audit()` complet → appelle `_check_ssl` (lines 361-364)
+- `TestDetectSharedHosting` (4) : `_detect_shared_hosting()` : OVH PTR → True, inconnu → False, PTR exception → False, DNS exception → False (lines 589-601)
+- `TestPortAuditorLowLevel` (6) : `_check_port` TimeoutError → closed (line 709-711), Exception → closed, `_tcp_connect` success/refused/exception/resolved_ip (lines 718-728)
+- **scanner.py : 85% → 97%** (seul __main__ block non couvert)
+
+#### test_advanced_checks.py (+13 tests)
+- `TestVulnVersionAuditorMissingPaths` (5+1) : `audit()` success (line 138-139), `get_details()` (143-144), ASP.NET headers (198-201), aspnetmvc header, version non-parseable → continue (212-213)
+- `TestVulnVersionAuditorNoVersionContinue` (1) : x-aspnet-version avec valeur garbage → `_parse_version` None → continue (line 213)
+- `TestSubdomainAuditorAudit` (3) : success/timeout/exception paths (lines 278-289)
+- `TestExtraChecksMissingPaths` (3) : `_fetch_headers_sync` success (207-209), DKIM TimeoutError → silencieux (256-257), `TechExposureAuditor.audit()` success (324)
+- **advanced_checks.py : 93% → 100%**, **extra_checks.py : 96% → 100%**
+
+#### test_monitoring.py (+7 tests)
+- `TestMonitoringMissingPaths` (7) : JSON invalide dans `open_ports`/`technologies` → None silencieux (149-150, 155-156), PATCH `is_active=False` (301), PATCH `checks_config` (303), scan_now avec JSON invalide (362-363, 368-369)
+- **monitoring_router.py : 94% → 100%**
+
+**Couverture globale : 93%** (821 tests, 0 échec)
+**100% sur** : payment_router, monitoring_router, scans_router, webhook_router, admin_router, advanced_checks, extra_checks, limiter
+
+---
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 19)
 

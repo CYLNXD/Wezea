@@ -775,3 +775,156 @@ class TestScanNowEdgeCases:
             )
 
         assert resp.status_code == 500
+
+
+# =============================================================================
+# Missing lines in monitoring_router.py:
+#   149-150, 155-156 — _parse_json_list/_parse_json_dict exception in list_domains
+#   301             — monitored.is_active = body.is_active
+#   303             — monitored.checks_config = json.dumps(body.checks_config)
+#   362-363, 368-369 — _parse_json_list/_parse_json_dict exception in scan_domain
+# =============================================================================
+
+class TestMonitoringMissingPaths:
+
+    def _add_domain_raw(self, db_session, user_id: int, domain: str,
+                        open_ports: str | None = None,
+                        technologies: str | None = None) -> MonitoredDomain:
+        d = MonitoredDomain(
+            user_id=user_id,
+            domain=domain,
+            is_active=True,
+        )
+        db_session.add(d)
+        db_session.commit()
+        # Corrompre les colonnes JSON directement en DB
+        if open_ports is not None:
+            db_session.execute(
+                __import__("sqlalchemy").text(
+                    "UPDATE monitored_domains SET last_open_ports=:v WHERE domain=:d"
+                ),
+                {"v": open_ports, "d": domain},
+            )
+        if technologies is not None:
+            db_session.execute(
+                __import__("sqlalchemy").text(
+                    "UPDATE monitored_domains SET last_technologies=:v WHERE domain=:d"
+                ),
+                {"v": technologies, "d": domain},
+            )
+        db_session.commit()
+        return d
+
+    def test_list_domains_invalid_json_open_ports_handled(self, client, db_session):
+        """_parse_json_list sur open_ports invalide → None sans crash (lines 149-150)."""
+        creds = _make_user(db_session, "starter")
+        self._add_domain_raw(
+            db_session, creds["user"].id, "bad-ports.example.com",
+            open_ports="NOT_VALID_JSON",
+        )
+        resp = client.get("/monitoring/domains", headers=_headers(creds["token"]))
+        assert resp.status_code == 200
+        domains = resp.json()
+        assert len(domains) >= 1
+        # open_ports devrait être None (exception silencieuse)
+        target = next((d for d in domains if d["domain"] == "bad-ports.example.com"), None)
+        assert target is not None
+        assert target.get("last_open_ports") is None
+
+    def test_list_domains_invalid_json_technologies_handled(self, client, db_session):
+        """_parse_json_dict sur technologies invalide → None sans crash (lines 155-156)."""
+        creds = _make_user(db_session, "starter")
+        self._add_domain_raw(
+            db_session, creds["user"].id, "bad-tech.example.com",
+            technologies="!!!NOT_JSON!!!",
+        )
+        resp = client.get("/monitoring/domains", headers=_headers(creds["token"]))
+        assert resp.status_code == 200
+
+    def test_patch_is_active_false(self, client, db_session):
+        """PATCH is_active=False met à jour le champ (line 301)."""
+        creds = _make_user(db_session, "starter")
+        db_session.add(MonitoredDomain(
+            user_id=creds["user"].id,
+            domain="active-toggle.example.com",
+            is_active=True,
+        ))
+        db_session.commit()
+        resp = client.patch(
+            "/monitoring/domains/active-toggle.example.com",
+            json={"is_active": False},
+            headers=_headers(creds["token"]),
+        )
+        assert resp.status_code == 200
+        db_session.expire_all()
+        d = db_session.query(MonitoredDomain).filter(
+            MonitoredDomain.domain == "active-toggle.example.com"
+        ).first()
+        assert d.is_active is False
+
+    def test_patch_checks_config(self, client, db_session):
+        """PATCH checks_config sérialise en JSON (line 303)."""
+        creds = _make_user(db_session, "starter")
+        db_session.add(MonitoredDomain(
+            user_id=creds["user"].id,
+            domain="config.example.com",
+            is_active=True,
+        ))
+        db_session.commit()
+        config = {"ssl": True, "ports": False}
+        resp = client.patch(
+            "/monitoring/domains/config.example.com",
+            json={"checks_config": config},
+            headers=_headers(creds["token"]),
+        )
+        assert resp.status_code == 200
+        db_session.expire_all()
+        d = db_session.query(MonitoredDomain).filter(
+            MonitoredDomain.domain == "config.example.com"
+        ).first()
+        import json as _json
+        assert _json.loads(d.checks_config) == config
+
+    def test_scan_now_invalid_json_open_ports_handled(self, client, db_session):
+        """_parse_json_list dans scan_domain avec JSON invalide → None (lines 362-363)."""
+        creds = _make_user(db_session, "starter")
+        d = self._add_domain_raw(
+            db_session, creds["user"].id, "scan-bad-ports.example.com",
+            open_ports="INVALID",
+        )
+
+        async def _fake_scan(monitored, db):
+            monitored.last_open_ports = "INVALID"  # déjà corrompu
+            monitored.last_score = 80
+            monitored.last_risk_level = "LOW"
+
+        with patch("app.scheduler._scan_and_alert", new=_fake_scan):
+            resp = client.post(
+                "/monitoring/domains/scan-bad-ports.example.com/scan",
+                headers=_headers(creds["token"]),
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("new_open_ports") is None
+
+    def test_scan_now_invalid_json_technologies_handled(self, client, db_session):
+        """_parse_json_dict dans scan_domain avec JSON invalide → None (lines 368-369)."""
+        creds = _make_user(db_session, "starter")
+        self._add_domain_raw(
+            db_session, creds["user"].id, "scan-bad-tech.example.com",
+            technologies="INVALID_JSON",
+        )
+
+        async def _fake_scan(monitored, db):
+            monitored.last_technologies = "INVALID_JSON"
+            monitored.last_score = 75
+            monitored.last_risk_level = "MEDIUM"
+
+        with patch("app.scheduler._scan_and_alert", new=_fake_scan):
+            resp = client.post(
+                "/monitoring/domains/scan-bad-tech.example.com/scan",
+                headers=_headers(creds["token"]),
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("new_technologies") is None

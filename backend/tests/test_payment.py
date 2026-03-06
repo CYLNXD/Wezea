@@ -645,3 +645,418 @@ class TestCustomerPortal:
     def test_unauthenticated_returns_401(self, client, db_session):
         r = client.get("/payment/portal")
         assert r.status_code == 401
+
+
+# =============================================================================
+# _user_from_subscription — uid_meta stripe_customer_id cache (lines 122-123)
+# =============================================================================
+
+class TestUserFromSubscriptionCacheUpdate:
+    """Vérifie que stripe_customer_id est mis en cache quand trouvé via metadata."""
+
+    def test_caches_stripe_customer_id_on_uid_meta_fallback(self, db_session):
+        """User trouvé via uid_meta sans stripe_customer_id → cache mis à jour."""
+        from app.routers.payment_router import _user_from_subscription
+        u = _make_user(db_session, "free")
+        user = u["user"]
+        assert user.stripe_customer_id is None
+
+        # sub.get("customer") = "cus_new_123", sub.get("metadata") = {user_id: ...}
+        # Step 1: aucun user n'a stripe_customer_id="cus_new_123" → pas de match
+        # Step 2: Customer.retrieve lève exception → fallback uid_meta
+        # Step 3: uid_meta trouve le user → cache le customer_id
+        sub_mock = MagicMock()
+        sub_mock.get = lambda k, d=None: {
+            "customer":  "cus_new_123",
+            "metadata":  {"user_id": str(user.id)},
+        }.get(k, d)
+
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve.return_value = sub_mock
+            s.Customer.retrieve.side_effect = Exception("not found")
+            result = _user_from_subscription("sub_cache_test", db_session)
+
+        db_session.refresh(user)
+        assert result is not None
+        assert user.stripe_customer_id == "cus_new_123"
+
+    def test_does_not_overwrite_existing_stripe_customer_id(self, db_session):
+        """User avec stripe_customer_id existant → pas d'écrasement."""
+        from app.routers.payment_router import _user_from_subscription
+        u = _make_user(db_session, "starter", stripe_customer_id="cus_existing")
+        user = u["user"]
+
+        # customer_id "cus_other" != "cus_existing" → step 1 ne matche pas
+        # step 2: Customer.retrieve exception → fallback
+        # step 3: uid_meta trouve le user, mais stripe_customer_id déjà défini → pas d'update
+        sub_mock = MagicMock()
+        sub_mock.get = lambda k, d=None: {
+            "customer":  "cus_other_789",
+            "metadata":  {"user_id": str(user.id)},
+        }.get(k, d)
+
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve.return_value = sub_mock
+            s.Customer.retrieve.side_effect = Exception("no")
+            result = _user_from_subscription("sub_no_overwrite", db_session)
+
+        db_session.refresh(user)
+        assert result is not None
+        assert user.stripe_customer_id == "cus_existing"  # inchangé
+
+
+# =============================================================================
+# _ensure_plan_from_subscription — admin guard + exception (lines 147, 151-152)
+# _downgrade_from_subscription — admin guard (lines 166-167)
+# =============================================================================
+
+class TestEnsureAndDowngradeAdminGuard:
+
+    def test_ensure_plan_does_not_modify_admin(self, db_session):
+        """_ensure_plan_from_subscription ignore les admins."""
+        from app.routers.payment_router import _ensure_plan_from_subscription
+        u = _make_user(db_session, "free", is_admin=True)
+        user = u["user"]
+
+        with patch("app.routers.payment_router._user_from_subscription",
+                   return_value=user), \
+             patch("app.routers.payment_router._plan_from_subscription",
+                   return_value="pro"):
+            _ensure_plan_from_subscription("sub_admin", db_session)
+
+        db_session.refresh(user)
+        assert user.plan == "free"   # inchangé
+        assert user.is_admin is True
+
+    def test_ensure_plan_silences_exception(self, db_session):
+        """Exception dans _ensure_plan → silencieusement ignorée (try/except)."""
+        from app.routers.payment_router import _ensure_plan_from_subscription
+        with patch("app.routers.payment_router._user_from_subscription",
+                   side_effect=RuntimeError("boom")):
+            # Ne doit pas lever d'exception
+            _ensure_plan_from_subscription("sub_err", db_session)
+
+    def test_downgrade_does_not_modify_admin(self, db_session):
+        """_downgrade_from_subscription ignore les admins."""
+        from app.routers.payment_router import _downgrade_from_subscription
+        u = _make_user(db_session, "pro", is_admin=True)
+        user = u["user"]
+        user.subscription_status = "active"
+        db_session.commit()
+
+        with patch("app.routers.payment_router._user_from_subscription",
+                   return_value=user):
+            _downgrade_from_subscription("sub_admin_down", db_session)
+
+        db_session.refresh(user)
+        assert user.plan == "pro"    # inchangé
+        assert user.subscription_status == "active"
+
+    def test_downgrade_silences_exception(self, db_session):
+        """Exception dans _downgrade → silencieusement ignorée."""
+        from app.routers.payment_router import _downgrade_from_subscription
+        with patch("app.routers.payment_router._user_from_subscription",
+                   side_effect=RuntimeError("kaboom")):
+            _downgrade_from_subscription("sub_err2", db_session)
+
+
+# =============================================================================
+# POST /payment/create-checkout — StripeError → 502 (lines 210-211)
+# =============================================================================
+
+class TestCreateCheckoutStripeError:
+
+    def test_stripe_error_returns_502(self, db_session):
+        """stripe.StripeError pendant la création de session → 502 (appel direct, rate-limit bypass)."""
+        import asyncio
+        from starlette.requests import Request as StarletteRequest
+        from fastapi import HTTPException
+        from app.routers.payment_router import create_checkout, CheckoutRequest
+
+        u = _make_user(db_session, "free")
+        user = u["user"]
+        scope = {"type": "http", "method": "POST", "path": "/payment/create-checkout",
+                 "headers": [], "query_string": b"", "client": ("127.88.88.88", 8888)}
+        fake_request = StarletteRequest(scope)
+        body = CheckoutRequest(plan="starter")
+
+        with patch("app.routers.payment_router.stripe") as s:
+            s.api_key = "sk_test_xxx"
+            s.StripeError = _stripe.StripeError
+            s.checkout.Session.create.side_effect = _stripe.StripeError("Stripe down")
+
+            async def _run():
+                return await create_checkout(fake_request, body=body,
+                                             current_user=user, db=db_session)
+            try:
+                asyncio.get_event_loop().run_until_complete(_run())
+                assert False, "should have raised"
+            except HTTPException as exc:
+                assert exc.status_code == 502
+
+
+# =============================================================================
+# POST /payment/webhook — checkout customer.retrieve fallback (lines 246-248)
+# POST /payment/webhook — asyncio.create_task RuntimeError (lines 274-276)
+# POST /payment/webhook — invoice.payment_failed (lines 301-303)
+# =============================================================================
+
+class TestWebhookEdgeCases:
+
+    def _post_event(self, client, event_type: str, data: dict):
+        with patch("app.routers.payment_router.STRIPE_WEBHOOK_SECRET", "whsec_test"), \
+             patch("stripe.Webhook.construct_event",
+                   return_value=_fake_event(event_type, data)):
+            return client.post(
+                "/payment/webhook",
+                content=b"{}",
+                headers={"stripe-signature": "t=1,v1=sig"},
+            )
+
+    def test_checkout_completed_customer_retrieve_fallback(self, client, db_session):
+        """checkout.session.completed : user introuvable via metadata → Customer.retrieve fallback."""
+        u = _make_user(db_session, "free")
+        data = {
+            "id":       "cs_fallback",
+            "metadata": {},          # pas de user_id dans metadata
+            "customer": "cus_stripe_fallback",
+            "subscription": None,
+        }
+        event = _fake_event("checkout.session.completed", data)
+        with patch("app.routers.payment_router.STRIPE_WEBHOOK_SECRET", "whsec_test"), \
+             patch("app.routers.payment_router.stripe") as s:
+            s.Webhook.construct_event.return_value = event
+            s.Customer.retrieve.return_value = {"email": u["email"]}
+            resp = client.post("/payment/webhook", content=b"{}",
+                               headers={"stripe-signature": "t=1,v1=sig"})
+        assert resp.status_code == 200
+
+        db_session.refresh(u["user"])
+        # Plan mis à jour via fallback email
+        assert u["user"].plan in ("starter", "pro", "free")
+
+    def test_checkout_completed_customer_retrieve_exception_silenced(self, client, db_session):
+        """Customer.retrieve lève une exception → silencieuse, webhook retourne 200."""
+        data = {
+            "id":       "cs_exc",
+            "metadata": {},
+            "customer": "cus_broken",
+            "subscription": None,
+        }
+        event = _fake_event("checkout.session.completed", data)
+        with patch("app.routers.payment_router.STRIPE_WEBHOOK_SECRET", "whsec_test"), \
+             patch("app.routers.payment_router.stripe") as s:
+            s.Webhook.construct_event.return_value = event
+            s.Customer.retrieve.side_effect = Exception("Stripe error")
+            resp = client.post("/payment/webhook", content=b"{}",
+                               headers={"stripe-signature": "t=1,v1=sig"})
+        assert resp.status_code == 200
+
+    def test_checkout_completed_asyncio_runtime_error_silenced(self, client, db_session):
+        """asyncio.create_task RuntimeError (pas de boucle active) → silencieux."""
+        u = _make_user(db_session, "free")
+        data = {
+            "id":           "cs_runtime",
+            "metadata":     {"user_id": str(u["user"].id), "plan": "starter"},
+            "customer":     None,
+            "subscription": None,
+        }
+        event = _fake_event("checkout.session.completed", data)
+        with patch("app.routers.payment_router.STRIPE_WEBHOOK_SECRET", "whsec_test"), \
+             patch("app.routers.payment_router.stripe") as s, \
+             patch("app.routers.payment_router._asyncio") as mock_asyncio:
+            s.Webhook.construct_event.return_value = event
+            mock_asyncio.create_task.side_effect = RuntimeError("no event loop")
+            resp = client.post("/payment/webhook", content=b"{}",
+                               headers={"stripe-signature": "t=1,v1=sig"})
+        assert resp.status_code == 200
+
+    def test_invoice_payment_failed_triggers_downgrade(self, client, db_session):
+        """invoice.payment_failed → _downgrade_from_subscription appelé."""
+        u = _make_user(db_session, "pro", subscription_status="active")
+        data = {"subscription": "sub_failed_pay"}
+        event = _fake_event("invoice.payment_failed", data)
+
+        with patch("app.routers.payment_router.STRIPE_WEBHOOK_SECRET", "whsec_test"), \
+             patch("app.routers.payment_router.stripe") as s, \
+             patch("app.routers.payment_router._downgrade_from_subscription") as mock_down:
+            s.Webhook.construct_event.return_value = event
+            resp = client.post("/payment/webhook", content=b"{}",
+                               headers={"stripe-signature": "t=1,v1=sig"})
+        assert resp.status_code == 200
+        mock_down.assert_called_once()
+
+    def test_invoice_payment_failed_no_sub_id_no_op(self, client, db_session):
+        """invoice.payment_failed sans subscription → pas d'appel downgrade."""
+        data = {"subscription": None}
+        event = _fake_event("invoice.payment_failed", data)
+
+        with patch("app.routers.payment_router.STRIPE_WEBHOOK_SECRET", "whsec_test"), \
+             patch("app.routers.payment_router.stripe") as s, \
+             patch("app.routers.payment_router._downgrade_from_subscription") as mock_down:
+            s.Webhook.construct_event.return_value = event
+            resp = client.post("/payment/webhook", content=b"{}",
+                               headers={"stripe-signature": "t=1,v1=sig"})
+        assert resp.status_code == 200
+        mock_down.assert_not_called()
+
+
+# =============================================================================
+# GET /payment/portal — cache update + Customer.list fallback (lines 391-392, 399-403)
+# =============================================================================
+
+class TestCustomerPortalEdgeCases:
+
+    def test_portal_caches_customer_id_from_checkout_session(self, client, db_session):
+        """Portal sans stripe_customer_id, last payment → Customer.retrieve → cache."""
+        u = _make_user(db_session, "starter", subscription_status="active")
+        _make_payment(db_session, u["user"].id, stripe_session_id="cs_portal_cache")
+        assert u["user"].stripe_customer_id is None
+
+        with patch("app.routers.payment_router.stripe") as s:
+            s.StripeError = _stripe.StripeError
+            s.checkout.Session.retrieve.return_value = {"customer": "cus_cached_123"}
+            s.billing_portal.Session.create.return_value = MagicMock(url="https://billing.stripe.com/p")
+            resp = client.get("/payment/portal", headers=_auth(u["token"]))
+
+        assert resp.status_code == 200
+        db_session.refresh(u["user"])
+        assert u["user"].stripe_customer_id == "cus_cached_123"
+
+    def test_portal_checkout_session_stripe_error_falls_through(self, client, db_session):
+        """Session.retrieve StripeError → passe au fallback Customer.list."""
+        u = _make_user(db_session, "starter", subscription_status="active")
+        _make_payment(db_session, u["user"].id, stripe_session_id="cs_bad")
+
+        with patch("app.routers.payment_router.stripe") as s:
+            s.StripeError = _stripe.StripeError
+            s.checkout.Session.retrieve.side_effect = _stripe.StripeError("session gone")
+            # Customer.list retourne un customer
+            mock_cust = MagicMock()
+            mock_cust.id = "cus_from_list"
+            s.Customer.list.return_value = MagicMock(data=[mock_cust])
+            s.billing_portal.Session.create.return_value = MagicMock(url="https://billing.stripe.com/l")
+            resp = client.get("/payment/portal", headers=_auth(u["token"]))
+
+        assert resp.status_code == 200
+
+    def test_portal_customer_list_caches_and_returns_portal(self, client, db_session):
+        """Fallback Customer.list → customer_id mis en cache + portal retourné."""
+        u = _make_user(db_session, "pro", subscription_status="active")
+        assert u["user"].stripe_customer_id is None
+
+        with patch("app.routers.payment_router.stripe") as s:
+            s.StripeError = _stripe.StripeError
+            mock_cust = MagicMock()
+            mock_cust.id = "cus_list_found"
+            s.Customer.list.return_value = MagicMock(data=[mock_cust])
+            s.billing_portal.Session.create.return_value = MagicMock(url="https://billing.stripe.com/ok")
+            resp = client.get("/payment/portal", headers=_auth(u["token"]))
+
+        assert resp.status_code == 200
+        db_session.refresh(u["user"])
+        assert u["user"].stripe_customer_id == "cus_list_found"
+
+    def test_portal_customer_list_stripe_error_leads_to_404(self, client, db_session):
+        """Customer.list StripeError → customer_id reste None → 404."""
+        u = _make_user(db_session, "pro", subscription_status="active")
+
+        with patch("app.routers.payment_router.stripe") as s:
+            s.StripeError = _stripe.StripeError
+            s.Customer.list.side_effect = _stripe.StripeError("list failed")
+            resp = client.get("/payment/portal", headers=_auth(u["token"]))
+
+        assert resp.status_code == 404
+
+
+# =============================================================================
+# POST /payment/cancel — StripeError handlers (lines 448-449, 453-457, 462-463)
+# =============================================================================
+
+class TestCancelSubscriptionStripeErrors:
+
+    def test_subscription_list_stripe_error_silenced(self, client, db_session):
+        """Subscription.list StripeError → ignorée, subscription_status=cancelling quand même."""
+        u = _make_user(db_session, "pro", subscription_status="active",
+                       stripe_customer_id="cus_err")
+        with patch("app.routers.payment_router.stripe") as s:
+            s.StripeError = _stripe.StripeError
+            s.Subscription.list.side_effect = _stripe.StripeError("list error")
+            resp = client.post("/payment/cancel", headers=_auth(u["token"]))
+        assert resp.status_code == 200
+        db_session.refresh(u["user"])
+        assert u["user"].subscription_status == "cancelling"
+
+    def test_session_retrieve_stripe_error_silenced(self, client, db_session):
+        """checkout.Session.retrieve StripeError → ignorée, sub_id reste None mais cancelling."""
+        u = _make_user(db_session, "starter", subscription_status="active")
+        _make_payment(db_session, u["user"].id, stripe_session_id="cs_retrieve_err")
+
+        with patch("app.routers.payment_router.stripe") as s:
+            s.StripeError = _stripe.StripeError
+            s.checkout.Session.retrieve.side_effect = _stripe.StripeError("retrieve fail")
+            resp = client.post("/payment/cancel", headers=_auth(u["token"]))
+        assert resp.status_code == 200
+        db_session.refresh(u["user"])
+        assert u["user"].subscription_status == "cancelling"
+
+    def test_subscription_modify_stripe_error_silenced(self, client, db_session):
+        """Subscription.modify StripeError → ignorée, subscription_status=cancelling quand même."""
+        u = _make_user(db_session, "pro", subscription_status="active",
+                       stripe_customer_id="cus_mod_err")
+        mock_sub = MagicMock()
+        mock_sub.id = "sub_modify_error"
+        with patch("app.routers.payment_router.stripe") as s:
+            s.StripeError = _stripe.StripeError
+            s.Subscription.list.return_value = MagicMock(data=[mock_sub])
+            s.Subscription.modify.side_effect = _stripe.StripeError("modify fail")
+            resp = client.post("/payment/cancel", headers=_auth(u["token"]))
+        assert resp.status_code == 200
+        db_session.refresh(u["user"])
+        assert u["user"].subscription_status == "cancelling"
+
+
+# =============================================================================
+# Remaining missing lines:
+#   246-248 — webhook construct_event generic Exception → 400
+#   455     — cancel: sub_id from checkout.Session.retrieve success
+# =============================================================================
+
+class TestWebhookConstructEventException:
+
+    def test_generic_exception_returns_400(self, client, db_session):
+        """construct_event lève Exception (non-SignatureVerificationError) → 400."""
+        with patch("app.routers.payment_router.STRIPE_WEBHOOK_SECRET", "whsec_test"), \
+             patch("app.routers.payment_router.stripe") as s:
+            s.SignatureVerificationError = _stripe.SignatureVerificationError
+            s.Webhook.construct_event.side_effect = Exception("unexpected parse error")
+            resp = client.post(
+                "/payment/webhook",
+                content=b"bad-body",
+                headers={"stripe-signature": "t=1,v1=sig"},
+            )
+        assert resp.status_code == 400
+
+
+class TestCancelViaSessionRetrieve:
+
+    def test_sub_id_fetched_from_session_retrieve(self, client, db_session):
+        """Subscription.list vide → fallback checkout.Session.retrieve → sub_id."""
+        u = _make_user(db_session, "starter", subscription_status="active",
+                       stripe_customer_id="cus_no_subs")
+        _make_payment(db_session, u["user"].id, stripe_session_id="cs_has_sub")
+
+        mock_sub = MagicMock()
+        mock_sub.id = "sub_from_session"
+        with patch("app.routers.payment_router.stripe") as s:
+            s.StripeError = _stripe.StripeError
+            # Subscription.list returns empty → no sub_id from step 1
+            s.Subscription.list.return_value = MagicMock(data=[])
+            # Session.retrieve returns dict with subscription
+            s.checkout.Session.retrieve.return_value = {"subscription": "sub_from_session"}
+            # Subscription.modify should be called with the sub_id from session
+            resp = client.post("/payment/cancel", headers=_auth(u["token"]))
+        assert resp.status_code == 200
+        db_session.refresh(u["user"])
+        assert u["user"].subscription_status == "cancelling"
+        s.Subscription.modify.assert_called_once_with("sub_from_session", cancel_at_period_end=True)

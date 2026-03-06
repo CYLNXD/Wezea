@@ -1204,3 +1204,240 @@ class TestReputationAuditorTimeout:
                    side_effect=asyncio.TimeoutError()):
             result = await auditor.audit()
         assert result == []
+
+
+# =============================================================================
+# VulnVersionAuditor.audit() success path (line 138-139)
+# VulnVersionAuditor.get_details() (lines 143-144)
+# VulnVersionAuditor._check_versions_sync ASP.NET (lines 198-201)
+# VulnVersionAuditor._check_versions_sync no-version skip (lines 212-213)
+# =============================================================================
+
+class TestVulnVersionAuditorMissingPaths:
+
+    @pytest.mark.asyncio
+    async def test_audit_success_returns_findings(self):
+        """audit() success path (lines 138-139) : wait_for réussit → return findings."""
+        from app.advanced_checks import VulnVersionAuditor, Finding
+        auditor = VulnVersionAuditor("example.com")
+        sentinel = Finding(
+            category="TECH", severity="HIGH", title="Vuln détectée",
+            technical_detail="", plain_explanation="", penalty=10, recommendation="",
+        )
+        with patch("app.advanced_checks.asyncio.wait_for",
+                   return_value=[sentinel]):
+            result = await auditor.audit()
+        assert result == [sentinel]
+
+    def test_get_details_returns_internal_dict(self):
+        """get_details() (lines 143-144) doit retourner _details."""
+        from app.advanced_checks import VulnVersionAuditor
+        auditor = VulnVersionAuditor("example.com")
+        auditor._details["test_key"] = "test_val"
+        assert auditor.get_details()["test_key"] == "test_val"
+
+    def _mock_headers_conn(self, headers_dict: dict):
+        """Crée un mock HTTPSConnection retournant les headers donnés."""
+        mock_conn = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        # getheaders() retourne une liste de tuples (le code utilise getheaders, pas getheader)
+        mock_resp.getheaders.return_value = list(headers_dict.items())
+        mock_conn.getresponse.return_value = mock_resp
+        mock_conn.close = MagicMock()
+        return mock_conn
+
+    def test_aspnet_version_header_detected(self):
+        """X-AspNet-Version → ligne 198-199 couverte."""
+        from app.advanced_checks import VulnVersionAuditor
+        auditor = VulnVersionAuditor("example.com")
+        mock_conn = self._mock_headers_conn({
+            "server": "",
+            "x-powered-by": "",
+            "x-aspnet-version": "4.0.30319",
+            "x-aspnetmvc-version": "",
+        })
+        with patch("app.advanced_checks.http.client.HTTPSConnection",
+                   return_value=mock_conn):
+            auditor._check_versions_sync()
+        stack = auditor._details.get("detected_stack", [])
+        techs = [e["tech"] for e in stack]
+        assert "aspnet" in techs
+
+    def test_aspnetmvc_version_header_detected(self):
+        """X-AspNetMvc-Version → ligne 200-201 couverte."""
+        from app.advanced_checks import VulnVersionAuditor
+        auditor = VulnVersionAuditor("example.com")
+        mock_conn = self._mock_headers_conn({
+            "server": "",
+            "x-powered-by": "",
+            "x-aspnet-version": "",
+            "x-aspnetmvc-version": "5.2",
+        })
+        with patch("app.advanced_checks.http.client.HTTPSConnection",
+                   return_value=mock_conn):
+            auditor._check_versions_sync()
+        stack = auditor._details.get("detected_stack", [])
+        techs = [e["tech"] for e in stack]
+        assert "aspnetmvc" in techs
+
+    def test_version_string_unparseable_is_skipped(self):
+        """Version non parseable (lignes 212-213) → pas de crash, skippé."""
+        from app.advanced_checks import VulnVersionAuditor
+        auditor = VulnVersionAuditor("example.com")
+        # X-Powered-By contient ASP.NET sans numéro de version → _parse_version retourne None
+        mock_conn = self._mock_headers_conn({
+            "server": "Microsoft-IIS/10.0",
+            "x-powered-by": "ASP.NET",   # pas de version parseable
+            "x-aspnet-version": "",
+            "x-aspnetmvc-version": "",
+        })
+        with patch("app.advanced_checks.http.client.HTTPSConnection",
+                   return_value=mock_conn):
+            auditor._check_versions_sync()
+        # Aucun crash, aucune vuln IIS trouvée (10.0 non dans KNOWN_VULNS)
+        # La clé detected_stack contiendra iis:10.0, mais pas de finding
+        assert isinstance(auditor._findings, list)
+
+
+# =============================================================================
+# SubdomainAuditor.audit() — lines 278-289
+# =============================================================================
+
+class TestSubdomainAuditorAudit:
+
+    @pytest.mark.asyncio
+    async def test_audit_success_returns_findings(self):
+        """audit() success path (lines 285) : wait_for réussit → return findings."""
+        from app.advanced_checks import SubdomainAuditor, Finding
+        auditor = SubdomainAuditor("example.com")
+        sentinel = Finding(
+            category="SUBDOMAIN", severity="INFO", title="OK",
+            technical_detail="", plain_explanation="", penalty=0, recommendation="",
+        )
+        with patch("app.advanced_checks.asyncio.wait_for",
+                   return_value=[sentinel]):
+            result = await auditor.audit()
+        assert result == [sentinel]
+
+    @pytest.mark.asyncio
+    async def test_audit_timeout_returns_empty(self):
+        """Timeout → [] (line 287)."""
+        from app.advanced_checks import SubdomainAuditor
+        auditor = SubdomainAuditor("example.com")
+        with patch("app.advanced_checks.asyncio.wait_for",
+                   side_effect=asyncio.TimeoutError()):
+            result = await auditor.audit()
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_audit_exception_returns_empty(self):
+        """Exception générique → [] (line 289)."""
+        from app.advanced_checks import SubdomainAuditor
+        auditor = SubdomainAuditor("example.com")
+        with patch("app.advanced_checks.asyncio.wait_for",
+                   side_effect=RuntimeError("crt.sh unavailable")):
+            result = await auditor.audit()
+        assert result == []
+
+
+class TestVulnVersionAuditorNoVersionContinue:
+    """Couvre la ligne 213 — version non parseable dans la boucle vuln."""
+
+    def test_aspnet_header_with_garbage_version_skipped(self):
+        """x-aspnet-version avec valeur non numérique → _parse_version=None → continue."""
+        from app.advanced_checks import VulnVersionAuditor
+
+        auditor = VulnVersionAuditor("example.com")
+        mock_conn = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        # aspnet header avec valeur non-numérique → entered in detected, but _parse_version → None
+        mock_resp.getheaders.return_value = [
+            ("server", ""),
+            ("x-powered-by", ""),
+            ("x-aspnet-version", "nightly-build-abc"),   # pas parseable par _parse_version
+            ("x-aspnetmvc-version", ""),
+        ]
+        mock_conn.getresponse.return_value = mock_resp
+        mock_conn.close = MagicMock()
+
+        with patch("app.advanced_checks.http.client.HTTPSConnection",
+                   return_value=mock_conn):
+            auditor._check_versions_sync()
+
+        # Aucun finding (version skippée)
+        assert auditor._findings == []
+        # La stack contient bien l'entrée (détectée mais non vulnérable)
+        stack = auditor._details.get("detected_stack", [])
+        assert any(e["tech"] == "aspnet" for e in stack)
+
+
+# =============================================================================
+# extra_checks.py missing lines:
+#   207-209 — HttpHeaderAuditor._fetch_headers_sync success path
+#   256-257 — EmailSecurityAuditor DKIM exception handler
+#   324     — TechExposureAuditor.audit() success path
+# =============================================================================
+
+class TestExtraChecksMissingPaths:
+
+    def test_fetch_headers_sync_success(self):
+        """_fetch_headers_sync: HTTPS connection succeeds → returns dict (lines 207-209)."""
+        from app.extra_checks import HttpHeaderAuditor
+        import app.extra_checks as _ec
+
+        auditor = HttpHeaderAuditor("example.com")
+        mock_conn = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.getheaders.return_value = [
+            ("x-frame-options", "DENY"),
+            ("strict-transport-security", "max-age=31536000"),
+        ]
+        mock_conn.getresponse.return_value = mock_resp
+        mock_conn.close = MagicMock()
+
+        with patch("app.extra_checks.http.client.HTTPSConnection", return_value=mock_conn):
+            headers = auditor._fetch_headers_sync()
+
+        assert headers is not None
+        assert "x-frame-options" in headers
+        assert headers["x-frame-options"] == "DENY"
+
+    @pytest.mark.asyncio
+    async def test_email_security_dkim_exception_silenced(self):
+        """DKIM wait_for raises → lines 256-257 covered."""
+        from app.extra_checks import EmailSecurityAuditor
+        auditor = EmailSecurityAuditor("example.com")
+
+        call_count = [0]
+
+        async def _fake_wait_for(coro_or_future, timeout):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # Première attente = DKIM → lève exception
+                raise asyncio.TimeoutError()
+            # Deuxième attente = MX → retourne True (MX présent)
+            return True
+
+        with patch("app.extra_checks.asyncio.wait_for", side_effect=_fake_wait_for):
+            result = await auditor.audit()
+        # DKIM exception ignorée, MX OK → pas de finding MX
+        assert isinstance(result, list)
+        # Au moins call_count >= 1 (DKIM)
+        assert call_count[0] >= 1
+
+    @pytest.mark.asyncio
+    async def test_tech_exposure_audit_success_returns_findings(self):
+        """TechExposureAuditor.audit() success → return findings (line 324)."""
+        from app.extra_checks import TechExposureAuditor
+        from app.extra_checks import Finding
+
+        auditor = TechExposureAuditor("example.com")
+
+        async def _fake_wait_for(coro_or_future, timeout):
+            return []  # success, empty findings
+
+        with patch("app.extra_checks.asyncio.wait_for", side_effect=_fake_wait_for):
+            result = await auditor.audit()
+        assert result == []
