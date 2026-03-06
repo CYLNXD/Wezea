@@ -150,9 +150,16 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     if (!initialScanUuid) return;
     scanner.loadFromHistory(initialScanUuid);
     onScanUuidConsumed?.();
-    // Scroller vers les résultats après un court délai
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 600);
   }, [initialScanUuid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Pré-remplir le champ domaine dès qu'un résultat est disponible ─────────
+  // Permet de relancer un scan d'un seul clic après chargement depuis l'historique
+  useEffect(() => {
+    if (scanner.status === 'success' && scanner.result?.domain && !domain) {
+      setDomain(scanner.result.domain);
+    }
+  }, [scanner.status, scanner.result?.domain]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Confirmation newsletter (retour depuis le lien email) ──────────────────
   useEffect(() => {
@@ -1025,7 +1032,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden"
+                  className="sku-panel rounded-2xl overflow-hidden"
                 >
                   <div className="flex flex-col lg:flex-row">
                     {/* Score gauge */}
@@ -1133,7 +1140,9 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 </div>
                               )}
                               <p className="text-[10px] text-slate-600 font-mono">
-                                Scan automatique chaque lundi à 06:00 UTC · Alerte email si baisse ≥ 10 pts
+                                {lang === 'fr'
+                                  ? 'Scan automatique selon la fréquence configurée · Alerte email si baisse ≥ 10 pts'
+                                  : 'Automatic scan at configured frequency · Email alert on score drop ≥ 10 pts'}
                               </p>
                             </div>
                           )}
