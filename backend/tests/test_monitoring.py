@@ -722,3 +722,56 @@ class TestScanNow:
         """Sans token → 401."""
         resp = client.post("/monitoring/domains/example.com/scan")
         assert resp.status_code == 401
+
+
+class TestDomainValidationEdgeCases:
+    """Chemins de validation manquants dans monitoring_router.py."""
+
+    def test_domain_too_long_returns_422(self, client, db_session):
+        """Domaine > 253 caractères → 422."""
+        creds = _make_user(db_session, "starter")
+        long_domain = "a" * 254 + ".example.com"
+        resp = client.post(
+            "/monitoring/domains",
+            json={"domain": long_domain},
+            headers=_headers(creds["token"]),
+        )
+        assert resp.status_code == 422
+        assert "253" in resp.json()["detail"] or "long" in resp.json()["detail"].lower()
+
+    def test_invalid_domain_regex_returns_422(self, client, db_session):
+        """Domaine ne passant pas le regex (espaces, chars invalides) → 422."""
+        creds = _make_user(db_session, "starter")
+        resp = client.post(
+            "/monitoring/domains",
+            json={"domain": "not a valid domain!!"},
+            headers=_headers(creds["token"]),
+        )
+        assert resp.status_code == 422
+        assert "valide" in resp.json()["detail"].lower() or \
+               "valid" in resp.json()["detail"].lower()
+
+
+class TestScanNowEdgeCases:
+    """Chemins manquants dans POST /monitoring/domains/{domain}/scan."""
+
+    def test_scan_now_exception_returns_500(self, client, db_session):
+        """_scan_and_alert lève une exception → 500."""
+        creds = _make_user(db_session, "starter")
+        db_session.add(MonitoredDomain(
+            user_id=creds["user"].id,
+            domain="crash-on-scan.com",
+            is_active=True,
+        ))
+        db_session.commit()
+
+        async def _failing_scan(m, db):
+            raise RuntimeError("scan engine KO")
+
+        with patch("app.scheduler._scan_and_alert", new=_failing_scan):
+            resp = client.post(
+                "/monitoring/domains/crash-on-scan.com/scan",
+                headers=_headers(creds["token"]),
+            )
+
+        assert resp.status_code == 500

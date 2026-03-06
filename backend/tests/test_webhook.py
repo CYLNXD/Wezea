@@ -343,3 +343,112 @@ class TestTestWebhook:
         hook = _make_webhook(db_session, u["user"].id, is_active=False)
         resp = client.post(f"/webhooks/{hook.id}/test", headers=_auth(u["token"]))
         assert resp.status_code == 404
+
+
+class TestWebhookValidation:
+    """Chemins de validation non couverts dans webhook_router.py."""
+
+    def test_url_too_long_returns_422(self, client, db_session):
+        """URL > 512 caractères → 422."""
+        u = _make_user(db_session, "pro")
+        long_url = "https://example.com/" + "a" * 500
+        resp = client.post(
+            "/webhooks",
+            json={"url": long_url, "events": ["scan.complete"]},
+            headers=_auth(u["token"]),
+        )
+        assert resp.status_code == 422
+        assert "trop longue" in resp.json()["detail"].lower() or \
+               "512" in resp.json()["detail"]
+
+
+class TestFireWebhooks:
+    """Couverture de fire_webhooks (lignes 255-266)."""
+
+    @pytest.mark.asyncio
+    async def test_delivers_to_matching_hook(self, db_session):
+        """fire_webhooks appelle _deliver pour les hooks dont l'event correspond."""
+        from app.models import Webhook
+        import json, time as _time
+        from unittest.mock import AsyncMock, patch
+
+        u = _make_user(db_session, "pro")
+        hook = Webhook(
+            user_id=u["user"].id,
+            url="https://hook.example.com/cb",
+            events=json.dumps(["scan.complete"]),
+            secret="sec",
+            is_active=True,
+        )
+        db_session.add(hook)
+        db_session.commit()
+
+        mock_deliver = AsyncMock()
+        from app.routers.webhook_router import fire_webhooks
+        with patch("app.routers.webhook_router._deliver", mock_deliver):
+            await fire_webhooks(
+                user_id=u["user"].id,
+                event="scan.complete",
+                payload={"data": {"score": 80}},
+                db=db_session,
+            )
+
+        mock_deliver.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skips_hook_with_different_event(self, db_session):
+        """fire_webhooks ne livre pas si l'event ne correspond pas."""
+        from app.models import Webhook
+        import json
+        from unittest.mock import AsyncMock, patch
+
+        u = _make_user(db_session, "pro")
+        hook = Webhook(
+            user_id=u["user"].id,
+            url="https://hook.example.com/cb",
+            events=json.dumps(["alert.triggered"]),
+            secret="sec",
+            is_active=True,
+        )
+        db_session.add(hook)
+        db_session.commit()
+
+        mock_deliver = AsyncMock()
+        from app.routers.webhook_router import fire_webhooks
+        with patch("app.routers.webhook_router._deliver", mock_deliver):
+            await fire_webhooks(
+                user_id=u["user"].id,
+                event="scan.complete",  # différent de alert.triggered
+                payload={},
+                db=db_session,
+            )
+
+        mock_deliver.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_exception_in_deliver_is_silenced(self, db_session):
+        """Exception dans _deliver → silencieuse, fire_webhooks ne lève pas."""
+        from app.models import Webhook
+        import json
+        from unittest.mock import AsyncMock, patch
+
+        u = _make_user(db_session, "pro")
+        hook = Webhook(
+            user_id=u["user"].id,
+            url="https://hook.example.com/cb",
+            events=json.dumps(["scan.complete"]),
+            secret="sec",
+            is_active=True,
+        )
+        db_session.add(hook)
+        db_session.commit()
+
+        from app.routers.webhook_router import fire_webhooks
+        with patch("app.routers.webhook_router._deliver",
+                   AsyncMock(side_effect=RuntimeError("delivery KO"))):
+            await fire_webhooks(
+                user_id=u["user"].id,
+                event="scan.complete",
+                payload={},
+                db=db_session,
+            )  # ne doit pas lever

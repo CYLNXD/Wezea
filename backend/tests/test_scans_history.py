@@ -470,3 +470,61 @@ class TestPublicStats:
         # Pas de header Authorization
         resp = client.get("/public/stats")
         assert resp.status_code == 200
+
+
+class TestExportScanEdgeCases:
+    """Chemins non couverts dans scans_router.py — export PDF."""
+
+    def test_export_pdf_runtime_error_returns_503(self, client, db_session):
+        """generate_pdf lève RuntimeError (WeasyPrint absent) → 503."""
+        u = _make_user(db_session, "starter")
+        scan = _make_scan(db_session, u["user"].id, domain="503test.com")
+        with patch("app.services.report_service.generate_pdf",
+                   side_effect=RuntimeError("WeasyPrint not available")):
+            resp = client.get(
+                f"/scans/history/{scan.scan_uuid}/export?format=pdf",
+                headers=_auth(u["token"]),
+            )
+        assert resp.status_code == 503
+
+    def test_export_pdf_unexpected_exception_returns_500(self, client, db_session):
+        """generate_pdf lève Exception générique → 500."""
+        u = _make_user(db_session, "starter")
+        scan = _make_scan(db_session, u["user"].id, domain="500test.com")
+        with patch("app.services.report_service.generate_pdf",
+                   side_effect=Exception("unexpected crash")):
+            resp = client.get(
+                f"/scans/history/{scan.scan_uuid}/export?format=pdf",
+                headers=_auth(u["token"]),
+            )
+        assert resp.status_code == 500
+
+    def test_export_pdf_with_white_label(self, client, db_session):
+        """Export PDF : white-label injecté pour les utilisateurs Pro avec wb_enabled."""
+        u = _make_user(db_session, "pro")
+        # Activer le white-label
+        from app.models import User
+        db_user = db_session.query(User).filter_by(id=u["user"].id).first()
+        db_user.wb_enabled      = True
+        db_user.wb_company_name = "AcmeCorp"
+        db_user.wb_primary_color = "#ff0000"
+        db_session.commit()
+
+        scan     = _make_scan(db_session, u["user"].id, domain="wltest.com")
+        fake_pdf = b"%PDF-1.4 white-label"
+
+        captured = {}
+
+        def _fake_pdf(audit_data, lang, white_label=None):
+            captured["white_label"] = white_label
+            return fake_pdf
+
+        with patch("app.services.report_service.generate_pdf", side_effect=_fake_pdf):
+            resp = client.get(
+                f"/scans/history/{scan.scan_uuid}/export?format=pdf",
+                headers=_auth(u["token"]),
+            )
+
+        assert resp.status_code == 200
+        assert captured.get("white_label") is not None
+        assert captured["white_label"]["company_name"] == "AcmeCorp"
