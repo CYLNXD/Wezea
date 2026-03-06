@@ -12,6 +12,7 @@ import {
   Shield, Search, ArrowRight, RotateCcw,
   FileDown, Globe, AlertTriangle, Info, Lock, X, UserPlus, MessageSquare,
   CheckCircle, ChevronDown, Zap, Eye, Star, ListChecks, BookOpen, Building2, Bell,
+  TrendingUp, TrendingDown,
 } from 'lucide-react';
 
 import { useLanguage } from '../i18n/LanguageContext';
@@ -106,6 +107,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [publicStats, setPublicStats]   = useState<{ total_scans: number } | null>(null);
   const [faqOpen, setFaqOpen]           = useState<number | null>(null);
   const [newsletterConfirmed, setNewsletterConfirmed] = useState(false);
+  const [previousScore, setPreviousScore] = useState<number | null>(null);
   const inputRef                    = useRef<HTMLInputElement>(null);
   const resultsRef                  = useRef<HTMLDivElement>(null);
 
@@ -251,6 +253,20 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
         findings_count: scanner.result.findings?.length ?? 0,
         duration_ms:    scanner.result.scan_duration_ms ?? undefined,
       });
+      // Comparaison avec le scan précédent du même domaine
+      if (user) {
+        apiClient.get('/scans/history').then(res => {
+          const scans: Array<{ domain: string; security_score: number; created_at: string }> = res.data;
+          const domainScans = scans
+            .filter(s => s.domain === scanner.result!.domain)
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          // [0] = scan actuel, [1] = scan précédent
+          setPreviousScore(domainScans.length >= 2 ? domainScans[1].security_score : null);
+        }).catch(() => { setPreviousScore(null); });
+      }
+    }
+    if (scanner.status === 'scanning') {
+      setPreviousScore(null); // reset à chaque nouveau scan
     }
     if (scanner.status === 'error') {
       captureScanFailed(scanner.result?.domain ?? domain, scanner.error ?? undefined);
@@ -1036,12 +1052,32 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                 >
                   <div className="flex flex-col lg:flex-row">
                     {/* Score gauge */}
-                    <div className="flex items-center justify-center p-6 lg:border-r border-b lg:border-b-0 border-slate-800 shrink-0">
+                    <div className="flex flex-col items-center justify-center gap-3 p-6 lg:border-r border-b lg:border-b-0 border-slate-800 shrink-0">
                       <ScoreGauge
                         score={r.security_score}
                         riskLevel={r.risk_level}
                         domain={r.domain}
                       />
+                      {/* Delta vs scan précédent */}
+                      {previousScore !== null && (() => {
+                        const delta = r.security_score - previousScore;
+                        if (delta === 0) return (
+                          <span className="text-[11px] text-slate-500 font-mono">
+                            = stable vs scan précédent
+                          </span>
+                        );
+                        const up = delta > 0;
+                        return (
+                          <span className={`flex items-center gap-1 text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full border ${
+                            up
+                              ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
+                              : 'text-red-400 bg-red-500/10 border-red-500/25'
+                          }`}>
+                            {up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                            {up ? '+' : ''}{delta} pts vs scan précédent
+                          </span>
+                        );
+                      })()}
                     </div>
                     {/* Stats + PDF + meta */}
                     <div className="flex-1 flex flex-col justify-between gap-4 p-6">
