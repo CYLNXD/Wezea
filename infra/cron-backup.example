@@ -1,0 +1,15 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Cron : Sauvegarde automatique de la DB — tous les jours à 02:00
+#
+# Installation (sur le serveur) :
+#   sudo crontab -u cyberhealth -e
+#   → coller la ligne ci-dessous
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Backup DB à 02:00 chaque nuit (logs dans /home/cyberhealth/app/logs/backup.log)
+0 2 * * * /home/cyberhealth/app/scripts/backup_db.sh >> /home/cyberhealth/app/logs/backup.log 2>&1
+
+# ── Variables d'environnement optionnelles à ajouter dans le crontab ─────────
+# BACKUP_DIR=/home/cyberhealth/backups
+# RETENTION=30
+# S3_BUCKET=s3://mon-bucket/backups/

@@ -4,7 +4,7 @@ Database setup — SQLAlchemy + SQLite
 from __future__ import annotations
 
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -34,36 +34,96 @@ def init_db():
     _apply_migrations()
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Migrations versionnées
+# ─────────────────────────────────────────────────────────────────────────────
+
 def _apply_migrations():
     """
     Migrations manuelles pour les colonnes ajoutées après la création initiale.
-    SQLite ne supporte pas ALTER TABLE DROP COLUMN, mais supporte ADD COLUMN.
+    Chaque migration est identifiée par un numéro et ne s'applique qu'une seule fois
+    (enregistrée dans la table `db_migrations`).
+
+    SQLite ne supporte pas ALTER TABLE DROP COLUMN — uniquement ADD COLUMN.
     """
     with engine.connect() as conn:
-        _add_column_if_missing(conn, "users", "is_admin", "BOOLEAN DEFAULT 0 NOT NULL")
-        # ── Feature : lien Stripe permanent ──────────────────────────────────
-        _add_column_if_missing(conn, "users", "stripe_customer_id", "TEXT")
-        # ── Feature : surveillance élargie ───────────────────────────────
-        _add_column_if_missing(conn, "monitored_domains", "last_ssl_expiry_days", "INTEGER")
-        _add_column_if_missing(conn, "monitored_domains", "last_open_ports",      "TEXT")
-        _add_column_if_missing(conn, "monitored_domains", "last_technologies",    "TEXT")
-        # ── Feature : scan programmé ─────────────────────────────────────
-        _add_column_if_missing(conn, "monitored_domains", "scan_frequency", "TEXT DEFAULT 'weekly'")
-        _add_column_if_missing(conn, "monitored_domains", "email_report",   "BOOLEAN DEFAULT 0")
-        # ── Feature : white-branding (Pro) ───────────────────────────────
-        _add_column_if_missing(conn, "users", "wb_enabled",       "BOOLEAN DEFAULT 0")
-        _add_column_if_missing(conn, "users", "wb_company_name",  "TEXT")
-        _add_column_if_missing(conn, "users", "wb_logo_b64",      "TEXT")
-        _add_column_if_missing(conn, "users", "wb_primary_color", "TEXT")
-        # ── Feature : détails complets du scan pour le PDF ──────────────
-        _add_column_if_missing(conn, "scan_history", "scan_details_json", "TEXT")
-        # ── Feature : partage public d'un scan ───────────────────────────
-        _add_column_if_missing(conn, "scan_history", "public_share", "BOOLEAN DEFAULT 0 NOT NULL")
+        # Créer la table de versioning si elle n'existe pas
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS db_migrations (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                version    TEXT NOT NULL UNIQUE,
+                applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """))
+        conn.commit()
 
+        def _applied(version: str) -> bool:
+            row = conn.execute(
+                text("SELECT 1 FROM db_migrations WHERE version = :v"),
+                {"v": version},
+            ).fetchone()
+            return row is not None
+
+        def _mark_applied(version: str) -> None:
+            conn.execute(
+                text("INSERT OR IGNORE INTO db_migrations (version) VALUES (:v)"),
+                {"v": version},
+            )
+            conn.commit()
+
+        # ── 001 : colonne is_admin ────────────────────────────────────────────
+        if not _applied("001_is_admin"):
+            _add_column_if_missing(conn, "users", "is_admin", "BOOLEAN DEFAULT 0 NOT NULL")
+            _mark_applied("001_is_admin")
+
+        # ── 002 : lien Stripe permanent ───────────────────────────────────────
+        if not _applied("002_stripe_customer_id"):
+            _add_column_if_missing(conn, "users", "stripe_customer_id", "TEXT")
+            _mark_applied("002_stripe_customer_id")
+
+        # ── 003 : surveillance élargie (SSL, ports, techno) ───────────────────
+        if not _applied("003_monitoring_extended"):
+            _add_column_if_missing(conn, "monitored_domains", "last_ssl_expiry_days", "INTEGER")
+            _add_column_if_missing(conn, "monitored_domains", "last_open_ports",      "TEXT")
+            _add_column_if_missing(conn, "monitored_domains", "last_technologies",    "TEXT")
+            _mark_applied("003_monitoring_extended")
+
+        # ── 004 : scan programmé par domaine ──────────────────────────────────
+        if not _applied("004_scan_schedule"):
+            _add_column_if_missing(conn, "monitored_domains", "scan_frequency", "TEXT DEFAULT 'weekly'")
+            _add_column_if_missing(conn, "monitored_domains", "email_report",   "BOOLEAN DEFAULT 0")
+            _mark_applied("004_scan_schedule")
+
+        # ── 005 : white-branding Pro ──────────────────────────────────────────
+        if not _applied("005_white_branding"):
+            _add_column_if_missing(conn, "users", "wb_enabled",       "BOOLEAN DEFAULT 0")
+            _add_column_if_missing(conn, "users", "wb_company_name",  "TEXT")
+            _add_column_if_missing(conn, "users", "wb_logo_b64",      "TEXT")
+            _add_column_if_missing(conn, "users", "wb_primary_color", "TEXT")
+            _mark_applied("005_white_branding")
+
+        # ── 006 : détails complets du scan pour le PDF ───────────────────────
+        if not _applied("006_scan_details_json"):
+            _add_column_if_missing(conn, "scan_history", "scan_details_json", "TEXT")
+            _mark_applied("006_scan_details_json")
+
+        # ── 007 : partage public d'un scan (/r/{uuid}) ───────────────────────
+        if not _applied("007_public_share"):
+            _add_column_if_missing(conn, "scan_history", "public_share", "BOOLEAN DEFAULT 0 NOT NULL")
+            _mark_applied("007_public_share")
+
+        # ── 008 : login_attempts — table créée par Base.metadata.create_all() ─
+        if not _applied("008_login_attempts_table"):
+            # Rien à ALTER TABLE — la table est gérée par SQLAlchemy ORM
+            _mark_applied("008_login_attempts_table")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Utilitaire : ajouter une colonne si absente
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _add_column_if_missing(conn, table: str, column: str, column_def: str):
     """Ajoute une colonne à une table si elle n'existe pas encore."""
-    from sqlalchemy import text
     result = conn.execute(text(f"PRAGMA table_info({table})"))
     existing = {row[1] for row in result}
     if column not in existing:

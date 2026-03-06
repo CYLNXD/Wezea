@@ -165,6 +165,23 @@ class ScanRateLimit(Base):
     )
 
 
+class LoginAttempt(Base):
+    """
+    Compteur d'échecs de connexion par IP — remplace le dict in-memory _login_failures.
+    Partagé entre tous les workers gunicorn/uvicorn (persisté en DB).
+    Nettoyage automatique lors de la vérification (fenêtre glissante 15 min).
+    """
+    __tablename__ = "login_attempts"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    ip         = Column(String(45), nullable=False, index=True)  # IPv4 ou IPv6
+    failed_at  = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_login_attempts_ip_time", "ip", "failed_at"),
+    )
+
+
 class ContactMessage(Base):
     """Stocke les demandes de support des utilisateurs."""
     __tablename__ = "contact_messages"

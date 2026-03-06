@@ -3,9 +3,8 @@ Auth Router — Register, Login, Me, Profile (RGPD), Delete Account, Regenerate 
 """
 
 import re
-import time
 
-from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import base64
@@ -15,14 +14,14 @@ from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.orm import Session
 
 from app.auth import (
-    hash_password, verify_password,
+    hash_password, verify_password, needs_rehash,
     create_access_token, decode_token,
     generate_api_key,
 )
 import os
 from app.database import get_db
 from app.limiter import limiter
-from app.models import User
+from app.models import User, LoginAttempt
 from app.services.brevo_service import (
     send_welcome_email,
     add_registered_user_contact,
@@ -31,30 +30,39 @@ from app.services.brevo_service import (
 )
 import asyncio
 
-# ─── Login lockout (in-memory, par IP) ────────────────────────────────────────
-_LOCKOUT_WINDOW = 15 * 60   # 15 minutes en secondes
-_LOCKOUT_MAX    = 5         # échecs consécutifs avant verrouillage
-_login_failures: dict[str, list[float]] = defaultdict(list)  # ip → timestamps
+# ─── Login lockout (DB-backed — partagé entre tous les workers uvicorn) ───────
+# Avantage vs dict in-memory : fonctionne avec plusieurs workers simultanés.
+_LOCKOUT_WINDOW_MIN = 15   # fenêtre glissante en minutes
+_LOCKOUT_MAX        = 5    # échecs dans cette fenêtre avant verrouillage
 
 
-def _check_lockout(ip: str) -> None:
-    """Lève HTTP 429 si l'IP a trop d'échecs récents."""
-    now    = time.monotonic()
-    cutoff = now - _LOCKOUT_WINDOW
-    _login_failures[ip] = [t for t in _login_failures[ip] if t > cutoff]
-    if len(_login_failures[ip]) >= _LOCKOUT_MAX:
+def _check_lockout(ip: str, db: Session) -> None:
+    """Lève HTTP 429 si l'IP dépasse _LOCKOUT_MAX échecs dans les 15 dernières minutes."""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=_LOCKOUT_WINDOW_MIN)
+    recent = (
+        db.query(LoginAttempt)
+        .filter(LoginAttempt.ip == ip, LoginAttempt.failed_at >= cutoff)
+        .count()
+    )
+    if recent >= _LOCKOUT_MAX:
         raise HTTPException(
             status_code=429,
             detail="Trop de tentatives échouées. Réessayez dans 15 minutes.",
         )
 
 
-def _record_failure(ip: str) -> None:
-    _login_failures[ip].append(time.monotonic())
+def _record_failure(ip: str, db: Session) -> None:
+    """Enregistre un échec et purge les entrées âgées de plus d'1 heure."""
+    db.add(LoginAttempt(ip=ip))
+    cutoff_cleanup = datetime.now(timezone.utc) - timedelta(hours=1)
+    db.query(LoginAttempt).filter(LoginAttempt.failed_at < cutoff_cleanup).delete()
+    db.commit()
 
 
-def _clear_failures(ip: str) -> None:
-    _login_failures.pop(ip, None)
+def _clear_failures(ip: str, db: Session) -> None:
+    """Supprime tous les échecs pour cette IP après un login réussi."""
+    db.query(LoginAttempt).filter(LoginAttempt.ip == ip).delete()
+    db.commit()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -216,16 +224,22 @@ def register(
 @limiter.limit("30/minute")
 def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
     ip = request.client.host if request.client else "unknown"
-    _check_lockout(ip)
+    _check_lockout(ip, db)
 
     user = db.query(User).filter(User.email == req.email).first()
     if not user or not verify_password(req.password, user.password_hash):
-        _record_failure(ip)
+        _record_failure(ip, db)
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")
 
-    _clear_failures(ip)
+    _clear_failures(ip, db)
+
+    # ── Rehash transparent bcrypt → argon2 (migration silencieuse) ────────────
+    if needs_rehash(user.password_hash):
+        user.password_hash = hash_password(req.password)
+        db.commit()
+
     token = create_access_token(user.id, user.email, user.plan)
     return TokenResponse(
         access_token=token,

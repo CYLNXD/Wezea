@@ -1,5 +1,13 @@
 """
 Auth utilities — JWT, password hashing, API key generation
+──────────────────────────────────────────────────────────
+Stratégie de hashing :
+  - Nouveaux mots de passe   → argon2 (plus sécurisé, plus rapide que bcrypt)
+  - Mots de passe existants  → bcrypt (lus et vérifiés, rehashés en argon2 au prochain login)
+  - Rehash transparent       → géré dans auth_router.py via needs_rehash()
+
+Pour migrer entièrement vers argon2 sur la production existante,
+appeler rehash_if_needed() après chaque login réussi.
 """
 from __future__ import annotations
 
@@ -29,23 +37,56 @@ if not _raw_secret or len(_raw_secret) < 32:
     )
     _raw_secret = _generated
 
-SECRET_KEY      = _raw_secret
-ALGORITHM       = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES  = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24h
+SECRET_KEY                  = _raw_secret
+ALGORITHM                   = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24h
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# ─── Password context ─────────────────────────────────────────────────────────
+#
+# schemes = ["argon2", "bcrypt"]
+#   - argon2  : algorithme par défaut pour les NOUVEAUX hashes
+#   - bcrypt  : algorithme legacy, déprécié → détecté à la vérification
+#
+# deprecated = ["bcrypt"]
+#   - needs_rehash(hash) retourne True si le hash est en bcrypt
+#   - le re-hash en argon2 est effectué dans auth_router.login()
+#
+# Pré-requis : argon2-cffi==23.1.0 dans requirements.txt
+# ─────────────────────────────────────────────────────────────────────────────
+pwd_context = CryptContext(
+    schemes     = ["argon2", "bcrypt"],
+    deprecated  = ["bcrypt"],
+)
 
 
 # ─── Password ─────────────────────────────────────────────────────────────────
+
 def hash_password(password: str) -> str:
+    """Hash un mot de passe avec argon2 (algorithme par défaut)."""
     return pwd_context.hash(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    """Vérifie un mot de passe (supporte argon2 et bcrypt legacy)."""
+    try:
+        return pwd_context.verify(plain, hashed)
+    except Exception:
+        return False
+
+
+def needs_rehash(hashed: str) -> bool:
+    """
+    Retourne True si le hash doit être migré (ex. bcrypt → argon2).
+    À appeler après verify_password() réussi pour déclencher le rehash transparent.
+    """
+    try:
+        return pwd_context.needs_update(hashed)
+    except Exception:
+        return False
 
 
 # ─── JWT ──────────────────────────────────────────────────────────────────────
+
 def create_access_token(user_id: int, email: str, plan: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
@@ -66,5 +107,6 @@ def decode_token(token: str) -> Optional[dict]:
 
 
 # ─── API Key ──────────────────────────────────────────────────────────────────
+
 def generate_api_key() -> str:
     return "wsk_" + secrets.token_urlsafe(32)

@@ -35,7 +35,21 @@ jobs:
           npm ci --silent
           npm run build
 
-      # ── 4. Déployer le frontend (nginx) ───────────────────────────────────
+      # ── 4. Tests backend (bloquants — échoue le déploiement si un test plante) ─
+      - name: 🧪 Run backend tests
+        working-directory: backend
+        env:
+          JWT_SECRET_KEY: test-secret-key-for-ci-only-32chars
+          CORS_ORIGINS: http://testserver
+          DEBUG: "false"
+          COOKIE_SECURE: "false"
+          COOKIE_SAMESITE: lax
+        run: |
+          .venv/bin/pip install --quiet pytest pytest-asyncio httpx 2>/dev/null || true
+          .venv/bin/pytest tests/ -v --tb=short
+          echo "✓ Tests backend OK"
+
+      # ── 5. Déployer le frontend (nginx) ───────────────────────────────────
       - name: 🌐 Deploy frontend
         run: |
           sudo rm -rf /var/www/cyberhealth/*
