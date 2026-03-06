@@ -278,11 +278,11 @@ export function ProfileModal({ open, onClose }: Props) {
 
   const isPro = user?.plan === 'pro';
 
-  const tabs: Array<{ id: Tab; label: string }> = [
-    { id: 'profile',  label: lang === 'fr' ? '👤 Infos'     : '👤 Info'     },
-    { id: 'security', label: lang === 'fr' ? '🔐 Sécurité'  : '🔐 Security' },
-    { id: 'api',      label: '🔌 API'                                         },
-    { id: 'danger',   label: lang === 'fr' ? '⚠️ Supprimer' : '⚠️ Delete'   },
+  const tabs: Array<{ id: Tab; label: string; color: string; icon: ReactNode }> = [
+    { id: 'profile',  color: '#22d3ee', icon: <User       size={12} className="text-cyan-300"   />, label: lang === 'fr' ? 'Infos'     : 'Info'     },
+    { id: 'security', color: '#818cf8', icon: <ShieldCheck size={12} className="text-indigo-300"/>, label: lang === 'fr' ? 'Sécurité'  : 'Security' },
+    { id: 'api',      color: '#a78bfa', icon: <KeyRound   size={12} className="text-violet-300" />, label: 'API'                                     },
+    { id: 'danger',   color: '#f87171', icon: <Trash2     size={12} className="text-red-300"    />, label: lang === 'fr' ? 'Supprimer' : 'Delete'    },
   ];
 
   return (
@@ -385,20 +385,21 @@ export function ProfileModal({ open, onClose }: Props) {
 
               {/* ── Tabs ───────────────────────────────────────────────────── */}
               <div className="flex" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                {tabs.map(({ id, label }) => (
+                {tabs.map(({ id, label, color, icon }) => (
                   <button
                     key={id}
                     onClick={() => setTab(id)}
-                    className={`flex-1 px-2 py-3 text-xs font-medium transition-all ${
-                      tab === id
-                        ? id === 'danger'
-                          ? 'text-red-400 border-b-2 border-red-500'
-                          : 'text-cyan-400 border-b-2 border-cyan-500'
-                        : 'text-slate-500 hover:text-slate-300'
-                    }`}
-                    style={{ marginBottom: '-1px' }}
+                    className="flex-1 flex flex-col items-center gap-1.5 px-2 py-2.5 transition-all"
+                    style={{
+                      marginBottom: '-1px',
+                      borderBottom: `2px solid ${tab === id ? color : 'transparent'}`,
+                      opacity: tab === id ? 1 : 0.38,
+                    }}
                   >
-                    {label}
+                    <SkuIcon color={color} size={22}>{icon}</SkuIcon>
+                    <span className="text-[10px] font-medium" style={{ color: tab === id ? color : '#94a3b8' }}>
+                      {label}
+                    </span>
                   </button>
                 ))}
               </div>
