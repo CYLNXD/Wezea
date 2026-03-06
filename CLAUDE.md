@@ -264,7 +264,7 @@ cd backend
 # CORS_ORIGINS=http://testserver
 ```
 
-Fichiers : `tests/conftest.py`, `test_auth.py`, `test_scan_validation.py`, `test_rate_limit.py`, `test_report_service.py`
+Fichiers : `tests/conftest.py`, `test_auth.py`, `test_scan_validation.py`, `test_rate_limit.py`, `test_report_service.py`, `test_monitoring.py`
 
 ### `test_report_service.py` — formats de données importants
 ```python
@@ -313,6 +313,15 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 4)
+
+### Tests — monitoring CRUD (test_monitoring.py)
+- 31 nouveaux tests, total **104 tests, 0 échec**
+- Couvre : `GET/POST/DELETE/PATCH /monitoring/domains` + `GET /monitoring/status`
+- 5 classes de tests : `TestFreeUserBlocked`, `TestListDomains`, `TestAddDomain`, `TestDeleteDomain`, `TestUpdateDomain`, `TestMonitoringStatus`
+- **Stratégie anti-rate-limit** : tokens générés directement via `create_access_token()`, users créés en DB via `_make_user(db_session, plan)` — aucun appel `/auth/register` ou `/auth/login`
+- Vérifie : isolation entre users, soft delete, clamping seuil [1–50], fréquence invalide ignorée, limites par plan (starter=1, pro=illimité)
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 2)
 
