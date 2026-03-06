@@ -314,6 +314,23 @@ ls -lh /home/cyberhealth/backups/
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
 
+## 🆕 Fonctionnalités récentes (2026-03-06, session 4 suite)
+
+### Monitoring — scan immédiat
+- **Backend** : `POST /monitoring/domains/{domain}/scan`
+  - Rate limit 3/hour par user
+  - Requiert plan Starter ou Pro (403 sinon)
+  - 404 si le domaine n'est pas sous surveillance ou est inactif
+  - Réutilise `_scan_and_alert()` du scheduler → met à jour `last_score`, `last_risk_level`, `last_scan_at`, `last_ssl_expiry_days`, `last_open_ports`, `last_technologies` en DB
+  - **Ne renvoie pas d'alerte email** (scan de diagnostic uniquement)
+  - Retourne les nouvelles valeurs + message de confirmation
+- **Frontend** (`ClientSpace.tsx`) :
+  - Bouton `RefreshCw` dans la colonne Actions de chaque ligne du tableau monitoring
+  - Spinner pendant le scan → check vert 3s après succès
+  - Désactivé quand un autre scan est en cours (prevent double-click)
+  - Reload automatique des domaines + historique après scan réussi
+  - Visible au hover avec le bouton Supprimer (groupe `opacity-0 → opacity-100`)
+
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 4)
 
 ### Tests — monitoring CRUD (test_monitoring.py)
