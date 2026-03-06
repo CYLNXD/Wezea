@@ -6,7 +6,7 @@
 //   history     → Historique des scans avec graphique + filtres par domaine
 //   settings    → Profil & Sécurité, Facturation, Zone dangereuse
 //
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Globe, Shield, FileDown, Bell,
@@ -20,6 +20,27 @@ import type { WhiteLabelSettings } from '../lib/api';
 import { useLanguage } from '../i18n/LanguageContext';
 import PricingModal from '../components/PricingModal';
 import PageNavbar from '../components/PageNavbar';
+
+// ─── SkuIcon ──────────────────────────────────────────────────────────────────
+
+function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: string; size?: number }) {
+  const r = Math.round(size * 0.28);
+  return (
+    <div
+      className="shrink-0 flex items-center justify-center relative overflow-hidden"
+      style={{
+        width: size, height: size, borderRadius: r,
+        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
+        border: `1px solid ${color}40`,
+        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
+      }}
+    >
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
+      {children}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -876,7 +897,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                 <div className="flex flex-col gap-5">
 
                   {/* Add domain */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                  <div className="sku-card rounded-xl p-5">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <p className="text-white font-bold text-sm flex items-center gap-2">
@@ -1429,11 +1450,11 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                 <div className="flex flex-col gap-6">
 
                   {/* ── API Key ── */}
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-                    <h3 className="text-white font-semibold text-sm mb-1 flex items-center gap-2">
-                      <Key size={14} className="text-cyan-400" />
-                      {lang === 'fr' ? 'Clé API' : 'API Key'}
-                    </h3>
+                  <div className="sku-card rounded-xl p-5">
+                    <div className="flex items-center gap-3 mb-1">
+                      <SkuIcon color="#a78bfa" size={32}><Key size={13} className="text-violet-300" /></SkuIcon>
+                      <h3 className="text-white font-semibold text-sm">{lang === 'fr' ? 'Clé API' : 'API Key'}</h3>
+                    </div>
                     <p className="text-slate-500 text-xs mb-4">
                       {lang === 'fr'
                         ? 'Utilisez cette clé comme Bearer token pour accéder à l\'API sans cookie de session.'
@@ -1491,11 +1512,11 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                   </div>
 
                   {/* ── Badge SVG ── */}
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-                    <h3 className="text-white font-semibold text-sm mb-1 flex items-center gap-2">
-                      <Shield size={14} className="text-cyan-400" />
-                      {lang === 'fr' ? 'Badge de sécurité' : 'Security badge'}
-                    </h3>
+                  <div className="sku-card rounded-xl p-5">
+                    <div className="flex items-center gap-3 mb-1">
+                      <SkuIcon color="#22d3ee" size={32}><Shield size={13} className="text-cyan-300" /></SkuIcon>
+                      <h3 className="text-white font-semibold text-sm">{lang === 'fr' ? 'Badge de sécurité' : 'Security badge'}</h3>
+                    </div>
                     <p className="text-slate-500 text-xs mb-4">
                       {lang === 'fr'
                         ? 'Affichez votre score de sécurité en temps réel sur votre site, README GitHub, ou emails.'
@@ -1549,11 +1570,11 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                   </div>
 
                   {/* ── Webhooks ── */}
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-                    <h3 className="text-white font-semibold text-sm mb-1 flex items-center gap-2">
-                      <Webhook size={14} className="text-cyan-400" />
-                      Webhooks
-                    </h3>
+                  <div className="sku-card rounded-xl p-5">
+                    <div className="flex items-center gap-3 mb-1">
+                      <SkuIcon color="#a78bfa" size={32}><Webhook size={13} className="text-violet-300" /></SkuIcon>
+                      <h3 className="text-white font-semibold text-sm">Webhooks</h3>
+                    </div>
                     <p className="text-slate-500 text-xs mb-4">
                       {lang === 'fr'
                         ? 'Recevez les événements de scan en temps réel dans votre système (Zapier, Slack, CI/CD…). Max 5 webhooks.'
@@ -1745,11 +1766,11 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                     <div className="flex flex-col gap-4">
 
                       {/* Change email */}
-                      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-                        <h3 className="text-white font-semibold text-sm mb-4 flex items-center gap-2">
-                          <Mail size={14} className="text-cyan-400" />
-                          {lang === 'fr' ? 'Adresse email' : 'Email address'}
-                        </h3>
+                      <div className="sku-card rounded-xl p-5">
+                        <div className="flex items-center gap-3 mb-4">
+                          <SkuIcon color="#22d3ee" size={32}><Mail size={13} className="text-cyan-300" /></SkuIcon>
+                          <h3 className="text-white font-semibold text-sm">{lang === 'fr' ? 'Adresse email' : 'Email address'}</h3>
+                        </div>
                         {user?.google_id ? (
                           <p className="text-slate-400 text-xs">
                             {lang === 'fr' ? 'Votre compte est lié à Google. L\'email est géré par Google.' : 'Your account is linked to Google. Email is managed by Google.'}
@@ -1795,11 +1816,11 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                       </div>
 
                       {/* Change password */}
-                      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-                        <h3 className="text-white font-semibold text-sm mb-4 flex items-center gap-2">
-                          <Key size={14} className="text-cyan-400" />
-                          {lang === 'fr' ? 'Mot de passe' : 'Password'}
-                        </h3>
+                      <div className="sku-card rounded-xl p-5">
+                        <div className="flex items-center gap-3 mb-4">
+                          <SkuIcon color="#818cf8" size={32}><Key size={13} className="text-indigo-300" /></SkuIcon>
+                          <h3 className="text-white font-semibold text-sm">{lang === 'fr' ? 'Mot de passe' : 'Password'}</h3>
+                        </div>
                         {user?.google_id ? (
                           <p className="text-slate-400 text-xs">
                             {lang === 'fr' ? 'Votre compte est lié à Google. Connectez-vous via Google.' : 'Your account is linked to Google. Sign in via Google.'}
@@ -1852,11 +1873,11 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                   {/* ── BILLING ── */}
                   {settingsSection === 'billing' && (
                     <div className="flex flex-col gap-4">
-                      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-                        <h3 className="text-white font-semibold text-sm mb-5 flex items-center gap-2">
-                          <CreditCard size={14} className="text-cyan-400" />
-                          {lang === 'fr' ? 'Abonnement actuel' : 'Current plan'}
-                        </h3>
+                      <div className="sku-card rounded-xl p-5">
+                        <div className="flex items-center gap-3 mb-5">
+                          <SkuIcon color="#22d3ee" size={32}><CreditCard size={13} className="text-cyan-300" /></SkuIcon>
+                          <h3 className="text-white font-semibold text-sm">{lang === 'fr' ? 'Abonnement actuel' : 'Current plan'}</h3>
+                        </div>
                         <div className="flex items-center justify-between flex-wrap gap-4">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
