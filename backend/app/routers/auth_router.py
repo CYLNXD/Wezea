@@ -146,8 +146,9 @@ def get_current_user(
             raise HTTPException(status_code=401, detail="User not found")
         return user
 
-    # Fallback : API key (64 hex chars, plan Pro/Team uniquement)
-    if len(token) == 64 and token.isalnum():
+    # Fallback : API key (format wsk_<base64url>, plan Pro uniquement)
+    # Note : token_urlsafe(32) génère ~43 chars base64url — pas 64 hex, pas isalnum()
+    if token.startswith("wsk_"):
         user = db.query(User).filter(User.api_key == token).first()
         if user and user.is_active and user.plan in ("pro",):
             return user
@@ -161,13 +162,21 @@ def get_optional_user(
 ) -> Optional[User]:
     """Returns user or None — for endpoints that work both logged in and anonymous."""
     if not authorization or not authorization.startswith("Bearer "):
-        # Try API key fallback
         return None
     token = authorization.split(" ", 1)[1]
+
+    # JWT d'abord
     payload = decode_token(token)
-    if not payload:
-        return None
-    return db.query(User).filter(User.id == int(payload["sub"])).first()
+    if payload:
+        return db.query(User).filter(User.id == int(payload["sub"])).first()
+
+    # Fallback API key (wsk_ prefix, plan Pro)
+    if token.startswith("wsk_"):
+        user = db.query(User).filter(User.api_key == token).first()
+        if user and user.is_active and user.plan in ("pro",):
+            return user
+
+    return None
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────

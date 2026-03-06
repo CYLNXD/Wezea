@@ -287,3 +287,98 @@ def test_reset_password_short_password(client, db_user, db_session):
         "new_password": "short",  # < 8 chars
     })
     assert resp.status_code == 422
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tests API key — authentification via wsk_ prefix
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _make_pro_with_api_key(db_session) -> dict:
+    """Crée un utilisateur Pro en DB avec une clé API valide."""
+    import uuid as _uuid
+    from app.models import User
+    from app.auth import hash_password, generate_api_key, create_access_token
+
+    email = f"pro-apikey-{_uuid.uuid4().hex[:8]}@example.com"
+    api_key = generate_api_key()
+    user = User(
+        email=email,
+        password_hash=hash_password("TestPass123"),
+        plan="pro",
+        api_key=api_key,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return {"email": email, "api_key": api_key, "user": user}
+
+
+def test_api_key_format_starts_with_wsk(db_session):
+    """Les clés API générées commencent par 'wsk_'."""
+    creds = _make_pro_with_api_key(db_session)
+    assert creds["api_key"].startswith("wsk_"), (
+        f"API key should start with 'wsk_', got: {creds['api_key'][:8]}"
+    )
+
+
+def test_api_key_auth_on_me_endpoint(client, db_session):
+    """Une clé API valide (plan Pro) permet d'accéder à /auth/me."""
+    creds = _make_pro_with_api_key(db_session)
+    resp = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {creds['api_key']}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["email"] == creds["email"]
+
+
+def test_api_key_auth_free_user_rejected(client, db_session):
+    """Une clé API d'un utilisateur free doit être rejetée (plan Pro requis)."""
+    import uuid as _uuid
+    from app.models import User
+    from app.auth import hash_password, generate_api_key
+
+    email = f"free-apikey-{_uuid.uuid4().hex[:8]}@example.com"
+    api_key = generate_api_key()
+    user = User(
+        email=email,
+        password_hash=hash_password("TestPass123"),
+        plan="free",
+        api_key=api_key,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    resp = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    assert resp.status_code == 401
+
+
+def test_api_key_wrong_prefix_rejected(client, db_session):
+    """Un token avec un mauvais préfixe n'est pas reconnu comme clé API."""
+    creds = _make_pro_with_api_key(db_session)
+    # Remplacer wsk_ par un préfixe invalide
+    bad_token = "bad_" + creds["api_key"][4:]
+    resp = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {bad_token}"},
+    )
+    assert resp.status_code == 401
+
+
+def test_api_key_regenerate_changes_key(client, db_session):
+    """Régénérer la clé API produit une nouvelle clé wsk_ différente."""
+    creds = _make_pro_with_api_key(db_session)
+    from app.auth import create_access_token
+    token = create_access_token(creds["user"].id, creds["email"], "pro")
+
+    resp = client.post(
+        "/auth/api-key/regenerate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    new_key = resp.json()["api_key"]
+    assert new_key.startswith("wsk_")
+    assert new_key != creds["api_key"]

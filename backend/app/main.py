@@ -481,10 +481,15 @@ async def get_scan_limits(request: Request) -> dict:
         current_user: User | None = None
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1]
             from app.auth import decode_token
-            payload = decode_token(auth_header.split(" ", 1)[1])
+            payload = decode_token(token)
             if payload:
                 current_user = db.query(User).filter(User.id == int(payload["sub"])).first()
+            elif token.startswith("wsk_"):
+                candidate = db.query(User).filter(User.api_key == token).first()
+                if candidate and candidate.is_active and candidate.plan in ("pro",):
+                    current_user = candidate
 
         if current_user:
             limit = current_user.scan_limit_per_day
@@ -555,14 +560,20 @@ async def run_scan(
     # ── Session DB ────────────────────────────────────────────────────────────
     db = SessionLocal()
     try:
-        # ── Auth optionnelle ──────────────────────────────────────────────────
+        # ── Auth optionnelle : JWT ou clé API (wsk_) ─────────────────────────
         current_user: User | None = None
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1]
             from app.auth import decode_token
-            payload = decode_token(auth_header.split(" ", 1)[1])
+            payload = decode_token(token)
             if payload:
                 current_user = db.query(User).filter(User.id == int(payload["sub"])).first()
+            elif token.startswith("wsk_"):
+                # Clé API → plan Pro uniquement
+                candidate = db.query(User).filter(User.api_key == token).first()
+                if candidate and candidate.is_active and candidate.plan in ("pro",):
+                    current_user = candidate
 
         # ── Rate limiting ─────────────────────────────────────────────────────
         if current_user:
