@@ -13,6 +13,7 @@ Couvre :
 from __future__ import annotations
 
 import pytest
+from unittest.mock import patch, MagicMock
 from app.services.report_service import (
     _checks_context,
     _derive_checks_overview,
@@ -588,3 +589,138 @@ class TestBuildContext:
         assert ctx["high_count"]     == 0
         assert ctx["medium_count"]   == 0
         assert ctx["low_count"]      == 0
+
+
+# =============================================================================
+# _build_jinja_env — filtres personnalisés
+# =============================================================================
+
+class TestBuildJinjaEnv:
+    """Tests pour _build_jinja_env : filtres format_eur et risk_class."""
+
+    def _env(self):
+        from app.services.report_service import _build_jinja_env
+        return _build_jinja_env()
+
+    def test_format_eur_integer(self):
+        env = self._env()
+        result = env.filters["format_eur"](58000)
+        assert "58" in result
+        assert "€" in result
+
+    def test_format_eur_float(self):
+        env = self._env()
+        result = env.filters["format_eur"](9900.0)
+        assert "€" in result
+
+    def test_format_eur_invalid_returns_str(self):
+        env = self._env()
+        result = env.filters["format_eur"](None)
+        assert isinstance(result, str)
+
+    def test_format_eur_string_raises_handled(self):
+        env = self._env()
+        result = env.filters["format_eur"]("not a number")
+        assert isinstance(result, str)
+
+    def test_risk_class_critical(self):
+        env = self._env()
+        assert env.filters["risk_class"]("CRITICAL") == "danger"
+
+    def test_risk_class_high(self):
+        env = self._env()
+        assert env.filters["risk_class"]("HIGH") == "warning"
+
+    def test_risk_class_medium(self):
+        env = self._env()
+        assert env.filters["risk_class"]("MEDIUM") == "warning"
+
+    def test_risk_class_low(self):
+        env = self._env()
+        assert env.filters["risk_class"]("LOW") == "ok"
+
+    def test_risk_class_unknown_defaults_ok(self):
+        env = self._env()
+        assert env.filters["risk_class"]("UNKNOWN") == "ok"
+
+
+# =============================================================================
+# generate_pdf — chemins d'erreur (WeasyPrint import/render/pdf)
+# =============================================================================
+
+class TestGeneratePdf:
+    """Tests pour generate_pdf : erreurs WeasyPrint et Jinja2."""
+
+    def _scan_data(self):
+        """Données minimales valides pour generate_pdf."""
+        return {
+            "domain": "example.com",
+            "scanned_at": "2026-01-01T00:00:00+00:00",
+            "security_score": 75,
+            "risk_level": "MEDIUM",
+            "findings": [],
+            "dns_details": {},
+            "ssl_details": {"status": "valid", "tls_version": "TLSv1.3", "days_left": 90},
+            "port_details": {},
+            "recommendations": [],
+            "scan_duration_ms": 100,
+            "subdomain_details": {},
+            "vuln_details": {},
+        }
+
+    def test_weasyprint_import_error_raises_runtime(self):
+        """ImportError de WeasyPrint → RuntimeError avec message lisible."""
+        import builtins, sys
+
+        real_import = builtins.__import__
+
+        def _mock_import(name, *args, **kwargs):
+            if name == "weasyprint":
+                raise ImportError("weasyprint not installed")
+            return real_import(name, *args, **kwargs)
+
+        from app.services.report_service import generate_pdf
+        with patch("builtins.__import__", side_effect=_mock_import):
+            with pytest.raises(RuntimeError, match="WeasyPrint"):
+                generate_pdf(self._scan_data(), "fr")
+
+    def test_jinja2_render_error_raises_runtime(self):
+        """Erreur Jinja2 render → RuntimeError."""
+        from app.services.report_service import generate_pdf
+        from unittest.mock import patch, MagicMock
+
+        mock_template = MagicMock()
+        mock_template.render.side_effect = Exception("template broken")
+        mock_env = MagicMock()
+        mock_env.get_template.return_value = mock_template
+
+        mock_html_cls = MagicMock()
+        mock_html_cls.return_value.write_pdf.return_value = b"%PDF"
+        mock_font_config = MagicMock()
+
+        with patch("app.services.report_service._build_jinja_env", return_value=mock_env), \
+             patch("weasyprint.HTML", mock_html_cls), \
+             patch("weasyprint.text.fonts.FontConfiguration", return_value=mock_font_config):
+            with pytest.raises(RuntimeError, match="template"):
+                generate_pdf(self._scan_data(), "fr")
+
+    def test_weasyprint_write_pdf_error_raises_runtime(self):
+        """Erreur WeasyPrint.write_pdf → RuntimeError."""
+        from app.services.report_service import generate_pdf
+        from unittest.mock import patch, MagicMock
+
+        mock_template = MagicMock()
+        mock_template.render.return_value = "<html>ok</html>"
+        mock_env = MagicMock()
+        mock_env.get_template.return_value = mock_template
+
+        mock_html_inst = MagicMock()
+        mock_html_inst.write_pdf.side_effect = Exception("PDF engine error")
+        mock_html_cls = MagicMock(return_value=mock_html_inst)
+        mock_font_config = MagicMock()
+
+        with patch("app.services.report_service._build_jinja_env", return_value=mock_env), \
+             patch("weasyprint.HTML", mock_html_cls), \
+             patch("weasyprint.text.fonts.FontConfiguration", return_value=mock_font_config):
+            with pytest.raises(RuntimeError, match="PDF"):
+                generate_pdf(self._scan_data(), "fr")

@@ -2,8 +2,10 @@
 Tests : authentification (register, login, JWT, lockout, forgot/reset password,
         profile, delete account, change-password, change-email, white-label)
 """
+import io
 import pytest
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch, MagicMock
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -802,3 +804,210 @@ def test_white_label_logo_delete_free_user_403(client, db_session):
         headers={"Authorization": f"Bearer {u['token']}"},
     )
     assert resp.status_code == 403
+
+
+# =============================================================================
+# Google OAuth — POST /auth/google
+# =============================================================================
+
+def _google_idinfo(email="alice@gmail.com", sub="goog_sub_123",
+                   given_name="Alice", family_name="Smith",
+                   email_verified=True):
+    """Construit un faux idinfo Google."""
+    return {
+        "email": email, "sub": sub,
+        "given_name": given_name, "family_name": family_name,
+        "email_verified": email_verified,
+    }
+
+
+class TestGoogleAuth:
+
+    def test_no_client_id_returns_503(self, client, db_session):
+        """GOOGLE_CLIENT_ID non configuré → 503."""
+        with patch("app.routers.auth_router.GOOGLE_CLIENT_ID", ""):
+            resp = client.post("/auth/google", json={"id_token": "tok"})
+        assert resp.status_code == 503
+
+    def test_invalid_token_returns_401(self, client, db_session):
+        """Token Google invalide → 401."""
+        with patch("app.routers.auth_router.GOOGLE_CLIENT_ID", "test-client-id"), \
+             patch("google.oauth2.id_token.verify_oauth2_token") as mock_g:
+            mock_g.side_effect = ValueError("bad token")
+            resp = client.post("/auth/google", json={"id_token": "bad"})
+        assert resp.status_code == 401
+
+    def test_new_user_created_returns_token(self, client, db_session):
+        """Nouvel utilisateur → créé en DB + token JWT retourné."""
+        from app.models import User
+        idinfo = _google_idinfo(email="new@gmail.com", sub="sub_new")
+        with patch("app.routers.auth_router.GOOGLE_CLIENT_ID", "test-client-id"), \
+             patch("google.oauth2.id_token.verify_oauth2_token") as mock_g, \
+             patch("app.routers.auth_router._send_welcome_sync"):
+            mock_g.return_value = idinfo
+            resp = client.post("/auth/google", json={"id_token": "valid_tok"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "access_token" in data
+        # Vérifier que l'user a bien été créé en DB
+        user = db_session.query(User).filter(User.email == "new@gmail.com").first()
+        assert user is not None
+        assert user.google_id == "sub_new"
+        assert user.password_hash.startswith("!google:")
+
+    def test_existing_user_by_google_id_returns_token(self, client, db_session):
+        """User déjà lié par google_id → token retourné sans recréation."""
+        from app.models import User
+        from app.auth import hash_password, generate_api_key
+        # Créer un user avec google_id
+        existing = User(
+            email="existing@gmail.com",
+            password_hash="!google:sub_existing",
+            plan="free",
+            api_key=generate_api_key(),
+            google_id="sub_existing",
+        )
+        db_session.add(existing)
+        db_session.commit()
+        db_session.refresh(existing)
+
+        idinfo = _google_idinfo(email="existing@gmail.com", sub="sub_existing")
+        with patch("app.routers.auth_router.GOOGLE_CLIENT_ID", "test-client-id"), \
+             patch("google.oauth2.id_token.verify_oauth2_token") as mock_g, \
+             patch("app.routers.auth_router._send_welcome_sync"):
+            mock_g.return_value = idinfo
+            resp = client.post("/auth/google", json={"id_token": "valid_tok"})
+        assert resp.status_code == 200
+        assert "access_token" in resp.json()
+
+    def test_existing_user_by_email_links_google_id(self, client, db_session):
+        """User existant sans google_id → google_id lié sur email match."""
+        from app.models import User
+        from app.auth import hash_password, generate_api_key
+        existing = User(
+            email="link@example.com",
+            password_hash=hash_password("pass"),
+            plan="free",
+            api_key=generate_api_key(),
+        )
+        db_session.add(existing)
+        db_session.commit()
+        db_session.refresh(existing)
+
+        idinfo = _google_idinfo(email="link@example.com", sub="sub_link")
+        with patch("app.routers.auth_router.GOOGLE_CLIENT_ID", "test-client-id"), \
+             patch("google.oauth2.id_token.verify_oauth2_token") as mock_g, \
+             patch("app.routers.auth_router._send_welcome_sync"):
+            mock_g.return_value = idinfo
+            resp = client.post("/auth/google", json={"id_token": "valid_tok"})
+        assert resp.status_code == 200
+        db_session.refresh(existing)
+        assert existing.google_id == "sub_link"
+
+    def test_unverified_email_returns_400(self, client, db_session):
+        """Email Google non vérifié → 400."""
+        idinfo = _google_idinfo(email_verified=False)
+        with patch("app.routers.auth_router.GOOGLE_CLIENT_ID", "test-client-id"), \
+             patch("google.oauth2.id_token.verify_oauth2_token") as mock_g:
+            mock_g.return_value = idinfo
+            resp = client.post("/auth/google", json={"id_token": "valid_tok"})
+        assert resp.status_code == 400
+
+
+# =============================================================================
+# Guards Google — change-password + change-email bloqués pour comptes Google
+# =============================================================================
+
+class TestGoogleUserGuards:
+
+    def test_change_password_blocked_for_google_user(self, client, db_session):
+        """Compte Google (password_hash=!google:…) → 400 sur change-password."""
+        from app.models import User
+        from app.auth import generate_api_key, create_access_token
+        u = User(
+            email="guser@gmail.com",
+            password_hash="!google:sub_xyz",
+            plan="free", api_key=generate_api_key(),
+            google_id="sub_xyz",
+        )
+        db_session.add(u)
+        db_session.commit()
+        db_session.refresh(u)
+        token = create_access_token(u.id, u.email, u.plan)
+
+        resp = client.post(
+            "/auth/change-password",
+            json={"current_password": "irrelevant", "new_password": "NewPass123!"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 400
+        assert "Google" in resp.json()["detail"]
+
+    def test_change_email_blocked_for_google_user(self, client, db_session):
+        """Compte Google → 400 sur change-email."""
+        from app.models import User
+        from app.auth import generate_api_key, create_access_token
+        u = User(
+            email="guser2@gmail.com",
+            password_hash="!google:sub_yyy",
+            plan="free", api_key=generate_api_key(),
+            google_id="sub_yyy",
+        )
+        db_session.add(u)
+        db_session.commit()
+        db_session.refresh(u)
+        token = create_access_token(u.id, u.email, u.plan)
+
+        resp = client.post(
+            "/auth/change-email",
+            json={"new_email": "new@example.com", "current_password": "irrelevant"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 400
+        assert "Google" in resp.json()["detail"]
+
+
+# =============================================================================
+# get_optional_user — API key (wsk_) path
+# =============================================================================
+
+class TestOptionalUserApiKey:
+    """Tests pour le fallback API key dans get_optional_user."""
+
+    def test_api_key_pro_user_authenticated(self, client, db_session):
+        """Clé API wsk_ valide pour un Pro → authentifié via l'endpoint /auth/me."""
+        from app.models import User
+        from app.auth import generate_api_key
+        u = User(
+            email="prouser@example.com",
+            password_hash="!google:stub",
+            plan="pro",
+            api_key=generate_api_key(),
+            is_active=True,
+        )
+        db_session.add(u)
+        db_session.commit()
+        db_session.refresh(u)
+
+        resp = client.get("/auth/me", headers={"Authorization": f"Bearer {u.api_key}"})
+        assert resp.status_code == 200
+        assert resp.json()["email"] == u.email
+
+    def test_api_key_starter_not_authorized(self, client, db_session):
+        """Clé API wsk_ pour Starter → non-autorisé (Pro uniquement)."""
+        from app.models import User
+        from app.auth import generate_api_key
+        u = User(
+            email="starteruser@example.com",
+            password_hash="pass",
+            plan="starter",
+            api_key=generate_api_key(),
+            is_active=True,
+        )
+        db_session.add(u)
+        db_session.commit()
+        db_session.refresh(u)
+
+        resp = client.get("/auth/me", headers={"Authorization": f"Bearer {u.api_key}"})
+        # Starter ne peut pas utiliser l'API key
+        assert resp.status_code == 401
