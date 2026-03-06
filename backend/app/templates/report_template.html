@@ -706,13 +706,15 @@ p.lead {
    ⑥ PLAN D'ACTION — 3 phases
    ════════════════════════════════════════════════════════════════════════════ */
 .action-phases {
-  overflow: hidden;
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  border-spacing: 5pt 0;
   margin: 14pt 0;
 }
 .action-phase {
-  float: left;
-  width: 32%;
-  margin-right: 2%;
+  display: table-cell;
+  vertical-align: top;
   border-radius: 6pt;
   overflow: hidden;
   border: 1pt solid var(--border);
