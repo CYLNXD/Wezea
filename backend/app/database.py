@@ -57,6 +57,8 @@ def _apply_migrations():
         _add_column_if_missing(conn, "users", "wb_primary_color", "TEXT")
         # ── Feature : détails complets du scan pour le PDF ──────────────
         _add_column_if_missing(conn, "scan_history", "scan_details_json", "TEXT")
+        # ── Feature : partage public d'un scan ───────────────────────────
+        _add_column_if_missing(conn, "scan_history", "public_share", "BOOLEAN DEFAULT 0 NOT NULL")
 
 
 def _add_column_if_missing(conn, table: str, column: str, column_def: str):

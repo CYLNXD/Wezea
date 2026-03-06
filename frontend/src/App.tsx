@@ -7,6 +7,7 @@ import AdminPage from './pages/AdminPage';
 import ClientSpace from './pages/ClientSpace';
 import ContactPage from './pages/ContactPage';
 import LegalPage from './pages/LegalPage';
+import PublicScanPage from './pages/PublicScanPage';
 import type { LegalSection } from './pages/LegalPage';
 import CookieBanner from './components/CookieBanner';
 import { LanguageProvider } from './i18n/LanguageContext';
@@ -14,12 +15,13 @@ import { AuthProvider } from './contexts/AuthContext';
 import { initClientId, } from './lib/api';
 import { restoreConsent } from './lib/analytics';
 
-type Page = 'dashboard' | 'login' | 'history' | 'admin' | 'clientspace' | 'contact' | 'legal';
+type Page = 'dashboard' | 'login' | 'history' | 'admin' | 'clientspace' | 'contact' | 'legal' | 'public-scan';
 
 export default function App() {
   const [page, setPage]               = useState<Page>('dashboard');
   const [legalSection, setLegalSection] = useState<LegalSection>('mentions');
   const [loginMode, setLoginMode]       = useState<'login' | 'register'>('login');
+  const [publicScanUuid, setPublicScanUuid] = useState<string | null>(null);
 
   // Initialise le cookie d'identification anonyme et restaure le consentement analytics
   useEffect(() => {
@@ -27,8 +29,17 @@ export default function App() {
     restoreConsent(); // réactive PostHog si l'utilisateur avait déjà accepté
   }, []);
 
-  // Gère le paramètre ?page=contact dans l'URL (lien depuis le PDF)
+  // Détecte les routes /r/{uuid} pour les rapports publics
   useEffect(() => {
+    const path = window.location.pathname;
+    const match = path.match(/^\/r\/([a-f0-9-]{36})$/i);
+    if (match) {
+      setPublicScanUuid(match[1]);
+      setPage('public-scan');
+      return;
+    }
+
+    // Gère le paramètre ?page=contact dans l'URL (lien depuis le PDF)
     const params = new URLSearchParams(window.location.search);
     const p = params.get('page');
     if (p === 'contact') {
@@ -106,6 +117,15 @@ export default function App() {
             onGoHistory={() => setPage('history')}
             onGoAdmin={() => setPage('admin')}
             onGoContact={() => setPage('contact')}
+          />
+        )}
+        {page === 'public-scan' && publicScanUuid && (
+          <PublicScanPage
+            uuid={publicScanUuid}
+            onGoHome={() => {
+              window.history.replaceState({}, '', '/');
+              setPage('dashboard');
+            }}
           />
         )}
       </AuthProvider>

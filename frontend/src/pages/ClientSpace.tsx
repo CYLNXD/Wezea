@@ -61,6 +61,7 @@ interface ScanHistoryItem {
   risk_level:      string;
   findings_count:  number;
   scan_duration:   number;
+  public_share:    boolean;
   created_at:      string;
 }
 
@@ -247,6 +248,13 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   // PDF
   const [pdfLoading, setPdfLoading]     = useState<string | null>(null);
   const [_pdfError, setPdfError]        = useState<string | null>(null);
+
+  // Export JSON/CSV
+  const [exportLoading, setExportLoading] = useState<string | null>(null); // "uuid-format"
+
+  // Share public link
+  const [shareLoading, setShareLoading] = useState<string | null>(null);
+  const [shareCopied,  setShareCopied]  = useState<string | null>(null);
 
   // Scan result modal
   const [scanModal, setScanModal]       = useState<ScanDetail | null>(null);
@@ -457,6 +465,50 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
     }
     finally { setPdfLoading(null); }
   };
+
+  // ── Export scan JSON / CSV ─────────────────────────────────────────────────
+
+  const exportScan = useCallback(async (scanUuid: string, domain: string, format: 'json' | 'csv') => {
+    const key = `${scanUuid}-${format}`;
+    setExportLoading(key);
+    try {
+      const { data, headers } = await apiClient.get(
+        `/scans/history/${scanUuid}/export?format=${format}`,
+        { responseType: 'blob' }
+      );
+      const cd = (headers['content-disposition'] ?? '') as string;
+      const match = cd.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : `wezea-scan-${domain}.${format}`;
+      const url = URL.createObjectURL(new Blob([data]));
+      const a   = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { /* silent */ }
+    finally { setExportLoading(null); }
+  }, []);
+
+  // ── Toggle public share link ───────────────────────────────────────────────
+
+  const toggleShare = useCallback(async (scanUuid: string) => {
+    setShareLoading(scanUuid);
+    try {
+      const { data } = await apiClient.patch(`/scans/history/${scanUuid}/share`);
+      // Update local state
+      setHistory(prev => prev.map(s =>
+        s.scan_uuid === scanUuid ? { ...s, public_share: data.public_share } : s
+      ));
+      // If now shared, copy link to clipboard
+      if (data.public_share) {
+        const link = `${window.location.origin}/r/${scanUuid}`;
+        try { await navigator.clipboard.writeText(link); } catch { /* ignore */ }
+        setShareCopied(scanUuid);
+        setTimeout(() => setShareCopied(c => c === scanUuid ? null : c), 3000);
+      }
+    } catch { /* silent */ }
+    finally { setShareLoading(null); }
+  }, []);
 
   // ── Open scan result modal ─────────────────────────────────────────────────
 
@@ -1232,6 +1284,8 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                                 <>
                                   <th className="px-4 py-3 text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Voir' : 'View'}</th>
                                   <th className="px-4 py-3 text-xs font-mono text-slate-500 uppercase tracking-wider">PDF</th>
+                                  <th className="px-4 py-3 text-xs font-mono text-slate-500 uppercase tracking-wider">Export</th>
+                                  <th className="px-4 py-3 text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Lien' : 'Share'}</th>
                                 </>
                               ) : null}
                             </tr>
@@ -1281,6 +1335,63 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                                           : <FileDown size={13} />
                                         }
                                         PDF
+                                      </button>
+                                    </td>
+                                    <td className="px-4 py-3.5">
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => exportScan(scan.scan_uuid, scan.domain, 'json')}
+                                          disabled={exportLoading === `${scan.scan_uuid}-json`}
+                                          title={lang === 'fr' ? 'Télécharger JSON' : 'Download JSON'}
+                                          className="text-xs font-mono text-slate-400 hover:text-cyan-400 transition disabled:opacity-40"
+                                        >
+                                          {exportLoading === `${scan.scan_uuid}-json`
+                                            ? <div className="w-3 h-3 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+                                            : 'JSON'}
+                                        </button>
+                                        <span className="text-slate-700">|</span>
+                                        <button
+                                          onClick={() => exportScan(scan.scan_uuid, scan.domain, 'csv')}
+                                          disabled={exportLoading === `${scan.scan_uuid}-csv`}
+                                          title={lang === 'fr' ? 'Télécharger CSV' : 'Download CSV'}
+                                          className="text-xs font-mono text-slate-400 hover:text-emerald-400 transition disabled:opacity-40"
+                                        >
+                                          {exportLoading === `${scan.scan_uuid}-csv`
+                                            ? <div className="w-3 h-3 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                                            : 'CSV'}
+                                        </button>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3.5">
+                                      <button
+                                        onClick={() => toggleShare(scan.scan_uuid)}
+                                        disabled={shareLoading === scan.scan_uuid}
+                                        title={
+                                          shareCopied === scan.scan_uuid
+                                            ? (lang === 'fr' ? 'Lien copié !' : 'Link copied!')
+                                            : scan.public_share
+                                              ? (lang === 'fr' ? 'Désactiver le lien public' : 'Disable public link')
+                                              : (lang === 'fr' ? 'Activer le lien public' : 'Enable public link')
+                                        }
+                                        className={`flex items-center gap-1 text-xs transition disabled:opacity-40 ${
+                                          shareCopied === scan.scan_uuid
+                                            ? 'text-green-400'
+                                            : scan.public_share
+                                              ? 'text-violet-400 hover:text-violet-300'
+                                              : 'text-slate-500 hover:text-slate-300'
+                                        }`}
+                                      >
+                                        {shareLoading === scan.scan_uuid
+                                          ? <div className="w-3 h-3 border-2 border-slate-400/30 border-t-slate-400 rounded-full animate-spin" />
+                                          : shareCopied === scan.scan_uuid
+                                            ? <Check size={13} />
+                                            : <ExternalLink size={13} />
+                                        }
+                                        {shareCopied === scan.scan_uuid
+                                          ? (lang === 'fr' ? 'Copié' : 'Copied')
+                                          : scan.public_share
+                                            ? (lang === 'fr' ? 'Actif' : 'Active')
+                                            : (lang === 'fr' ? 'Partager' : 'Share')}
                                       </button>
                                     </td>
                                   </>

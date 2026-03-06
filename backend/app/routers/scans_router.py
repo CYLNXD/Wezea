@@ -51,6 +51,7 @@ def get_history(
                 "risk_level": s.risk_level,
                 "findings_count": s.findings_count,
                 "scan_duration": s.scan_duration,
+                "public_share": bool(s.public_share),
                 "created_at": s.created_at.isoformat(),
             }
             for s in scans
@@ -165,6 +166,26 @@ def export_scan(
         media_type  = "text/csv; charset=utf-8",
         headers     = {"Content-Disposition": f'attachment; filename="{filename_base}.csv"'},
     )
+
+
+@router.patch("/history/{scan_uuid}/share")
+def toggle_share(
+    scan_uuid:    str,
+    current_user: User    = Depends(get_current_user),
+    db:           Session = Depends(get_db),
+):
+    """Active ou désactive le lien de partage public pour un scan."""
+    scan = (
+        db.query(ScanHistory)
+        .filter(ScanHistory.scan_uuid == scan_uuid, ScanHistory.user_id == current_user.id)
+        .first()
+    )
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    scan.public_share = not scan.public_share
+    db.commit()
+    return {"scan_uuid": scan_uuid, "public_share": scan.public_share}
 
 
 @router.delete("/history/{scan_uuid}", status_code=204)

@@ -95,6 +95,50 @@ def security_badge(request: Request, domain: str, db: Session = Depends(get_db))
     )
 
 
+@router.get(
+    "/scan/{scan_uuid}",
+    summary     = "Résultats publics d'un scan",
+    description = "Retourne les résultats d'un scan si le propriétaire l'a partagé (public_share=True).",
+)
+@limiter.limit("60/minute")
+def public_scan(request: Request, scan_uuid: str, db: Session = Depends(get_db)):
+    """
+    Endpoint sans authentification pour afficher un rapport de scan partagé.
+    Seuls les scans marqués `public_share=True` sont exposés.
+    """
+    scan = (
+        db.query(ScanHistory)
+        .filter(ScanHistory.scan_uuid == scan_uuid)
+        .first()
+    )
+    if not scan:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    # Vérifier si le scan est partageable (colonne public_share, défaut False)
+    if not getattr(scan, "public_share", False):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="This scan is not shared publicly")
+
+    details  = scan.get_scan_details()
+    findings = scan.get_findings()
+
+    return {
+        "scan_uuid":      scan.scan_uuid,
+        "domain":         scan.domain,
+        "scanned_at":     scan.created_at.isoformat(),
+        "security_score": scan.security_score,
+        "risk_level":     scan.risk_level,
+        "findings_count": scan.findings_count,
+        "findings":       findings,
+        "scan_duration":  scan.scan_duration,
+        "dns_details":    details.get("dns_details", {}),
+        "ssl_details":    details.get("ssl_details", {}),
+        "port_details":   details.get("port_details", {}),
+        "recommendations": details.get("recommendations", []),
+    }
+
+
 @router.get("/stats", summary="Statistiques publiques")
 @limiter.limit("60/minute")
 def public_stats(request: Request, db: Session = Depends(get_db)):

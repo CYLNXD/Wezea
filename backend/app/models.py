@@ -71,6 +71,7 @@ class ScanHistory(Base):
     findings_json  = Column(Text, nullable=True)   # full JSON blob
     scan_details_json = Column(Text, nullable=True) # dns_details, ssl_details, port_details, recommendations, subdomain_details, vuln_details
     scan_duration  = Column(Float, nullable=True)  # ms
+    public_share   = Column(Boolean, default=False, nullable=False)  # lien public /r/{uuid}
     created_at     = Column(DateTime(timezone=True), default=utcnow)
 
     user = relationship("User", back_populates="scans")
