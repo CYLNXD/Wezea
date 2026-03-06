@@ -171,6 +171,10 @@ export function useScanner(): ScannerState & ScannerActions {
     const elapsed = Date.now() - startTime;
     const remaining = Math.max(0, SIMULATION_TOTAL_MS - elapsed);
 
+    // Fast-fail : si l'erreur arrive tôt (ex : 429 immédiat), on ne fait pas
+    // attendre l'utilisateur 4.8s pour rien. On plafonne à 800ms d'attente.
+    const waitMs = apiError ? Math.min(remaining, 800) : remaining;
+
     setTimeout(() => {
       clearAllTimers();
 
@@ -211,7 +215,7 @@ export function useScanner(): ScannerState & ScannerActions {
         result:   apiResult,
         progress: 100,
       }));
-    }, remaining + 200); // 200ms de marge pour le dernier log
+    }, waitMs + 200); // 200ms de marge pour le dernier log
 
   }, [appendLog]);
 
