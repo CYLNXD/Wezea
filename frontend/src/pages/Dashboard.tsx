@@ -268,6 +268,12 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     }
     if (scanner.status === 'success' && scanner.result) {
       setActiveTab('summary');
+      // Scroll vers les résultats APRÈS que AnimatePresence (mode="wait") ait terminé
+      // sa transition de sortie (~300ms) + marge de sécurité → 450ms
+      // (si on scrolle pendant la transition, la zone est vide = "page d'accueil" pour l'user)
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 450);
       captureScanCompleted({
         domain:         scanner.result.domain,
         score:          scanner.result.security_score,
@@ -340,10 +346,8 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     // même si l'utilisateur était scrollé dans les résultats d'un scan précédent
     resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     await scanner.startScan(target, lang);
-    // Scroll vers les résultats après un court délai
-    setTimeout(() => {
-      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 300);
+    // Note : le scroll post-scan est géré dans le useEffect sur scanner.status === 'success'
+    // pour éviter de scroller pendant la transition AnimatePresence (zone vide visible)
   };
 
   // Grouper les findings par catégorie

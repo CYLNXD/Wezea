@@ -60,7 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(u);
       analyticsIdentify(u.id, u.email, u.plan);
     } catch {
-      logout();
+      // Token invalide ou expiré — on efface l'état auth sans redirection
+      // (window.location.href = '/' causerait un rechargement de page
+      //  pendant un scan en cours pour les utilisateurs non-connectés)
+      localStorage.removeItem('wezea_token');
+      setToken(null);
+      setUser(null);
+      analyticsReset();
     }
   }
 
