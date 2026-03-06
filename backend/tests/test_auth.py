@@ -1,5 +1,6 @@
 """
-Tests : authentification (register, login, JWT, lockout, forgot/reset password)
+Tests : authentification (register, login, JWT, lockout, forgot/reset password,
+        profile, delete account, change-password, change-email, white-label)
 """
 import pytest
 from datetime import datetime, timedelta, timezone
@@ -382,3 +383,422 @@ def test_api_key_regenerate_changes_key(client, db_session):
     new_key = resp.json()["api_key"]
     assert new_key.startswith("wsk_")
     assert new_key != creds["api_key"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers communs — création d'utilisateur en DB (sans HTTP)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _make_user(db_session, plan: str = "free", password: str = "TestPass123") -> dict:
+    """Crée un utilisateur directement en DB et retourne email + token JWT."""
+    import uuid as _uuid
+    from app.models import User
+    from app.auth import hash_password, generate_api_key, create_access_token
+
+    email = f"user-{plan}-{_uuid.uuid4().hex[:8]}@example.com"
+    user = User(
+        email=email,
+        password_hash=hash_password(password),
+        plan=plan,
+        api_key=generate_api_key(),
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    token = create_access_token(user.id, email, plan)
+    return {"email": email, "password": password, "token": token, "user": user}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATCH /auth/profile
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_update_profile_first_and_last_name(client, db_session):
+    """Met à jour le prénom et le nom en une seule requête."""
+    u = _make_user(db_session)
+    resp = client.patch(
+        "/auth/profile",
+        json={"first_name": "Alice", "last_name": "Martin"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["first_name"] == "Alice"
+    assert data["last_name"] == "Martin"
+
+
+def test_update_profile_first_name_only(client, db_session):
+    """Mise à jour partielle : seul le prénom est fourni."""
+    u = _make_user(db_session)
+    resp = client.patch(
+        "/auth/profile",
+        json={"first_name": "Bob"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["first_name"] == "Bob"
+    assert resp.json()["last_name"] is None   # inchangé
+
+
+def test_update_profile_unauthenticated(client):
+    """Sans token → 401."""
+    resp = client.patch("/auth/profile", json={"first_name": "X"})
+    assert resp.status_code == 401
+
+
+def test_update_profile_returns_user_response(client, db_session):
+    """La réponse contient bien tous les champs UserResponse."""
+    u = _make_user(db_session)
+    resp = client.patch(
+        "/auth/profile",
+        json={"first_name": "Carol"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    data = resp.json()
+    for field in ("id", "email", "plan", "api_key", "first_name", "last_name", "is_admin"):
+        assert field in data, f"Champ manquant : {field}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DELETE /auth/account
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_delete_account_success(client, db_session):
+    """Suppression de compte avec mot de passe correct → 200."""
+    u = _make_user(db_session, password="DeleteMe123!")
+    resp = client.request(
+        "DELETE",
+        "/auth/account",
+        json={"password": "DeleteMe123!"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 200
+    assert "supprimé" in resp.json()["message"].lower()
+
+
+def test_delete_account_wrong_password(client, db_session):
+    """Mauvais mot de passe → 400."""
+    u = _make_user(db_session)
+    resp = client.request(
+        "DELETE",
+        "/auth/account",
+        json={"password": "WrongPassword999"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 400
+
+
+def test_delete_account_user_no_longer_in_db(client, db_session):
+    """Après suppression, l'utilisateur n'existe plus en DB."""
+    from app.models import User
+    u = _make_user(db_session)
+    user_id = u["user"].id
+    client.request(
+        "DELETE",
+        "/auth/account",
+        json={"password": u["password"]},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    db_session.expire_all()
+    assert db_session.query(User).filter(User.id == user_id).first() is None
+
+
+def test_delete_account_unauthenticated(client):
+    """Sans token → 401."""
+    resp = client.request("DELETE", "/auth/account", json={"password": "x"})
+    assert resp.status_code == 401
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /auth/change-password
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_change_password_success(client, db_session):
+    """Changement de mot de passe avec mot de passe actuel correct."""
+    u = _make_user(db_session, password="OldPass123!")
+    resp = client.post(
+        "/auth/change-password",
+        json={"current_password": "OldPass123!", "new_password": "NewPass456!"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 200
+    assert "succès" in resp.json()["message"].lower() or "success" in resp.json()["message"].lower()
+
+
+def test_change_password_wrong_current(client, db_session):
+    """Mauvais mot de passe actuel → 400."""
+    u = _make_user(db_session)
+    resp = client.post(
+        "/auth/change-password",
+        json={"current_password": "WrongOldPass!", "new_password": "NewPass456!"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 400
+
+
+def test_change_password_new_too_short(client, db_session):
+    """Nouveau mot de passe trop court → 422."""
+    u = _make_user(db_session)
+    resp = client.post(
+        "/auth/change-password",
+        json={"current_password": u["password"], "new_password": "abc"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_change_password_actually_updates_hash(client, db_session):
+    """Après changement, le nouveau mdp fonctionne au login."""
+    u = _make_user(db_session, password="OldPass123!")
+    client.post(
+        "/auth/change-password",
+        json={"current_password": "OldPass123!", "new_password": "NewPass456!"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    # Le nouveau mot de passe doit permettre la connexion
+    resp = client.post("/auth/login", json={"email": u["email"], "password": "NewPass456!"})
+    assert resp.status_code == 200
+
+
+def test_change_password_unauthenticated(client):
+    """Sans token → 401."""
+    resp = client.post(
+        "/auth/change-password",
+        json={"current_password": "x", "new_password": "NewPass456!"},
+    )
+    assert resp.status_code == 401
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /auth/change-email
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_change_email_success(client, db_session):
+    """Changement d'email avec mot de passe correct."""
+    u = _make_user(db_session)
+    resp = client.post(
+        "/auth/change-email",
+        json={"new_email": "newemail@example.com", "current_password": u["password"]},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 200
+
+
+def test_change_email_wrong_password(client, db_session):
+    """Mauvais mot de passe → 400."""
+    u = _make_user(db_session)
+    resp = client.post(
+        "/auth/change-email",
+        json={"new_email": "other@example.com", "current_password": "WrongPass999"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 400
+
+
+def test_change_email_duplicate(client, db_session):
+    """Email déjà utilisé par un autre compte → 409."""
+    a = _make_user(db_session)
+    b = _make_user(db_session)
+    # Tente de prendre l'email de `a`
+    resp = client.post(
+        "/auth/change-email",
+        json={"new_email": a["email"], "current_password": b["password"]},
+        headers={"Authorization": f"Bearer {b['token']}"},
+    )
+    assert resp.status_code == 409
+
+
+def test_change_email_invalid_format(client, db_session):
+    """Email invalide → 422."""
+    u = _make_user(db_session)
+    resp = client.post(
+        "/auth/change-email",
+        json={"new_email": "not-an-email", "current_password": u["password"]},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_change_email_unauthenticated(client):
+    """Sans token → 401."""
+    resp = client.post(
+        "/auth/change-email",
+        json={"new_email": "x@example.com", "current_password": "x"},
+    )
+    assert resp.status_code == 401
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# White-label endpoints (GET / PATCH / POST logo / DELETE logo)
+# Réservé au plan Pro — les utilisateurs non-Pro reçoivent 403
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _make_pro(db_session) -> dict:
+    return _make_user(db_session, plan="pro")
+
+
+def test_white_label_get_free_user_403(client, db_session):
+    """Plan free → 403 sur GET /auth/white-label."""
+    u = _make_user(db_session, plan="free")
+    resp = client.get("/auth/white-label", headers={"Authorization": f"Bearer {u['token']}"})
+    assert resp.status_code == 403
+
+
+def test_white_label_get_pro_user_200(client, db_session):
+    """Plan Pro → 200 avec les champs attendus."""
+    u = _make_pro(db_session)
+    resp = client.get("/auth/white-label", headers={"Authorization": f"Bearer {u['token']}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    for field in ("enabled", "company_name", "primary_color", "has_logo"):
+        assert field in data
+
+
+def test_white_label_patch_set_company_name(client, db_session):
+    """PATCH met à jour le nom de l'entreprise."""
+    u = _make_pro(db_session)
+    resp = client.patch(
+        "/auth/white-label",
+        json={"company_name": "AcmeSec"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["company_name"] == "AcmeSec"
+
+
+def test_white_label_patch_set_color(client, db_session):
+    """PATCH met à jour la couleur primaire (#RRGGBB)."""
+    u = _make_pro(db_session)
+    resp = client.patch(
+        "/auth/white-label",
+        json={"primary_color": "#ff0099"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["primary_color"] == "#ff0099"
+
+
+def test_white_label_patch_invalid_color(client, db_session):
+    """Couleur hex invalide → 422."""
+    u = _make_pro(db_session)
+    resp = client.patch(
+        "/auth/white-label",
+        json={"primary_color": "rouge"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_white_label_patch_company_name_too_long(client, db_session):
+    """Nom > 100 caractères → 422."""
+    u = _make_pro(db_session)
+    resp = client.patch(
+        "/auth/white-label",
+        json={"company_name": "A" * 101},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_white_label_patch_enable_toggle(client, db_session):
+    """On peut activer/désactiver le white-label via le champ enabled."""
+    u = _make_pro(db_session)
+    resp = client.patch(
+        "/auth/white-label",
+        json={"enabled": True},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["enabled"] is True
+
+
+def test_white_label_patch_free_user_403(client, db_session):
+    """Plan free → 403 sur PATCH /auth/white-label."""
+    u = _make_user(db_session, plan="free")
+    resp = client.patch(
+        "/auth/white-label",
+        json={"company_name": "Evil"},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_white_label_logo_upload_png(client, db_session):
+    """Upload d'un PNG valide → 200 + has_logo=True."""
+    import io
+    u = _make_pro(db_session)
+    # PNG minimal valide (8x8 pixels, 1 byte couleur)
+    fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100   # fake PNG header + padding
+    resp = client.post(
+        "/auth/white-label/logo",
+        files={"file": ("logo.png", io.BytesIO(fake_png), "image/png")},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["has_logo"] is True
+
+
+def test_white_label_logo_upload_too_large(client, db_session):
+    """Logo > 200 Ko → 422."""
+    import io
+    u = _make_pro(db_session)
+    big_data = b"X" * (201 * 1024)
+    resp = client.post(
+        "/auth/white-label/logo",
+        files={"file": ("logo.png", io.BytesIO(big_data), "image/png")},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_white_label_logo_upload_invalid_type(client, db_session):
+    """Format non supporté (exe) → 422."""
+    import io
+    u = _make_pro(db_session)
+    resp = client.post(
+        "/auth/white-label/logo",
+        files={"file": ("malware.exe", io.BytesIO(b"MZ"), "application/octet-stream")},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_white_label_logo_upload_free_user_403(client, db_session):
+    """Plan free → 403 sur upload logo."""
+    import io
+    u = _make_user(db_session, plan="free")
+    resp = client.post(
+        "/auth/white-label/logo",
+        files={"file": ("logo.png", io.BytesIO(b"\x89PNG"), "image/png")},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_white_label_logo_delete_success(client, db_session):
+    """Suppression du logo → 200 + has_logo=False."""
+    import io
+    u = _make_pro(db_session)
+    # D'abord uploader un logo
+    client.post(
+        "/auth/white-label/logo",
+        files={"file": ("logo.png", io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"\x00" * 50), "image/png")},
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    # Puis le supprimer
+    resp = client.delete(
+        "/auth/white-label/logo",
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["has_logo"] is False
+
+
+def test_white_label_logo_delete_free_user_403(client, db_session):
+    """Plan free → 403 sur DELETE logo."""
+    u = _make_user(db_session, plan="free")
+    resp = client.delete(
+        "/auth/white-label/logo",
+        headers={"Authorization": f"Bearer {u['token']}"},
+    )
+    assert resp.status_code == 403

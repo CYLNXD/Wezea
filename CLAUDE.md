@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 14)
+> Dernière mise à jour : 2026-03-06 (session 15)
 
 ---
 
@@ -313,6 +313,15 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 15)
+
+### Tests — auth_router.py (test_auth.py)
+- 32 nouveaux tests, total **550 tests, 0 échec**
+- Endpoints couverts : `PATCH /auth/profile`, `DELETE /auth/account`, `POST /auth/change-password`, `POST /auth/change-email`, `GET/PATCH /auth/white-label`, `POST/DELETE /auth/white-label/logo`
+- Helper `_make_user(db_session, plan)` ajouté au fichier (évite les appels HTTP, même pattern que test_monitoring.py)
+- Vérifie : update partiel profile (prénom seul), suppression effective de l'user en DB, login fonctionnel après changement de mot de passe, isolation email (409 si doublon), guard 403 sur tous les endpoints white-label pour plan free, upload PNG + taille + type MIME + plan, delete logo cycle upload→delete
+- **Bug fix** : `conftest.py` — `import app.models` ajouté avant `Base.metadata.create_all()` dans `test_engine` → corrige le 500 sur `test_register_success` en isolation
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 14)
 
