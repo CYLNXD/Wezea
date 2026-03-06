@@ -612,8 +612,22 @@ class PortAuditor(BaseAuditor):
     """
 
     async def audit(self) -> list[Finding]:
-        # Détecter hébergement mutualisé en parallèle du scan des ports
+        # ── Résolution IP unique ─────────────────────────────────────────────
+        # Résoudre le domaine en IP une seule fois AVANT de lancer les checks
+        # en parallèle. Sans ça, chaque _tcp_connect fait sa propre résolution
+        # DNS (10+ lookups simultanés du même domaine), ce qui consomme une
+        # partie du budget timeout de chaque connexion TCP et rend les résultats
+        # non déterministes (un port peut sembler fermé alors qu'il est ouvert).
         loop = asyncio.get_event_loop()
+        try:
+            self._resolved_ip: str = await asyncio.wait_for(
+                loop.run_in_executor(None, socket.gethostbyname, self.domain),
+                timeout=SCAN_TIMEOUT_SEC,
+            )
+        except Exception:
+            self._resolved_ip = self.domain  # fallback : laisser le socket résoudre
+
+        # Détecter hébergement mutualisé en parallèle du scan des ports
         shared_future = loop.run_in_executor(None, _detect_shared_hosting, self.domain)
 
         tasks = [
@@ -698,11 +712,15 @@ class PortAuditor(BaseAuditor):
         return {port: {"service": service, "open": is_open, "severity": severity}}
 
     def _tcp_connect(self, port: int) -> bool:
-        """Connexion TCP synchrone (exécutée dans un thread)."""
+        """Connexion TCP synchrone (exécutée dans un thread).
+        Utilise l'IP pré-résolue (_resolved_ip) pour éviter une résolution DNS
+        par port et garantir des résultats cohérents entre scans.
+        """
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(SCAN_TIMEOUT_SEC)
         try:
-            result = sock.connect_ex((self.domain, port))
+            target = getattr(self, "_resolved_ip", self.domain)
+            result = sock.connect_ex((target, port))
             return result == 0
         except Exception:
             return False

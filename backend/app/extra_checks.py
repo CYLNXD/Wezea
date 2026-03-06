@@ -20,7 +20,7 @@ from typing import Any
 import dns.resolver
 import dns.exception
 
-from app.scanner import BaseAuditor, Finding, SCAN_TIMEOUT_SEC
+from app.scanner import BaseAuditor, Finding, SCAN_TIMEOUT_SEC, DNS_LIFETIME_SEC
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -288,7 +288,7 @@ class EmailSecurityAuditor(BaseAuditor):
 
     def _check_dkim(self) -> bool:
         resolver = dns.resolver.Resolver()
-        resolver.lifetime = 4.0
+        resolver.lifetime = DNS_LIFETIME_SEC  # aligné sur SPF/DMARC (était 4.0, trop court)
         for selector in self.COMMON_DKIM_SELECTORS:
             try:
                 resolver.resolve(f"{selector}._domainkey.{self.domain}", "TXT")
@@ -300,7 +300,7 @@ class EmailSecurityAuditor(BaseAuditor):
     def _check_mx(self) -> bool:
         try:
             resolver = dns.resolver.Resolver()
-            resolver.lifetime = 4.0
+            resolver.lifetime = DNS_LIFETIME_SEC  # aligné sur SPF/DMARC (était 4.0, trop court)
             resolver.resolve(self.domain, "MX")
             return True
         except Exception:
@@ -372,7 +372,7 @@ class TechExposureAuditor(BaseAuditor):
 
             # Interface /wp-admin accessible
             try:
-                conn2 = http.client.HTTPSConnection(self.domain, timeout=3)
+                conn2 = http.client.HTTPSConnection(self.domain, timeout=SCAN_TIMEOUT_SEC)  # était 3s hardcodé
                 conn2.request("HEAD", "/wp-admin/", headers={"User-Agent": "Mozilla/5.0"})
                 r2 = conn2.getresponse()
                 conn2.close()
