@@ -446,3 +446,262 @@ class TestNewsletterFunctions:
             result = await _svc.send_newsletter_confirmation_email("sub@example.com", "tok-abc")
         assert result is True
         mock_send.assert_called_once()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Onboarding emails — J+1 / J+3 / J+7 / J+14
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestOnboardingEmails:
+    @pytest.mark.asyncio
+    async def test_send_activation_nudge_delegates_to_send(self):
+        """send_activation_nudge_email délègue à _send."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            result = await _svc.send_activation_nudge_email("user@example.com")
+        assert result is True
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_send_activation_nudge_to_field(self):
+        """send_activation_nudge_email : destinataire correct."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_activation_nudge_email("user@example.com")
+        payload = mock_send.call_args[0][0]
+        assert payload["to"][0]["email"] == "user@example.com"
+
+    @pytest.mark.asyncio
+    async def test_send_upgrade_nudge_delegates_to_send(self):
+        """send_upgrade_nudge_email délègue à _send."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            result = await _svc.send_upgrade_nudge_email("user@example.com")
+        assert result is True
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_send_upgrade_nudge_to_field(self):
+        """send_upgrade_nudge_email : destinataire correct."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_upgrade_nudge_email("user@example.com")
+        payload = mock_send.call_args[0][0]
+        assert payload["to"][0]["email"] == "user@example.com"
+
+    @pytest.mark.asyncio
+    async def test_send_value_reminder_delegates_to_send(self):
+        """send_value_reminder_email délègue à _send."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            result = await _svc.send_value_reminder_email("user@example.com", 3)
+        assert result is True
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_send_value_reminder_includes_scan_count(self):
+        """send_value_reminder_email : le nombre de scans est dans le HTML."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_value_reminder_email("user@example.com", 5)
+        payload = mock_send.call_args[0][0]
+        assert "5" in payload["htmlContent"]
+
+    @pytest.mark.asyncio
+    async def test_send_winback_delegates_to_send(self):
+        """send_winback_email délègue à _send."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            result = await _svc.send_winback_email("user@example.com")
+        assert result is True
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_send_winback_to_field(self):
+        """send_winback_email : destinataire correct."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_winback_email("user@example.com")
+        payload = mock_send.call_args[0][0]
+        assert payload["to"][0]["email"] == "user@example.com"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# send_monitoring_alert_email — findings non vides
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSendMonitoringAlertWithFindings:
+    @pytest.mark.asyncio
+    async def test_findings_rendered_in_html(self):
+        """Quand findings non vides, leur titre apparaît dans le HTML."""
+        from types import SimpleNamespace
+        findings = [
+            SimpleNamespace(title="Certificat SSL expiré"),
+            SimpleNamespace(title="Port RDP ouvert"),
+        ]
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_monitoring_alert_email(
+                email="user@example.com",
+                first_name="Alice",
+                domain="example.com",
+                new_score=55,
+                prev_score=80,
+                risk_level="HIGH",
+                reason="Score drop",
+                findings=findings,
+            )
+        payload = mock_send.call_args[0][0]
+        assert "Certificat SSL expir" in payload["htmlContent"]
+        assert "Port RDP ouvert"      in payload["htmlContent"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# send_pdf_email
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSendPdfEmail:
+    @pytest.mark.asyncio
+    async def test_delegates_to_send(self):
+        """send_pdf_email délègue à _send."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            result = await _svc.send_pdf_email(
+                email="user@example.com",
+                domain="example.com",
+                pdf_bytes=b"%PDF-fake",
+                score=85,
+                risk_level="LOW",
+            )
+        assert result is True
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_attachment_is_base64_encoded(self):
+        """Le PDF est encodé en base64 dans le payload."""
+        import base64
+        raw = b"%PDF-1.4 fake content"
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_pdf_email(
+                email="user@example.com",
+                domain="example.com",
+                pdf_bytes=raw,
+                score=75,
+                risk_level="MEDIUM",
+            )
+        payload = mock_send.call_args[0][0]
+        assert "attachment" in payload
+        encoded = payload["attachment"][0]["content"]
+        assert base64.b64decode(encoded) == raw
+
+    @pytest.mark.asyncio
+    async def test_to_field_correct(self):
+        """send_pdf_email : destinataire correct."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_pdf_email(
+                email="report@example.com",
+                domain="example.com",
+                pdf_bytes=b"pdf",
+                score=90,
+                risk_level="LOW",
+            )
+        payload = mock_send.call_args[0][0]
+        assert payload["to"][0]["email"] == "report@example.com"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# send_contact_confirmation
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSendContactConfirmation:
+    @pytest.mark.asyncio
+    async def test_delegates_to_send(self):
+        """send_contact_confirmation délègue à _send."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            result = await _svc.send_contact_confirmation("Alice", "alice@example.com")
+        assert result is True
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_to_field_correct(self):
+        """send_contact_confirmation : envoyé à l'utilisateur, pas à Wezea."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_contact_confirmation("Bob", "bob@example.com")
+        payload = mock_send.call_args[0][0]
+        assert payload["to"][0]["email"] == "bob@example.com"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# send_newsletter_welcome_email
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSendNewsletterWelcomeEmail:
+    @pytest.mark.asyncio
+    async def test_delegates_to_send(self):
+        """send_newsletter_welcome_email délègue à _send."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            result = await _svc.send_newsletter_welcome_email("news@example.com")
+        assert result is True
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_to_field_correct(self):
+        """send_newsletter_welcome_email : destinataire correct."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_newsletter_welcome_email("sub@example.com")
+        payload = mock_send.call_args[0][0]
+        assert payload["to"][0]["email"] == "sub@example.com"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# add_newsletter_contact — chemin fallback (r.status_code non 2xx)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAddNewsletterContactFallback:
+    @pytest.mark.asyncio
+    async def test_fallback_list_add_on_non_2xx(self):
+        """Si PUT contact renvoie 400 (contact existant), on tente POST /lists/.../add."""
+        # Premier appel (PUT createContact) → 400
+        # Deuxième appel (POST lists/add) → 200
+        put_response  = _make_response(400)
+        post_response = _make_response(200)
+
+        mock_client = AsyncMock()
+        mock_client.post   = AsyncMock(return_value=post_response)
+        mock_client.put    = AsyncMock(return_value=put_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__  = AsyncMock(return_value=False)
+
+        with patch.object(_svc, "BREVO_API_KEY", "fake-key"), \
+             patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _svc.add_newsletter_contact("existing@example.com")
+
+        assert result is True
+        # Vérifier que le fallback POST /lists/.../add a été appelé
+        mock_client.post.assert_called_once()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# remove_newsletter_contact — exception handler
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestRemoveNewsletterContactException:
+    @pytest.mark.asyncio
+    async def test_exception_returns_false(self):
+        """remove_newsletter_contact : exception réseau → False."""
+        mock_client = AsyncMock()
+        mock_client.post       = AsyncMock(side_effect=Exception("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__  = AsyncMock(return_value=False)
+
+        with patch.object(_svc, "BREVO_API_KEY", "fake-key"), \
+             patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _svc.remove_newsletter_contact("user@example.com")
+
+        assert result is False
