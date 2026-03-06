@@ -314,6 +314,17 @@ ls -lh /home/cyberhealth/backups/
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
 
+## 🆕 Fonctionnalités récentes (2026-03-06, session 11)
+
+### Tests — advanced_checks.py + extra_checks.py (test_advanced_checks.py)
+- 44 nouveaux tests, total **404 tests, 0 échec**
+- Couvre : `_parse_version`, `_version_in_range`, `VulnVersionAuditor`, `HttpHeaderAuditor`, `EmailSecurityAuditor`
+- 5 classes : `TestParseVersion`, `TestVersionInRange`, `TestVulnVersionAuditor`, `TestHttpHeaderAuditor`, `TestEmailSecurityAuditor`
+- `_parse_version` / `_version_in_range` : logique pure — 9+10 cas dont boundaries exactes et edge cases
+- `VulnVersionAuditor` : PHP 7.x (CRITICAL), PHP 8.0 (HIGH), PHP 8.2 (ok), Apache 2.4.49 CVE-2021-41773 (CRITICAL), nginx 1.20.0 (HIGH), IIS 8.5 (HIGH), no headers → [], connexion échouée → []
+- `HttpHeaderAuditor` : tous headers présents → 0 finding, HSTS manquant (HIGH p=10), CSP manquant (MEDIUM p=8), Server avec version (LOW), X-Powered-By (LOW p=3), hôte injoignable → []
+- `EmailSecurityAuditor` : DKIM trouvé (ok), DKIM absent (MEDIUM p=8), MX présent (ok), MX absent (INFO p=0), `_check_dkim`/`_check_mx` directs
+
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 10)
 
 ### Tests — scanner.py (test_scanner.py) + bug fix dns.exception.NXDOMAIN
