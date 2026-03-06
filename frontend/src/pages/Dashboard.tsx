@@ -268,12 +268,13 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     }
     if (scanner.status === 'success' && scanner.result) {
       setActiveTab('summary');
-      // Scroll vers les résultats APRÈS que AnimatePresence (mode="wait") ait terminé
-      // sa transition de sortie (~300ms) + marge de sécurité → 450ms
-      // (si on scrolle pendant la transition, la zone est vide = "page d'accueil" pour l'user)
+      // Scroll vers les résultats une fois la transition AnimatePresence terminée.
+      // Timeline : console exit (200ms) + results enter (400ms) + marge (100ms) = 700ms
+      // behavior:'instant' — évite qu'une animation de scroll rate sa cible si la page
+      // est déjà au bon endroit ou si le navigateur mobile interfère avec smooth scroll.
       setTimeout(() => {
-        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 450);
+        resultsRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
+      }, 700);
       captureScanCompleted({
         domain:         scanner.result.domain,
         score:          scanner.result.security_score,
@@ -937,6 +938,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
               className="flex justify-center py-6"
             >
               <ScanConsole
