@@ -1,80 +1,230 @@
-// ─── ProfileModal — RGPD : édition du profil + suppression de compte ──────────
-import { useState, useEffect, FormEvent } from 'react';
+// ─── ProfileModal — profil, sécurité, clé API, suppression de compte ──────────
+import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Trash2, Save, AlertTriangle, CheckCircle } from 'lucide-react';
+import {
+  X, User, Trash2, Save, AlertTriangle, CheckCircle,
+  Lock, Copy, RefreshCw, Eye, EyeOff, KeyRound,
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import { apiClient } from '../lib/api';
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
-type Tab = 'profile' | 'danger';
+type Tab = 'profile' | 'security' | 'api' | 'danger';
 
+// ─── Input helper (factorised style) ──────────────────────────────────────────
+function Input({
+  type = 'text', value, onChange, placeholder, required, maxLength, readOnly, mono,
+}: {
+  type?: string; value: string; onChange?: (v: string) => void;
+  placeholder?: string; required?: boolean; maxLength?: number;
+  readOnly?: boolean; mono?: boolean;
+}) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={onChange ? e => onChange(e.target.value) : undefined}
+      placeholder={placeholder}
+      required={required}
+      maxLength={maxLength}
+      readOnly={readOnly}
+      className={`w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition ${mono ? 'font-mono' : ''} ${readOnly ? 'text-slate-400 cursor-default' : ''}`}
+      style={{
+        background: readOnly ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.04)',
+        border: `1px solid ${readOnly ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.08)'}`,
+        boxShadow: readOnly ? 'none' : '0 2px 6px rgba(0,0,0,0.3) inset',
+      }}
+      onFocus={readOnly ? undefined : e => (e.currentTarget.style.borderColor = 'rgba(34,211,238,0.4)')}
+      onBlur={readOnly ? undefined : e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+    />
+  );
+}
+
+// ─── PasswordInput — toggle visibility ────────────────────────────────────────
+function PasswordInput({
+  value, onChange, placeholder, required, focusColor = 'rgba(34,211,238,0.4)',
+}: {
+  value: string; onChange: (v: string) => void;
+  placeholder?: string; required?: boolean; focusColor?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder ?? '••••••••'}
+        required={required}
+        className="w-full rounded-xl px-4 py-2.5 pr-10 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
+        style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.3) inset',
+        }}
+        onFocus={e => (e.currentTarget.style.borderColor = focusColor)}
+        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+      />
+      <button
+        type="button"
+        onClick={() => setShow(s => !s)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300 transition"
+        tabIndex={-1}
+      >
+        {show ? <EyeOff size={14} /> : <Eye size={14} />}
+      </button>
+    </div>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
 export function ProfileModal({ open, onClose }: Props) {
-  const { user, updateProfile, deleteAccount } = useAuth();
+  const { user, updateProfile, deleteAccount, refreshUser } = useAuth();
   const { lang } = useLanguage();
+  const isGoogle = Boolean(user?.google_id);
 
-  // ── Profile tab state ──────────────────────────────────────────────────────
+  // ── Profile tab ─────────────────────────────────────────────────────────────
   const [firstName, setFirstName] = useState('');
   const [lastName,  setLastName]  = useState('');
   const [saving,    setSaving]    = useState(false);
   const [saveOk,    setSaveOk]    = useState(false);
   const [saveErr,   setSaveErr]   = useState('');
 
-  // ── Delete tab state ───────────────────────────────────────────────────────
+  // ── Security tab ────────────────────────────────────────────────────────────
+  const [secMode,       setSecMode]       = useState<'password' | 'email'>('password');
+  // change password
+  const [curPwd,        setCurPwd]        = useState('');
+  const [newPwd,        setNewPwd]        = useState('');
+  const [confirmPwd,    setConfirmPwd]    = useState('');
+  const [pwdOk,         setPwdOk]         = useState(false);
+  const [pwdErr,        setPwdErr]        = useState('');
+  const [pwdSaving,     setPwdSaving]     = useState(false);
+  // change email
+  const [newEmail,      setNewEmail]      = useState('');
+  const [emailPwd,      setEmailPwd]      = useState('');
+  const [emailOk,       setEmailOk]       = useState(false);
+  const [emailErr,      setEmailErr]      = useState('');
+  const [emailSaving,   setEmailSaving]   = useState(false);
+
+  // ── API tab ──────────────────────────────────────────────────────────────────
+  const [apiKey,        setApiKey]        = useState<string | null>(null);
+  const [apiKeyVisible, setApiKeyVisible] = useState(false);
+  const [apiCopied,     setApiCopied]     = useState(false);
+  const [apiRegen,      setApiRegen]      = useState(false);
+  const [apiRegenOk,    setApiRegenOk]    = useState(false);
+
+  // ── Delete tab ───────────────────────────────────────────────────────────────
   const [delPassword, setDelPassword] = useState('');
   const [delConfirm,  setDelConfirm]  = useState('');
   const [deleting,    setDeleting]    = useState(false);
   const [delErr,      setDelErr]      = useState('');
 
-  // ── Active tab ─────────────────────────────────────────────────────────────
+  // ── Active tab ───────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('profile');
 
-  // Sync form with current user data when modal opens
-  useEffect(() => {
-    if (open && user) {
-      setFirstName(user.first_name ?? '');
-      setLastName(user.last_name  ?? '');
-      setSaveOk(false);
-      setSaveErr('');
-      setDelPassword('');
-      setDelConfirm('');
-      setDelErr('');
-      setTab('profile');
-    }
-  }, [open, user]);
+  const resetAll = useCallback(() => {
+    if (!user) return;
+    setFirstName(user.first_name ?? '');
+    setLastName(user.last_name  ?? '');
+    setSaveOk(false); setSaveErr('');
+    setSecMode('password');
+    setCurPwd(''); setNewPwd(''); setConfirmPwd('');
+    setPwdOk(false); setPwdErr('');
+    setNewEmail(''); setEmailPwd('');
+    setEmailOk(false); setEmailErr('');
+    setApiKey(user.api_key ?? null);
+    setApiKeyVisible(false); setApiCopied(false); setApiRegenOk(false);
+    setDelPassword(''); setDelConfirm(''); setDelErr('');
+    setTab('profile');
+  }, [user]);
 
-  // ── Save profile ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (open) resetAll();
+  }, [open, resetAll]);
+
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+
   async function handleSave(e: FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    setSaveErr('');
-    setSaveOk(false);
+    setSaving(true); setSaveErr(''); setSaveOk(false);
     try {
       await updateProfile(firstName.trim() || null, lastName.trim() || null);
       setSaveOk(true);
       setTimeout(() => setSaveOk(false), 3000);
     } catch (err: any) {
       setSaveErr(err?.response?.data?.detail || err?.message || 'Erreur');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
 
-  // ── Delete account ─────────────────────────────────────────────────────────
+  async function handleChangePassword(e: FormEvent) {
+    e.preventDefault();
+    if (newPwd !== confirmPwd) {
+      setPwdErr(lang === 'fr' ? 'Les mots de passe ne correspondent pas' : 'Passwords do not match');
+      return;
+    }
+    setPwdSaving(true); setPwdErr(''); setPwdOk(false);
+    try {
+      await apiClient.post('/auth/change-password', {
+        current_password: curPwd,
+        new_password: newPwd,
+      });
+      setPwdOk(true);
+      setCurPwd(''); setNewPwd(''); setConfirmPwd('');
+      setTimeout(() => setPwdOk(false), 3500);
+    } catch (err: any) {
+      setPwdErr(err?.response?.data?.detail || err?.message || 'Erreur');
+    } finally { setPwdSaving(false); }
+  }
+
+  async function handleChangeEmail(e: FormEvent) {
+    e.preventDefault();
+    setEmailSaving(true); setEmailErr(''); setEmailOk(false);
+    try {
+      await apiClient.post('/auth/change-email', {
+        new_email:        newEmail,
+        current_password: emailPwd,
+      });
+      setEmailOk(true);
+      if (refreshUser) await refreshUser();
+      setNewEmail(''); setEmailPwd('');
+      setTimeout(() => setEmailOk(false), 3500);
+    } catch (err: any) {
+      setEmailErr(err?.response?.data?.detail || err?.message || 'Erreur');
+    } finally { setEmailSaving(false); }
+  }
+
+  async function handleCopyApiKey() {
+    if (!apiKey) return;
+    await navigator.clipboard.writeText(apiKey);
+    setApiCopied(true);
+    setTimeout(() => setApiCopied(false), 2500);
+  }
+
+  async function handleRegenApiKey() {
+    setApiRegen(true); setApiRegenOk(false);
+    try {
+      const { data } = await apiClient.post<{ api_key: string }>('/auth/api-key/regenerate');
+      setApiKey(data.api_key);
+      setApiKeyVisible(true);
+      setApiRegenOk(true);
+      setTimeout(() => setApiRegenOk(false), 3500);
+    } catch { /* ignore */ } finally { setApiRegen(false); }
+  }
+
   async function handleDelete(e: FormEvent) {
     e.preventDefault();
     if (delConfirm !== 'SUPPRIMER' && delConfirm !== 'DELETE') {
       setDelErr(lang === 'fr' ? 'Tapez SUPPRIMER pour confirmer' : 'Type DELETE to confirm');
       return;
     }
-    setDeleting(true);
-    setDelErr('');
+    setDeleting(true); setDelErr('');
     try {
       await deleteAccount(delPassword);
-      // logout() is called inside deleteAccount — modal will close as user disappears
     } catch (err: any) {
       setDelErr(err?.response?.data?.detail || err?.message || 'Erreur');
       setDeleting(false);
@@ -83,6 +233,16 @@ export function ProfileModal({ open, onClose }: Props) {
 
   if (!open) return null;
 
+  const isPremium = user?.plan === 'starter' || user?.plan === 'pro';
+
+  // ── Tab definitions ───────────────────────────────────────────────────────────
+  const tabs: Array<{ id: Tab; label: string }> = [
+    { id: 'profile',  label: lang === 'fr' ? '👤 Infos'      : '👤 Info'          },
+    { id: 'security', label: lang === 'fr' ? '🔐 Sécurité'   : '🔐 Security'      },
+    { id: 'api',      label: lang === 'fr' ? '🔌 API'         : '🔌 API'           },
+    { id: 'danger',   label: lang === 'fr' ? '⚠️ Supprimer'  : '⚠️ Delete'        },
+  ];
+
   return (
     <AnimatePresence>
       {open && (
@@ -90,9 +250,7 @@ export function ProfileModal({ open, onClose }: Props) {
           {/* Backdrop */}
           <motion.div
             key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
             onClick={onClose}
@@ -146,18 +304,14 @@ export function ProfileModal({ open, onClose }: Props) {
               </div>
 
               {/* Tabs */}
-              <div
-                className="flex"
-                style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
-              >
-                {([['profile', lang === 'fr' ? '👤 Informations' : '👤 Information'],
-                   ['danger',  lang === 'fr' ? '⚠️ Supprimer' : '⚠️ Delete account']] as [Tab, string][]).map(([key, label]) => (
+              <div className="flex" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                {tabs.map(({ id, label }) => (
                   <button
-                    key={key}
-                    onClick={() => setTab(key)}
-                    className={`flex-1 px-4 py-3 text-xs font-medium transition-all ${
-                      tab === key
-                        ? key === 'danger'
+                    key={id}
+                    onClick={() => setTab(id)}
+                    className={`flex-1 px-2 py-3 text-xs font-medium transition-all ${
+                      tab === id
+                        ? id === 'danger'
                           ? 'text-red-400 border-b-2 border-red-500'
                           : 'text-cyan-400 border-b-2 border-cyan-500'
                         : 'text-slate-500 hover:text-slate-300'
@@ -170,7 +324,7 @@ export function ProfileModal({ open, onClose }: Props) {
               </div>
 
               {/* Body */}
-              <div className="p-6">
+              <div className="p-6 max-h-[70vh] overflow-y-auto">
 
                 {/* ── Profile Tab ─────────────────────────────────────────── */}
                 {tab === 'profile' && (
@@ -181,65 +335,27 @@ export function ProfileModal({ open, onClose }: Props) {
                         : 'This information is optional and stored securely.'}
                     </p>
 
-                    {/* First name */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-medium text-slate-400">
                         {lang === 'fr' ? 'Prénom' : 'First name'}
                       </label>
-                      <input
-                        type="text"
-                        value={firstName}
-                        onChange={e => setFirstName(e.target.value)}
-                        maxLength={100}
-                        placeholder={lang === 'fr' ? 'Votre prénom' : 'Your first name'}
-                        className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
-                        style={{
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.08)',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.3) inset',
-                        }}
-                        onFocus={e => e.currentTarget.style.borderColor = 'rgba(34,211,238,0.4)'}
-                        onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
-                      />
+                      <Input value={firstName} onChange={setFirstName} maxLength={100}
+                        placeholder={lang === 'fr' ? 'Votre prénom' : 'Your first name'} />
                     </div>
 
-                    {/* Last name */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-medium text-slate-400">
                         {lang === 'fr' ? 'Nom' : 'Last name'}
                       </label>
-                      <input
-                        type="text"
-                        value={lastName}
-                        onChange={e => setLastName(e.target.value)}
-                        maxLength={100}
-                        placeholder={lang === 'fr' ? 'Votre nom' : 'Your last name'}
-                        className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
-                        style={{
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.08)',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.3) inset',
-                        }}
-                        onFocus={e => e.currentTarget.style.borderColor = 'rgba(34,211,238,0.4)'}
-                        onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
-                      />
+                      <Input value={lastName} onChange={setLastName} maxLength={100}
+                        placeholder={lang === 'fr' ? 'Votre nom' : 'Your last name'} />
                     </div>
 
-                    {/* Email (readonly) */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-medium text-slate-400">Email</label>
-                      <div
-                        className="w-full rounded-xl px-4 py-2.5 text-sm text-slate-500 font-mono"
-                        style={{
-                          background: 'rgba(0,0,0,0.25)',
-                          border: '1px solid rgba(255,255,255,0.05)',
-                        }}
-                      >
-                        {user?.email}
-                      </div>
+                      <Input value={user?.email ?? ''} readOnly />
                     </div>
 
-                    {/* Feedback */}
                     {saveErr && (
                       <p className="text-red-400 text-xs flex items-center gap-1.5">
                         <AlertTriangle size={13} />{saveErr}
@@ -252,32 +368,282 @@ export function ProfileModal({ open, onClose }: Props) {
                       </p>
                     )}
 
-                    {/* Submit */}
                     <button
-                      type="submit"
-                      disabled={saving}
+                      type="submit" disabled={saving}
                       className="sku-btn-primary flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                     >
-                      {saving ? (
-                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <Save size={15} />
-                      )}
+                      {saving
+                        ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                        : <Save size={15} />}
                       {lang === 'fr' ? 'Enregistrer' : 'Save changes'}
                     </button>
                   </form>
                 )}
 
+                {/* ── Security Tab ────────────────────────────────────────── */}
+                {tab === 'security' && (
+                  <div className="flex flex-col gap-5">
+                    {isGoogle && (
+                      <div
+                        className="rounded-xl p-4 flex gap-3"
+                        style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)' }}
+                      >
+                        <Lock size={15} className="text-indigo-400 shrink-0 mt-0.5" />
+                        <p className="text-slate-400 text-xs leading-relaxed">
+                          {lang === 'fr'
+                            ? 'Votre compte est lié à Google. La gestion du mot de passe et de l\'email se fait via votre compte Google.'
+                            : 'Your account is linked to Google. Password and email are managed through your Google account.'}
+                        </p>
+                      </div>
+                    )}
+
+                    {!isGoogle && (
+                      <>
+                        {/* Sub-tabs : password / email */}
+                        <div className="flex gap-2">
+                          {(['password', 'email'] as const).map(m => (
+                            <button
+                              key={m}
+                              onClick={() => setSecMode(m)}
+                              className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${
+                                secMode === m
+                                  ? 'text-cyan-300'
+                                  : 'text-slate-500 hover:text-slate-300'
+                              }`}
+                              style={{
+                                background: secMode === m ? 'rgba(34,211,238,0.08)' : 'rgba(255,255,255,0.03)',
+                                border: `1px solid ${secMode === m ? 'rgba(34,211,238,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                              }}
+                            >
+                              {m === 'password'
+                                ? (lang === 'fr' ? '🔑 Mot de passe' : '🔑 Password')
+                                : (lang === 'fr' ? '✉️ Adresse email' : '✉️ Email address')}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* ── Change password ── */}
+                        {secMode === 'password' && (
+                          <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-medium text-slate-400">
+                                {lang === 'fr' ? 'Mot de passe actuel' : 'Current password'}
+                              </label>
+                              <PasswordInput value={curPwd} onChange={setCurPwd} required />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-medium text-slate-400">
+                                {lang === 'fr' ? 'Nouveau mot de passe' : 'New password'}
+                              </label>
+                              <PasswordInput value={newPwd} onChange={setNewPwd} required
+                                placeholder={lang === 'fr' ? 'Min. 8 caractères' : 'Min. 8 characters'} />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-medium text-slate-400">
+                                {lang === 'fr' ? 'Confirmer le nouveau mot de passe' : 'Confirm new password'}
+                              </label>
+                              <PasswordInput value={confirmPwd} onChange={setConfirmPwd} required />
+                            </div>
+
+                            {pwdErr && (
+                              <p className="text-red-400 text-xs flex items-center gap-1.5">
+                                <AlertTriangle size={13} />{pwdErr}
+                              </p>
+                            )}
+                            {pwdOk && (
+                              <p className="text-emerald-400 text-xs flex items-center gap-1.5">
+                                <CheckCircle size={13} />
+                                {lang === 'fr' ? 'Mot de passe modifié ✓' : 'Password updated ✓'}
+                              </p>
+                            )}
+
+                            <button
+                              type="submit" disabled={pwdSaving || !curPwd || !newPwd || !confirmPwd}
+                              className="sku-btn-primary flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                            >
+                              {pwdSaving
+                                ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                : <Lock size={15} />}
+                              {lang === 'fr' ? 'Modifier le mot de passe' : 'Update password'}
+                            </button>
+                          </form>
+                        )}
+
+                        {/* ── Change email ── */}
+                        {secMode === 'email' && (
+                          <form onSubmit={handleChangeEmail} className="flex flex-col gap-3">
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-medium text-slate-400">
+                                {lang === 'fr' ? 'Email actuel' : 'Current email'}
+                              </label>
+                              <Input value={user?.email ?? ''} readOnly />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-medium text-slate-400">
+                                {lang === 'fr' ? 'Nouvel email' : 'New email'}
+                              </label>
+                              <Input type="email" value={newEmail} onChange={setNewEmail}
+                                required placeholder="new@example.com" />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-medium text-slate-400">
+                                {lang === 'fr' ? 'Mot de passe actuel' : 'Current password'}
+                              </label>
+                              <PasswordInput value={emailPwd} onChange={setEmailPwd} required />
+                            </div>
+
+                            {emailErr && (
+                              <p className="text-red-400 text-xs flex items-center gap-1.5">
+                                <AlertTriangle size={13} />{emailErr}
+                              </p>
+                            )}
+                            {emailOk && (
+                              <p className="text-emerald-400 text-xs flex items-center gap-1.5">
+                                <CheckCircle size={13} />
+                                {lang === 'fr' ? 'Email modifié ✓' : 'Email updated ✓'}
+                              </p>
+                            )}
+
+                            <button
+                              type="submit" disabled={emailSaving || !newEmail || !emailPwd}
+                              className="sku-btn-primary flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                            >
+                              {emailSaving
+                                ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                : <Save size={15} />}
+                              {lang === 'fr' ? 'Modifier l\'email' : 'Update email'}
+                            </button>
+                          </form>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* ── API Tab ─────────────────────────────────────────────── */}
+                {tab === 'api' && (
+                  <div className="flex flex-col gap-4">
+                    {!isPremium ? (
+                      /* Paywall */
+                      <div
+                        className="rounded-xl p-5 flex flex-col items-center gap-3 text-center"
+                        style={{ background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.12)' }}
+                      >
+                        <div
+                          className="p-3 rounded-xl"
+                          style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.15)' }}
+                        >
+                          <KeyRound size={20} className="text-cyan-400" />
+                        </div>
+                        <p className="text-white font-semibold text-sm">
+                          {lang === 'fr' ? 'Clé API — plan Starter ou Pro' : 'API key — Starter or Pro plan'}
+                        </p>
+                        <p className="text-slate-400 text-xs leading-relaxed">
+                          {lang === 'fr'
+                            ? 'Accédez à l\'API CyberHealth pour automatiser vos scans et intégrer les rapports dans vos outils.'
+                            : 'Access the CyberHealth API to automate scans and integrate reports into your tools.'}
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-slate-500 text-xs leading-relaxed">
+                          {lang === 'fr'
+                            ? 'Utilisez cette clé pour authentifier vos requêtes API. Ne la partagez pas — régénérez-la si elle est compromise.'
+                            : 'Use this key to authenticate API requests. Do not share it — regenerate if compromised.'}
+                        </p>
+
+                        {/* Key display */}
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-medium text-slate-400">
+                            {lang === 'fr' ? 'Votre clé API' : 'Your API key'}
+                          </label>
+                          <div className="flex gap-2">
+                            <div
+                              className="flex-1 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-300 overflow-hidden text-ellipsis whitespace-nowrap"
+                              style={{
+                                background: 'rgba(0,0,0,0.3)',
+                                border: '1px solid rgba(255,255,255,0.07)',
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.3) inset',
+                                letterSpacing: '0.04em',
+                              }}
+                            >
+                              {apiKeyVisible
+                                ? (apiKey ?? '—')
+                                : '••••••••••••••••••••••••••••••••'}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setApiKeyVisible(v => !v)}
+                              className="shrink-0 px-3 rounded-xl text-slate-400 hover:text-slate-200 transition"
+                              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                              title={apiKeyVisible
+                                ? (lang === 'fr' ? 'Masquer' : 'Hide')
+                                : (lang === 'fr' ? 'Afficher' : 'Show')}
+                            >
+                              {apiKeyVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCopyApiKey}
+                              className="shrink-0 px-3 rounded-xl transition"
+                              style={{
+                                background: apiCopied ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.04)',
+                                border: `1px solid ${apiCopied ? 'rgba(52,211,153,0.25)' : 'rgba(255,255,255,0.08)'}`,
+                                color: apiCopied ? '#34d399' : '#94a3b8',
+                              }}
+                              title={lang === 'fr' ? 'Copier' : 'Copy'}
+                            >
+                              {apiCopied ? <CheckCircle size={14} /> : <Copy size={14} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {apiRegenOk && (
+                          <p className="text-emerald-400 text-xs flex items-center gap-1.5">
+                            <CheckCircle size={13} />
+                            {lang === 'fr' ? 'Nouvelle clé générée ✓' : 'New key generated ✓'}
+                          </p>
+                        )}
+
+                        {/* Regen button */}
+                        <button
+                          type="button"
+                          onClick={handleRegenApiKey}
+                          disabled={apiRegen}
+                          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{
+                            background: 'rgba(245,158,11,0.08)',
+                            border: '1px solid rgba(245,158,11,0.2)',
+                            color: '#fbbf24',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                          }}
+                        >
+                          {apiRegen
+                            ? <div className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+                            : <RefreshCw size={14} className={apiRegen ? 'animate-spin' : ''} />}
+                          {lang === 'fr' ? 'Régénérer la clé' : 'Regenerate key'}
+                        </button>
+
+                        <p className="text-slate-600 text-xs">
+                          {lang === 'fr'
+                            ? '⚠️ La régénération invalide immédiatement l\'ancienne clé.'
+                            : '⚠️ Regenerating immediately invalidates the current key.'}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* ── Danger Tab ──────────────────────────────────────────── */}
                 {tab === 'danger' && (
                   <form onSubmit={handleDelete} className="flex flex-col gap-4">
-                    {/* Warning box */}
                     <div
                       className="rounded-xl p-4 flex gap-3"
-                      style={{
-                        background: 'rgba(239,68,68,0.07)',
-                        border: '1px solid rgba(239,68,68,0.2)',
-                      }}
+                      style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}
                     >
                       <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
                       <div>
@@ -292,60 +658,40 @@ export function ProfileModal({ open, onClose }: Props) {
                       </div>
                     </div>
 
-                    {/* Password confirmation */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-medium text-slate-400">
                         {lang === 'fr' ? 'Mot de passe actuel' : 'Current password'}
                       </label>
-                      <input
-                        type="password"
-                        value={delPassword}
-                        onChange={e => setDelPassword(e.target.value)}
-                        required
-                        placeholder="••••••••"
-                        className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
-                        style={{
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.08)',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.3) inset',
-                        }}
-                        onFocus={e => e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'}
-                        onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
-                      />
+                      <PasswordInput
+                        value={delPassword} onChange={setDelPassword}
+                        required focusColor="rgba(239,68,68,0.4)" />
                     </div>
 
-                    {/* Type confirmation */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-medium text-slate-400">
-                        {lang === 'fr'
-                          ? 'Tapez SUPPRIMER pour confirmer'
-                          : 'Type DELETE to confirm'}
+                        {lang === 'fr' ? 'Tapez SUPPRIMER pour confirmer' : 'Type DELETE to confirm'}
                       </label>
                       <input
-                        type="text"
-                        value={delConfirm}
+                        type="text" value={delConfirm}
                         onChange={e => setDelConfirm(e.target.value)}
-                        required
-                        placeholder={lang === 'fr' ? 'SUPPRIMER' : 'DELETE'}
+                        required placeholder={lang === 'fr' ? 'SUPPRIMER' : 'DELETE'}
                         className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition font-mono tracking-wider"
                         style={{
                           background: 'rgba(255,255,255,0.04)',
                           border: '1px solid rgba(255,255,255,0.08)',
                           boxShadow: '0 2px 6px rgba(0,0,0,0.3) inset',
                         }}
-                        onFocus={e => e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'}
-                        onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)')}
+                        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
                       />
                     </div>
 
-                    {/* Error */}
                     {delErr && (
                       <p className="text-red-400 text-xs flex items-center gap-1.5">
                         <AlertTriangle size={13} />{delErr}
                       </p>
                     )}
 
-                    {/* Submit */}
                     <button
                       type="submit"
                       disabled={deleting || !delPassword || (delConfirm !== 'SUPPRIMER' && delConfirm !== 'DELETE')}
@@ -357,11 +703,9 @@ export function ProfileModal({ open, onClose }: Props) {
                         boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                       }}
                     >
-                      {deleting ? (
-                        <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                      ) : (
-                        <Trash2 size={15} />
-                      )}
+                      {deleting
+                        ? <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                        : <Trash2 size={15} />}
                       {lang === 'fr' ? 'Supprimer mon compte' : 'Delete my account'}
                     </button>
                   </form>
