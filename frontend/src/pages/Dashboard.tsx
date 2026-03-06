@@ -378,13 +378,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   return (
     <div className="min-h-screen flex flex-col text-slate-100">
 
-      {/* ── DEBUG TEMPORAIRE — retirer après diagnostic ───────────────────── */}
-      <div className="fixed bottom-4 right-4 z-[9999] bg-black/90 text-white text-xs font-mono px-3 py-2 rounded-lg border border-cyan-500/40 shadow-xl pointer-events-none">
-        <div>status: <span className="text-cyan-300">{scanner.status}</span></div>
-        <div>user: <span className="text-cyan-300">{user ? user.email : 'anonymous'}</span></div>
-        <div>result: <span className="text-cyan-300">{scanner.result ? scanner.result.domain : 'null'}</span></div>
-      </div>
-      {/* ── FIN DEBUG ─────────────────────────────────────────────────────── */}
 
 
 
