@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 12)
+> Dernière mise à jour : 2026-03-06 (session 13)
 
 ---
 
@@ -313,6 +313,21 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 13)
+
+### Tests — SubdomainAuditor (test_advanced_checks.py)
+- 23 nouveaux tests, total **450 tests, 0 échec**
+- 2 nouvelles classes : `TestSubdomainAuditorSync`, `TestSubdomainAuditorFetch`
+- `TestSubdomainAuditorSync` (17 tests) : via `patch.object` sur `_fetch_crtsh`, `_resolve_subdomain`, `_check_cert`
+  - Aucun subdomain → [], actifs valides → INFO p=0, orphelins → MEDIUM p=count×3 (plafonné 15)
+  - Cert expiré → HIGH p=15, cert expirant <30j → MEDIUM p=8
+  - Mixte orphelins + expiré → MEDIUM + HIGH (2 findings)
+  - Expiring soon empêche le finding INFO
+  - `_details` dict : total_found, subdomains avec IP, orphaned list
+- `TestSubdomainAuditorFetch` (6 tests) : `urllib.request.urlopen` mocké
+  - JSON valide → sous-domaines filtrés, wildcards exclus, hors-scope exclus, déduplication, erreur réseau → [], plafond MAX_SUBDOMAINS=50
+- **Stratégie** : `_run()` helper avec `patch.object` sur les 3 sous-méthodes — zéro appel réseau réel
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 12)
 

@@ -4,13 +4,19 @@ Tests : advanced_checks.py + extra_checks.py
 _parse_version          — extraction tuple de version (logique pure)
 _version_in_range       — test d'intervalle de version (logique pure)
 VulnVersionAuditor      — détection versions vulnérables (HTTP mocké)
+SubdomainAuditor        — CT logs + DNS + SSL sous-domaines (3 sous-méthodes mockées)
 HttpHeaderAuditor       — en-têtes de sécurité HTTP (_fetch_headers_sync mocké)
 EmailSecurityAuditor    — DKIM + MX (dns.resolver mocké)
+TechExposureAuditor     — CMS WordPress/Drupal/PHP (http.client mocké)
+ReputationAuditor       — DNSBL (socket + dns.resolver mockés)
 """
 from __future__ import annotations
 
 import asyncio
 import http.client
+import io
+import json
+import urllib.request
 from unittest.mock import MagicMock, patch
 
 import dns.exception
@@ -21,6 +27,7 @@ from app.advanced_checks import (
     _parse_version,
     _version_in_range,
     VulnVersionAuditor,
+    SubdomainAuditor,
     KNOWN_VULNS,
 )
 from app.extra_checks import (
@@ -641,3 +648,284 @@ class TestReputationAuditor:
         assert len(result) == len(ReputationAuditor.DNSBL_SERVERS)
         for server in ReputationAuditor.DNSBL_SERVERS:
             assert server in result
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SubdomainAuditor — Certificate Transparency + DNS + SSL
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _make_cert(days_left: int) -> dict:
+    """Crée un faux résultat _check_cert avec les champs importants."""
+    return {
+        "subdomain": "sub.example.com",
+        "days_left": days_left,
+        "expired":       days_left < 0,
+        "expiring_soon": 0 <= days_left <= 30,
+        "expires_at": "2025-01-01T00:00:00+00:00",
+    }
+
+
+class TestSubdomainAuditorSync:
+    """
+    _audit_sync testé via patch.object sur les 3 sous-méthodes isolables :
+    _fetch_crtsh, _resolve_subdomain, _check_cert.
+    """
+
+    def _run(
+        self,
+        subdomains: list[str],
+        resolve_map: dict[str, str | None] | None = None,
+        cert_map: dict[str, dict | None] | None = None,
+    ) -> tuple[list, SubdomainAuditor]:
+        """
+        Lance _audit_sync avec des sous-domaines et résolutions mockées.
+        resolve_map : {subdomain → ip | None}
+        cert_map    : {subdomain → cert_dict | None}
+        """
+        auditor = SubdomainAuditor("example.com")
+        if resolve_map is None:
+            resolve_map = {s: "1.2.3.4" for s in subdomains}  # tout résout
+        if cert_map is None:
+            cert_map = {s: None for s in subdomains}           # pas de HTTPS
+
+        def fake_resolve(sub):
+            return resolve_map.get(sub)
+
+        def fake_cert(sub):
+            return cert_map.get(sub)
+
+        with patch.object(auditor, "_fetch_crtsh", return_value=subdomains), \
+             patch.object(auditor, "_resolve_subdomain", side_effect=fake_resolve), \
+             patch.object(auditor, "_check_cert", side_effect=fake_cert):
+            findings = auditor._audit_sync()
+
+        return findings, auditor
+
+    # ── Cas de base ──────────────────────────────────────────────────────────
+
+    def test_no_subdomains_returns_empty(self):
+        """crt.sh ne renvoie rien → []."""
+        findings, _ = self._run([])
+        assert findings == []
+
+    def test_active_no_cert_issues_info_finding(self):
+        """Sous-domaines actifs, pas de problème de cert → INFO."""
+        findings, _ = self._run(["api.example.com", "blog.example.com"])
+        info = [f for f in findings if f.severity == "INFO"]
+        assert len(info) == 1
+        assert info[0].penalty == 0
+
+    def test_active_info_mentions_count(self):
+        """Le finding INFO mentionne le nombre de sous-domaines actifs."""
+        findings, _ = self._run(["api.example.com", "mail.example.com"])
+        info = [f for f in findings if f.severity == "INFO"]
+        assert "2" in info[0].title
+
+    # ── Sous-domaines orphelins ───────────────────────────────────────────────
+
+    def test_one_orphaned_medium_finding(self):
+        """1 sous-domaine orphelin → MEDIUM."""
+        findings, _ = self._run(
+            ["old.example.com"],
+            resolve_map={"old.example.com": None},
+        )
+        medium = [f for f in findings if f.severity == "MEDIUM"]
+        assert len(medium) == 1
+
+    def test_orphaned_penalty_three_per_subdomain(self):
+        """2 orphelins → pénalité 6 (2 × 3)."""
+        subs = ["a.example.com", "b.example.com"]
+        findings, _ = self._run(subs, resolve_map={s: None for s in subs})
+        medium = [f for f in findings if f.severity == "MEDIUM"]
+        assert medium[0].penalty == 6
+
+    def test_orphaned_penalty_clamped_at_15(self):
+        """6 orphelins → pénalité 15 (plafond min(6×3, 15))."""
+        subs = [f"sub{i}.example.com" for i in range(6)]
+        findings, _ = self._run(subs, resolve_map={s: None for s in subs})
+        medium = [f for f in findings if f.severity == "MEDIUM"]
+        assert medium[0].penalty == 15
+
+    def test_orphaned_sample_in_detail(self):
+        """Les sous-domaines orphelins apparaissent dans le détail technique."""
+        findings, _ = self._run(
+            ["dead.example.com"],
+            resolve_map={"dead.example.com": None},
+        )
+        medium = [f for f in findings if f.severity == "MEDIUM"]
+        assert "dead.example.com" in medium[0].technical_detail
+
+    def test_orphaned_detail_truncated_after_five(self):
+        """Plus de 5 orphelins → mention '+N more' dans le détail."""
+        subs = [f"old{i}.example.com" for i in range(8)]
+        findings, _ = self._run(subs, resolve_map={s: None for s in subs})
+        medium = [f for f in findings if f.severity == "MEDIUM"]
+        assert "+3" in medium[0].technical_detail or "+" in medium[0].technical_detail
+
+    # ── Certificats expirés ───────────────────────────────────────────────────
+
+    def test_expired_cert_high_finding(self):
+        """Sous-domaine actif avec certificat expiré → HIGH, pénalité 15."""
+        sub = "secure.example.com"
+        findings, _ = self._run(
+            [sub],
+            cert_map={sub: _make_cert(days_left=-5)},
+        )
+        high = [f for f in findings if f.severity == "HIGH"]
+        assert len(high) == 1
+        assert high[0].penalty == 15
+
+    def test_expired_cert_sample_in_detail(self):
+        """Le sous-domaine à certificat expiré apparaît dans le détail."""
+        sub = "api.example.com"
+        findings, _ = self._run(
+            [sub],
+            cert_map={sub: {**_make_cert(-10), "subdomain": sub}},
+        )
+        high = [f for f in findings if f.severity == "HIGH"]
+        assert sub in high[0].technical_detail
+
+    # ── Certificats expirant bientôt ─────────────────────────────────────────
+
+    def test_expiring_soon_medium_finding(self):
+        """Certificat expirant dans 15 jours → MEDIUM, pénalité 8."""
+        sub = "api.example.com"
+        findings, _ = self._run(
+            [sub],
+            cert_map={sub: {**_make_cert(15), "subdomain": sub}},
+        )
+        medium = [f for f in findings if f.severity == "MEDIUM"]
+        assert len(medium) == 1
+        assert medium[0].penalty == 8
+
+    def test_expiring_soon_mentions_days_in_detail(self):
+        """Le nombre de jours restants apparaît dans le détail."""
+        sub = "mail.example.com"
+        findings, _ = self._run(
+            [sub],
+            cert_map={sub: {**_make_cert(7), "subdomain": sub}},
+        )
+        medium = [f for f in findings if f.severity == "MEDIUM"]
+        assert "7" in medium[0].technical_detail
+
+    # ── Scenarios combinés ────────────────────────────────────────────────────
+
+    def test_mixed_orphaned_and_expired(self):
+        """1 orphelin + 1 cert expiré → 2 findings (MEDIUM + HIGH)."""
+        subs = ["dead.example.com", "secure.example.com"]
+        findings, _ = self._run(
+            subs,
+            resolve_map={"dead.example.com": None, "secure.example.com": "1.2.3.4"},
+            cert_map={"secure.example.com": {**_make_cert(-1), "subdomain": "secure.example.com"}},
+        )
+        severities = {f.severity for f in findings}
+        assert "MEDIUM" in severities
+        assert "HIGH"   in severities
+
+    def test_active_with_expiring_soon_no_info_finding(self):
+        """Quand certains certs expirent bientôt, pas de finding INFO (conditions non remplies)."""
+        sub = "api.example.com"
+        findings, _ = self._run(
+            [sub],
+            cert_map={sub: {**_make_cert(20), "subdomain": sub}},
+        )
+        info = [f for f in findings if f.severity == "INFO"]
+        assert len(info) == 0
+
+    # ── Vérification du dict _details ─────────────────────────────────────────
+
+    def test_details_populated_after_scan(self):
+        """_details contient les métadonnées après _audit_sync."""
+        subs = ["api.example.com", "blog.example.com"]
+        _, auditor = self._run(subs)
+        details = auditor.get_details()
+        assert details["total_found"] == 2
+        assert len(details["subdomains"]) == 2
+
+    def test_details_orphaned_list(self):
+        """_details['orphaned'] contient les sous-domaines sans IP."""
+        sub = "old.example.com"
+        _, auditor = self._run([sub], resolve_map={sub: None})
+        assert sub in auditor.get_details()["orphaned"]
+
+    def test_details_active_subdomain_has_ip(self):
+        """_details['subdomains'] enregistre l'IP des subs actifs."""
+        sub = "api.example.com"
+        _, auditor = self._run([sub], resolve_map={sub: "10.0.0.1"})
+        entry = auditor.get_details()["subdomains"][0]
+        assert entry["ip"] == "10.0.0.1"
+        assert entry["active"] is True
+
+
+class TestSubdomainAuditorFetch:
+    """
+    _fetch_crtsh testé directement via mock de urllib.request.urlopen.
+    Vérifie le filtrage wildcards, hors-scope, déduplication, erreur réseau.
+    """
+
+    def _fake_urlopen(self, data: list[dict]):
+        """Crée un faux context manager pour urlopen retournant des données JSON."""
+        body = json.dumps(data).encode("utf-8")
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = body
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    def test_valid_json_returns_subdomains(self):
+        """JSON valide avec sous-domaines en scope → liste de sous-domaines."""
+        auditor = SubdomainAuditor("example.com")
+        data = [
+            {"name_value": "api.example.com\nblog.example.com"},
+            {"name_value": "mail.example.com"},
+        ]
+        with patch("urllib.request.urlopen", return_value=self._fake_urlopen(data)):
+            result = auditor._fetch_crtsh()
+        assert "api.example.com"  in result
+        assert "blog.example.com" in result
+        assert "mail.example.com" in result
+
+    def test_wildcards_filtered_out(self):
+        """Les entrées '*.example.com' sont exclues."""
+        auditor = SubdomainAuditor("example.com")
+        data = [{"name_value": "*.example.com\napi.example.com"}]
+        with patch("urllib.request.urlopen", return_value=self._fake_urlopen(data)):
+            result = auditor._fetch_crtsh()
+        assert all(not s.startswith("*") for s in result)
+        assert "api.example.com" in result
+
+    def test_out_of_scope_domains_filtered(self):
+        """Domaines extérieurs (other.com) ignorés."""
+        auditor = SubdomainAuditor("example.com")
+        data = [{"name_value": "api.example.com\nevil.other.com"}]
+        with patch("urllib.request.urlopen", return_value=self._fake_urlopen(data)):
+            result = auditor._fetch_crtsh()
+        assert "evil.other.com" not in result
+        assert "api.example.com" in result
+
+    def test_deduplication(self):
+        """Doublons dans les entrées CT → une seule occurrence."""
+        auditor = SubdomainAuditor("example.com")
+        data = [
+            {"name_value": "api.example.com"},
+            {"name_value": "api.example.com"},  # doublon
+        ]
+        with patch("urllib.request.urlopen", return_value=self._fake_urlopen(data)):
+            result = auditor._fetch_crtsh()
+        assert result.count("api.example.com") == 1
+
+    def test_network_error_returns_empty(self):
+        """Erreur réseau → [] sans crash."""
+        auditor = SubdomainAuditor("example.com")
+        with patch("urllib.request.urlopen", side_effect=Exception("timeout")):
+            result = auditor._fetch_crtsh()
+        assert result == []
+
+    def test_max_subdomains_limit(self):
+        """Résultat tronqué à MAX_SUBDOMAINS (50)."""
+        auditor = SubdomainAuditor("example.com")
+        names = "\n".join(f"sub{i}.example.com" for i in range(100))
+        data = [{"name_value": names}]
+        with patch("urllib.request.urlopen", return_value=self._fake_urlopen(data)):
+            result = auditor._fetch_crtsh()
+        assert len(result) <= SubdomainAuditor.MAX_SUBDOMAINS
