@@ -26,6 +26,8 @@ from app.advanced_checks import (
 from app.extra_checks import (
     HttpHeaderAuditor,
     EmailSecurityAuditor,
+    TechExposureAuditor,
+    ReputationAuditor,
 )
 
 
@@ -377,3 +379,265 @@ class TestEmailSecurityAuditor:
         with patch("app.extra_checks.dns.resolver.Resolver",
                    return_value=self._mock_resolver(found=False)):
             assert auditor._check_mx() is False
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TechExposureAuditor — Stack technique exposée
+# ═════════════════════════════════════════════════════════════════════════════
+
+class TestTechExposureAuditor:
+    """
+    _detect_tech_sync testé directement (méthode sync).
+    http.client.HTTPSConnection / HTTPConnection mockés.
+    """
+
+    def _make_conn(self, body: bytes = b"", headers: list | None = None, status: int = 200) -> MagicMock:
+        """Crée un faux objet connexion HTTP retournant body/headers/status."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = body
+        mock_resp.getheaders.return_value = headers or []
+        mock_resp.status = status
+        mock_conn = MagicMock()
+        mock_conn.getresponse.return_value = mock_resp
+        return mock_conn
+
+    def _run(self, body: bytes = b"", headers: list | None = None) -> list:
+        """Lance _detect_tech_sync en mockant HTTPS (succès immédiat).
+        Le second appel HTTPS (/wp-admin) lève une exception → jamais de HIGH ici.
+        Utiliser side_effect explicite pour tester le scénario /wp-admin accessible.
+        """
+        auditor = TechExposureAuditor("example.com")
+        conn_main = self._make_conn(body, headers)
+        conn_wp_admin = MagicMock()
+        conn_wp_admin.request.side_effect = ConnectionRefusedError("refused")
+        with patch("http.client.HTTPSConnection", side_effect=[conn_main, conn_wp_admin]), \
+             patch("http.client.HTTPConnection", return_value=MagicMock()):
+            return auditor._detect_tech_sync()
+
+    def test_no_body_returns_empty(self):
+        """HTTPS et HTTP tous deux en erreur → liste vide."""
+        auditor = TechExposureAuditor("example.com")
+        err_conn = MagicMock()
+        err_conn.request.side_effect = ConnectionRefusedError("refused")
+        with patch("http.client.HTTPSConnection", return_value=err_conn), \
+             patch("http.client.HTTPConnection", return_value=err_conn):
+            findings = auditor._detect_tech_sync()
+        assert findings == []
+
+    def test_clean_page_no_findings(self):
+        """Page sans marqueurs connus → aucun finding."""
+        findings = self._run(b"<html><body>Hello World</body></html>")
+        assert findings == []
+
+    def test_wordpress_wp_content_marker(self):
+        """Marqueur wp-content → finding MEDIUM, pénalité 5."""
+        findings = self._run(b"<html><link href='/wp-content/themes/style.css'></html>")
+        wp = [f for f in findings if "WordPress" in f.title]
+        assert len(wp) == 1
+        assert wp[0].severity == "MEDIUM"
+        assert wp[0].penalty  == 5
+
+    def test_wordpress_wp_json_marker(self):
+        """Marqueur wp-json → WordPress détecté."""
+        findings = self._run(b'<link rel="alternate" href="https://example.com/wp-json/">')
+        wp = [f for f in findings if "WordPress" in f.title]
+        assert len(wp) == 1
+
+    def test_wordpress_literal_marker(self):
+        """Mot 'wordpress' en minuscule dans le body → WordPress détecté."""
+        findings = self._run(b"<meta name='generator' content='WordPress 6.4'>")
+        wp = [f for f in findings if "WordPress" in f.title]
+        assert len(wp) == 1
+
+    def test_wordpress_admin_accessible_200_adds_high(self):
+        """/wp-admin retourne 200 → MEDIUM WordPress + HIGH wp-admin."""
+        auditor = TechExposureAuditor("example.com")
+        conn1 = self._make_conn(b"<html>wp-content/themes</html>")   # page principale
+        conn2 = self._make_conn(b"", status=200)                      # /wp-admin
+        with patch("http.client.HTTPSConnection", side_effect=[conn1, conn2]):
+            findings = auditor._detect_tech_sync()
+        severities = {f.severity for f in findings}
+        assert "MEDIUM" in severities
+        assert "HIGH"   in severities
+        assert len(findings) == 2
+
+    def test_wordpress_admin_redirect_302_adds_high(self):
+        """/wp-admin retournant 302 → HIGH finding quand même."""
+        auditor = TechExposureAuditor("example.com")
+        conn1 = self._make_conn(b"wordpress detected")
+        conn2 = self._make_conn(b"", status=302)
+        with patch("http.client.HTTPSConnection", side_effect=[conn1, conn2]):
+            findings = auditor._detect_tech_sync()
+        high = [f for f in findings if f.severity == "HIGH"]
+        assert len(high) == 1
+
+    def test_wordpress_admin_404_no_high_finding(self):
+        """/wp-admin retournant 404 → seulement le finding MEDIUM."""
+        auditor = TechExposureAuditor("example.com")
+        conn1 = self._make_conn(b"<html>wp-content/themes</html>")
+        conn2 = self._make_conn(b"", status=404)
+        with patch("http.client.HTTPSConnection", side_effect=[conn1, conn2]):
+            findings = auditor._detect_tech_sync()
+        assert all(f.severity != "HIGH" for f in findings)
+        assert len(findings) == 1
+
+    def test_drupal_in_body_medium(self):
+        """Marqueur 'drupal' dans le body → finding MEDIUM, pénalité 4."""
+        findings = self._run(b"<html><meta name='Generator' content='Drupal 9'></html>")
+        drupal = [f for f in findings if "Drupal" in f.title]
+        assert len(drupal) == 1
+        assert drupal[0].severity == "MEDIUM"
+        assert drupal[0].penalty  == 4
+
+    def test_php_version_exposed_low(self):
+        """X-Powered-By: PHP/7.4.33 → finding LOW, pénalité 4."""
+        findings = self._run(b"<html></html>", headers=[("X-Powered-By", "PHP/7.4.33")])
+        php = [f for f in findings if "PHP" in f.title]
+        assert len(php) == 1
+        assert php[0].severity == "LOW"
+        assert php[0].penalty  == 4
+
+    def test_php_without_version_number_no_finding(self):
+        """X-Powered-By: PHP sans numéro de version → pas de finding."""
+        findings = self._run(b"<html></html>", headers=[("X-Powered-By", "PHP")])
+        php = [f for f in findings if "PHP" in f.title]
+        assert len(php) == 0
+
+    def test_https_fail_fallback_http_detects_markers(self):
+        """HTTPS échoue → fallback sur HTTP → marqueurs quand même détectés."""
+        auditor = TechExposureAuditor("example.com")
+        err_conn = MagicMock()
+        err_conn.request.side_effect = ConnectionRefusedError("refused")
+        http_conn = self._make_conn(b"<html>drupal cms site</html>")
+        with patch("http.client.HTTPSConnection", return_value=err_conn), \
+             patch("http.client.HTTPConnection", return_value=http_conn):
+            findings = auditor._detect_tech_sync()
+        assert any("Drupal" in f.title for f in findings)
+
+    def test_wordpress_and_php_combined(self):
+        """wp-content + X-Powered-By: PHP/8.1.0 → MEDIUM WordPress + LOW PHP."""
+        findings = self._run(
+            b"<html><link href='/wp-content/style.css'></html>",
+            headers=[("X-Powered-By", "PHP/8.1.0")],
+        )
+        severities = [f.severity for f in findings]
+        assert "MEDIUM" in severities
+        assert "LOW"    in severities
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ReputationAuditor — DNSBL
+# ═════════════════════════════════════════════════════════════════════════════
+
+class TestReputationAuditor:
+    """
+    _resolve_ip  → socket.gethostbyname mocké
+    _check_dnsbl → dns.resolver.Resolver mocké
+    audit()      → méthode async, testée directement (asyncio_mode=auto)
+    """
+
+    async def test_clean_ip_info_finding_no_penalty(self):
+        """IP non blacklistée → finding INFO, pénalité 0."""
+        auditor = ReputationAuditor("example.com")
+        mock_resolver = MagicMock()
+        mock_resolver.resolve.side_effect = Exception("NXDOMAIN")
+        with patch("app.extra_checks.socket.gethostbyname", return_value="93.184.216.34"), \
+             patch("app.extra_checks.dns.resolver.Resolver", return_value=mock_resolver):
+            findings = await auditor.audit()
+        assert len(findings) == 1
+        assert findings[0].severity == "INFO"
+        assert findings[0].penalty  == 0
+
+    async def test_blacklisted_ip_critical_penalty_20(self):
+        """IP blacklistée dans tous les DNSBL → finding CRITICAL, pénalité 20."""
+        auditor = ReputationAuditor("example.com")
+        mock_resolver = MagicMock()
+        mock_resolver.resolve.return_value = [MagicMock()]   # trouvé partout
+        with patch("app.extra_checks.socket.gethostbyname", return_value="1.2.3.4"), \
+             patch("app.extra_checks.dns.resolver.Resolver", return_value=mock_resolver):
+            findings = await auditor.audit()
+        assert len(findings) == 1
+        assert findings[0].severity == "CRITICAL"
+        assert findings[0].penalty  == 20
+
+    async def test_blacklisted_finding_lists_all_servers(self):
+        """Tous les DNSBL dans les détails techniques quand tous matchent."""
+        auditor = ReputationAuditor("example.com")
+        mock_resolver = MagicMock()
+        mock_resolver.resolve.return_value = [MagicMock()]
+        with patch("app.extra_checks.socket.gethostbyname", return_value="1.2.3.4"), \
+             patch("app.extra_checks.dns.resolver.Resolver", return_value=mock_resolver):
+            findings = await auditor.audit()
+        detail = findings[0].technical_detail
+        for dnsbl in ReputationAuditor.DNSBL_SERVERS:
+            assert dnsbl in detail
+
+    async def test_blacklisted_by_one_server_still_critical(self):
+        """IP blacklistée par 1 seul DNSBL → CRITICAL quand même."""
+        auditor = ReputationAuditor("example.com")
+        call_count = [0]
+
+        def selective_resolve(query, record_type):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return [MagicMock()]          # premier DNSBL : blacklisté
+            raise Exception("NXDOMAIN")       # les suivants : propres
+
+        mock_resolver = MagicMock()
+        mock_resolver.resolve.side_effect = selective_resolve
+        with patch("app.extra_checks.socket.gethostbyname", return_value="5.6.7.8"), \
+             patch("app.extra_checks.dns.resolver.Resolver", return_value=mock_resolver):
+            findings = await auditor.audit()
+        assert findings[0].severity == "CRITICAL"
+        assert "zen.spamhaus.org" in findings[0].technical_detail
+
+    async def test_dns_resolution_failure_returns_empty(self):
+        """socket.gethostbyname échoue → findings vides (pas de crash)."""
+        auditor = ReputationAuditor("example.com")
+        with patch("app.extra_checks.socket.gethostbyname", side_effect=Exception("No such host")):
+            findings = await auditor.audit()
+        assert findings == []
+
+    def test_resolve_ip_returns_string(self):
+        """_resolve_ip → string IP si l'hôte est résolu."""
+        auditor = ReputationAuditor("example.com")
+        with patch("app.extra_checks.socket.gethostbyname", return_value="93.184.216.34"):
+            ip = auditor._resolve_ip()
+        assert ip == "93.184.216.34"
+
+    def test_resolve_ip_returns_none_on_error(self):
+        """_resolve_ip → None si le domaine est introuvable."""
+        auditor = ReputationAuditor("example.com")
+        with patch("app.extra_checks.socket.gethostbyname", side_effect=Exception("No such host")):
+            ip = auditor._resolve_ip()
+        assert ip is None
+
+    def test_check_dnsbl_reverses_ip_octets(self):
+        """_check_dnsbl inverse les octets de l'IP pour la requête DNS."""
+        auditor = ReputationAuditor("example.com")
+        mock_resolver = MagicMock()
+        mock_resolver.resolve.side_effect = Exception("NXDOMAIN")
+        with patch("app.extra_checks.dns.resolver.Resolver", return_value=mock_resolver):
+            auditor._check_dnsbl("1.2.3.4")
+        first_query = mock_resolver.resolve.call_args_list[0][0][0]
+        assert first_query.startswith("4.3.2.1.")
+
+    def test_check_dnsbl_returns_empty_when_clean(self):
+        """_check_dnsbl → [] si l'IP n'est dans aucune liste noire."""
+        auditor = ReputationAuditor("example.com")
+        mock_resolver = MagicMock()
+        mock_resolver.resolve.side_effect = Exception("NXDOMAIN")
+        with patch("app.extra_checks.dns.resolver.Resolver", return_value=mock_resolver):
+            result = auditor._check_dnsbl("1.2.3.4")
+        assert result == []
+
+    def test_check_dnsbl_returns_matching_server_names(self):
+        """_check_dnsbl → liste des noms de DNSBL où l'IP est trouvée."""
+        auditor = ReputationAuditor("example.com")
+        mock_resolver = MagicMock()
+        mock_resolver.resolve.return_value = [MagicMock()]   # toujours trouvé
+        with patch("app.extra_checks.dns.resolver.Resolver", return_value=mock_resolver):
+            result = auditor._check_dnsbl("1.2.3.4")
+        assert len(result) == len(ReputationAuditor.DNSBL_SERVERS)
+        for server in ReputationAuditor.DNSBL_SERVERS:
+            assert server in result

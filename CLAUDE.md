@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 9)
+> Dernière mise à jour : 2026-03-06 (session 12)
 
 ---
 
@@ -313,6 +313,16 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 12)
+
+### Tests — TechExposureAuditor + ReputationAuditor (test_advanced_checks.py)
+- 23 nouveaux tests, total **427 tests, 0 échec**
+- 2 nouvelles classes : `TestTechExposureAuditor`, `TestReputationAuditor`
+- `TechExposureAuditor` : `_detect_tech_sync` — body vide → [], WordPress (wp-content, wp-json, literal) → MEDIUM p=5, /wp-admin 200/302 → +HIGH p=10, /wp-admin 404 → MEDIUM seul, Drupal → MEDIUM p=4, PHP/7.4.33 → LOW p=4, PHP sans version → pas de finding, fallback HTTP quand HTTPS échoue
+- `ReputationAuditor` : IP clean → INFO p=0, blacklisté tous DNSBL → CRITICAL p=20, 1 seul DNSBL → CRITICAL, DNS failure → [], `_resolve_ip` sync direct, `_check_dnsbl` vérifie inversion octets IP, serveurs matchés retournés
+- **Stratégie mock TechExposure** : `side_effect=[conn_main, conn_wp_admin]` pour isoler les deux appels HTTPSConnection (main page vs /wp-admin) — `_run()` helper injecte une 2ème conn qui raise pour éviter le HIGH parasite
+- **Stratégie mock Reputation** : `patch("app.extra_checks.socket.gethostbyname")` + `patch("app.extra_checks.dns.resolver.Resolver")`
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 11)
 
