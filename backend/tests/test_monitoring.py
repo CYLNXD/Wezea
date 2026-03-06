@@ -2,18 +2,23 @@
 Tests : monitoring — CRUD domaines surveillés
 =============================================
 Couvre :
-  - GET  /monitoring/domains         → liste (premium uniquement)
-  - POST /monitoring/domains         → ajout, doublons, limite plan, domaines invalides
-  - DELETE /monitoring/domains/{d}   → suppression (soft delete)
-  - PATCH /monitoring/domains/{d}    → mise à jour seuil, fréquence, email_report
-  - GET  /monitoring/status          → état du monitoring
+  - GET  /monitoring/domains               → liste (premium uniquement)
+  - POST /monitoring/domains               → ajout, doublons, limite plan, domaines invalides
+  - DELETE /monitoring/domains/{d}         → suppression (soft delete)
+  - PATCH /monitoring/domains/{d}          → mise à jour seuil, fréquence, email_report
+  - POST /monitoring/domains/{d}/scan      → scan immédiat (mocké)
+  - GET  /monitoring/status                → état du monitoring
 
 Stratégie anti-rate-limit :
   - Les tokens JWT sont générés directement via create_access_token (pas de /auth/login)
   - Les utilisateurs sont créés en DB sans passer par /auth/register
   Cela évite de déclencher les limiteurs 10/hour (/register) ou 30/minute (/login).
+
+Pour TestScanNow : _scan_and_alert est mocké via unittest.mock.patch pour éviter
+tout appel réseau réel (le scanner ferait une vraie connexion au domaine cible).
 """
 import pytest
+from unittest.mock import AsyncMock, patch
 from app.models import MonitoredDomain
 
 
@@ -575,3 +580,145 @@ class TestMonitoringStatus:
         resp = client.get("/monitoring/status", headers=_headers(creds["token"]))
         assert resp.status_code == 200
         assert resp.json()["domains_used"] == 3  # seulement les actifs
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /monitoring/domains/{domain}/scan — scan immédiat
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _mock_scan_and_alert():
+    """
+    Mock de _scan_and_alert qui simule un scan réussi sans appel réseau.
+    Met à jour last_score et last_scan_at sur le MonitoredDomain reçu.
+    """
+    from datetime import datetime, timezone
+
+    async def _fake(monitored, db):
+        monitored.last_score      = 82
+        monitored.last_risk_level = "low"
+        monitored.last_scan_at    = datetime.now(timezone.utc)
+        monitored.last_ssl_expiry_days = 90
+        monitored.last_open_ports      = '["443", "80"]'
+        monitored.last_technologies    = '{"nginx": "1.24.0"}'
+        db.commit()
+
+    return _fake
+
+
+class TestScanNow:
+
+    def _setup(self, db_session, plan: str = "starter", domain: str = "scan-now.example.com"):
+        """Crée l'utilisateur et le domaine surveillé nécessaires au test."""
+        creds = _make_user(db_session, plan)
+        db_session.add(MonitoredDomain(
+            user_id=creds["user"].id,
+            domain=domain,
+            is_active=True,
+        ))
+        db_session.commit()
+        return creds
+
+    def test_scan_now_returns_200_with_new_score(self, client, db_session):
+        """Scan immédiat réussi → retourne les nouvelles valeurs de score et de risque."""
+        creds = self._setup(db_session)
+
+        with patch("app.scheduler._scan_and_alert", new=_mock_scan_and_alert()):
+            resp = client.post(
+                "/monitoring/domains/scan-now.example.com/scan",
+                headers=_headers(creds["token"]),
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["domain"] == "scan-now.example.com"
+        assert data["new_score"] == 82
+        assert data["new_risk_level"] == "low"
+        assert "scanned_at" in data
+        assert data["last_ssl_expiry_days"] == 90
+
+    def test_scan_now_updates_db(self, client, db_session):
+        """Après un scan immédiat, les valeurs en DB sont bien mises à jour."""
+        creds = self._setup(db_session, domain="db-update.example.com")
+
+        with patch("app.scheduler._scan_and_alert", new=_mock_scan_and_alert()):
+            resp = client.post(
+                "/monitoring/domains/db-update.example.com/scan",
+                headers=_headers(creds["token"]),
+            )
+
+        assert resp.status_code == 200
+
+        db_session.expire_all()
+        d = db_session.query(MonitoredDomain).filter(
+            MonitoredDomain.domain == "db-update.example.com",
+            MonitoredDomain.user_id == creds["user"].id,
+        ).first()
+        assert d.last_score == 82
+        assert d.last_risk_level == "low"
+        assert d.last_scan_at is not None
+
+    def test_scan_now_nonexistent_domain_404(self, client, db_session):
+        """Scan immédiat sur un domaine non surveillé → 404."""
+        creds = _make_user(db_session, "starter")
+
+        with patch("app.scheduler._scan_and_alert", new=_mock_scan_and_alert()):
+            resp = client.post(
+                "/monitoring/domains/ghost.example.com/scan",
+                headers=_headers(creds["token"]),
+            )
+
+        assert resp.status_code == 404
+
+    def test_scan_now_inactive_domain_404(self, client, db_session):
+        """Scan immédiat sur un domaine inactif (soft-deleted) → 404."""
+        creds = _make_user(db_session, "starter")
+        db_session.add(MonitoredDomain(
+            user_id=creds["user"].id,
+            domain="inactive-scan.example.com",
+            is_active=False,
+        ))
+        db_session.commit()
+
+        with patch("app.scheduler._scan_and_alert", new=_mock_scan_and_alert()):
+            resp = client.post(
+                "/monitoring/domains/inactive-scan.example.com/scan",
+                headers=_headers(creds["token"]),
+            )
+
+        assert resp.status_code == 404
+
+    def test_scan_now_other_user_domain_404(self, client, db_session):
+        """Scan immédiat sur le domaine d'un autre utilisateur → 404."""
+        user_a = _make_user(db_session, "starter")
+        user_b = _make_user(db_session, "starter")
+        db_session.add(MonitoredDomain(
+            user_id=user_a["user"].id,
+            domain="belongs-to-a.com",
+            is_active=True,
+        ))
+        db_session.commit()
+
+        with patch("app.scheduler._scan_and_alert", new=_mock_scan_and_alert()):
+            resp = client.post(
+                "/monitoring/domains/belongs-to-a.com/scan",
+                headers=_headers(user_b["token"]),
+            )
+
+        assert resp.status_code == 404
+
+    def test_scan_now_free_user_403(self, client, db_session):
+        """Un utilisateur free ne peut pas déclencher de scan immédiat."""
+        creds = _make_user(db_session, "free")
+
+        with patch("app.scheduler._scan_and_alert", new=_mock_scan_and_alert()):
+            resp = client.post(
+                "/monitoring/domains/some-domain.com/scan",
+                headers=_headers(creds["token"]),
+            )
+
+        assert resp.status_code == 403
+
+    def test_scan_now_unauthenticated_401(self, client):
+        """Sans token → 401."""
+        resp = client.post("/monitoring/domains/example.com/scan")
+        assert resp.status_code == 401
