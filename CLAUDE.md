@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 15)
+> Dernière mise à jour : 2026-03-06 (session 16)
 
 ---
 
@@ -314,7 +314,21 @@ ls -lh /home/cyberhealth/backups/
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
 
-## 🆕 Fonctionnalités récentes (2026-03-06, session 15)
+## 🆕 Fonctionnalités récentes (2026-03-06, session 16)
+
+### Tests — auth.py + brevo_service._esc (test_auth_utils.py)
+- 35 nouveaux tests, total **585 tests, 0 échec**
+- Nouveau fichier `tests/test_auth_utils.py` — zéro DB, zéro réseau (fonctions pures)
+- 7 classes : `TestHashPassword`, `TestVerifyPassword`, `TestNeedsRehash`, `TestCreateAccessToken`, `TestDecodeToken`, `TestGenerateApiKey`, `TestBrEsc`
+- `TestHashPassword` (4 tests) : type str, préfixe $argon2, salt aléatoire, non-plaintext
+- `TestVerifyPassword` (6 tests) : correct True, mauvais False, hash invalide False sans exception, sensible casse
+- `TestNeedsRehash` (3 tests) : argon2 frais → False, hash invalide → False
+- `TestCreateAccessToken` (6 tests) : format JWT 3 segments, payload sub/email/plan/exp, sub est string (JWT spec)
+- `TestDecodeToken` (5 tests) : valid → payload, invalid/vide/tampered → None
+- `TestGenerateApiKey` (4 tests) : préfixe wsk_, longueur ≥40, unicité sur 10 appels, chars URL-safe
+- `TestBrEsc` (7 tests) : plain inchangé, <>&" → entités HTML, non-string → str, XSS neutralisé
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 16)
 
 ### Tests — auth_router.py (test_auth.py)
 - 32 nouveaux tests, total **550 tests, 0 échec**
