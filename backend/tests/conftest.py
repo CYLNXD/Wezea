@@ -1,19 +1,29 @@
 """
 Fixtures pytest pour CyberHealth Scanner
 -----------------------------------------
-- DB en mémoire (SQLite) isolée pour chaque test
+- DB en mémoire (SQLite in-memory) isolée par test — ne persiste JAMAIS sur disque
 - Override des dépendances FastAPI (get_db)
 - Mocks des services externes (Brevo, scheduler)
 """
+import os
+import uuid
+
+# ── Variables d'env pour les tests — définies AVANT tout import de l'app ──────
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-ci-only-32-chars-min")
+os.environ.setdefault("CORS_ORIGINS", "http://testserver")
+os.environ.setdefault("DEBUG", "false")
+os.environ.setdefault("COOKIE_SECURE", "false")
+os.environ.setdefault("COOKIE_SAMESITE", "lax")
+
 import pytest
-import pytest_asyncio
 from unittest.mock import AsyncMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
-# ── Base de données de test en mémoire ────────────────────────────────────────
-TEST_DB_URL = "sqlite:///./test_cyberhealth.db"
+# ── DB en mémoire — isolée, ne persiste JAMAIS sur disque ─────────────────────
+TEST_DB_URL = "sqlite://"   # ← ":memory:" implicite ; StaticPool = même connexion partagée
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -35,16 +45,22 @@ def _patch_brevo():
         yield
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def test_engine():
+    """
+    Moteur SQLite en mémoire — scope=function → DB fraîche à chaque test.
+    StaticPool garantit que toutes les connexions partagent la même DB en mémoire.
+    """
     from app.database import Base
     engine = create_engine(
         TEST_DB_URL,
         connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
+    engine.dispose()
 
 
 @pytest.fixture()
@@ -79,15 +95,19 @@ def client(db_session):
 
 @pytest.fixture()
 def registered_user(client):
-    """Crée et retourne un utilisateur inscrit avec son token JWT."""
+    """
+    Crée et retourne un utilisateur inscrit avec son token JWT.
+    Email unique par test (uuid) — évite tout conflit même si la DB n'est pas isolée.
+    """
+    email = f"test-{uuid.uuid4().hex[:8]}@example.com"
     resp = client.post("/auth/register", json={
-        "email": "test@example.com",
+        "email": email,
         "password": "TestPassword123",
     })
-    assert resp.status_code == 201
+    assert resp.status_code == 201, f"Register failed: {resp.status_code} {resp.text}"
     data = resp.json()
     return {
-        "email": "test@example.com",
+        "email": email,
         "password": "TestPassword123",
         "token": data["access_token"],
         "user": data["user"],
