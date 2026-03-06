@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 21)
+> Dernière mise à jour : 2026-03-06 (session 22)
 
 ---
 
@@ -313,6 +313,21 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 22)
+
+### Tests — scanner.py __main__ block (+2 tests) → 898 tests, **100% coverage** 🏆
+
+#### TestScannerMainEntrypoint (nouveau, 2 tests dans test_scanner.py)
+- `test_main_with_explicit_domain` : `sys.argv[1]` fourni → `AuditManager("test.com")` créé et `run()` attendu (line 1019 branch True)
+- `test_main_default_domain` : aucun argv[1] → domaine par défaut `"example.com"` (line 1019 branch False)
+
+**Technique** : `runpy.run_path(scanner_path, run_name="__main__")` + interception de `asyncio.run` via `patch.object` avec injection du mock `AuditManager` dans `coro.cr_frame.f_globals` avant délégation à l'`asyncio.run` original. Permet de couvrir le bloc `if __name__ == "__main__":` sans réseau réel.
+
+**Couverture globale : 100%** (898 tests, 0 échec) 🎯
+**100% sur TOUS les fichiers** — plus aucun gap dans l'ensemble du codebase.
+
+---
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 21)
 

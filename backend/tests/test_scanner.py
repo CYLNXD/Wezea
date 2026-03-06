@@ -989,3 +989,63 @@ class TestPortAuditorLowLevel:
         assert result is True
         # connect_ex appelé avec l'IP pré-résolue, pas le domaine
         mock_sock.connect_ex.assert_called_once_with(("1.2.3.4", 80))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# __main__ block — lines 1016-1027
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestScannerMainEntrypoint:
+    """Couvre le bloc `if __name__ == '__main__':` (lines 1016-1027) via runpy."""
+
+    @staticmethod
+    def _scanner_path() -> str:
+        import os
+        return os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "app", "scanner.py")
+        )
+
+    def _run_main(self, argv):
+        """Exécute scanner.py comme __main__ avec argv donné, AuditManager mocké."""
+        import os
+        import runpy
+        import sys
+        from unittest.mock import AsyncMock as _AsyncMock
+
+        mock_result = MagicMock()
+        mock_result.to_dict.return_value = {"domain": argv[-1] if len(argv) > 1 else "example.com", "score": 85}
+        mock_manager = MagicMock()
+        mock_manager.run = _AsyncMock(return_value=mock_result)
+        mock_cls = MagicMock(return_value=mock_manager)
+
+        original_asyncio_run = asyncio.run
+
+        def _patched_run(coro):
+            """Injecte le mock AuditManager dans les globals du coroutine, puis exécute."""
+            frame_globals = coro.cr_frame.f_globals
+            old_cls = frame_globals.get("AuditManager")
+            frame_globals["AuditManager"] = mock_cls
+            try:
+                original_asyncio_run(coro)
+            finally:
+                if old_cls is not None:
+                    frame_globals["AuditManager"] = old_cls
+
+        with patch.object(sys, "argv", argv), \
+             patch.object(asyncio, "run", side_effect=_patched_run), \
+             patch("builtins.print"):
+            runpy.run_path(self._scanner_path(), run_name="__main__")
+
+        return mock_cls, mock_manager
+
+    def test_main_with_explicit_domain(self):
+        """sys.argv[1] fourni → AuditManager créé avec ce domaine (line 1019 branch True)."""
+        mock_cls, mock_manager = self._run_main(["scanner.py", "test.com"])
+        mock_cls.assert_called_once_with("test.com")
+        mock_manager.run.assert_awaited_once()
+
+    def test_main_default_domain(self):
+        """Aucun argv[1] → domaine par défaut 'example.com' (line 1019 branch False)."""
+        mock_cls, mock_manager = self._run_main(["scanner.py"])
+        mock_cls.assert_called_once_with("example.com")
+        mock_manager.run.assert_awaited_once()
