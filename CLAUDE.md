@@ -314,6 +314,15 @@ ls -lh /home/cyberhealth/backups/
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
 
+## 🆕 Fonctionnalités récentes (2026-03-06, session 8)
+
+### Tests — webhook_router (test_webhook.py)
+- 32 nouveaux tests, total **245 tests, 0 échec**
+- Couvre : `GET /webhooks`, `POST /webhooks`, `DELETE /webhooks/{id}`, `POST /webhooks/{id}/test`
+- 5 classes : `TestWebhookGuard`, `TestListWebhooks`, `TestCreateWebhook`, `TestDeleteWebhook`, `TestTestWebhook`
+- Livraison HTTP mockée via `patch("httpx.AsyncClient")` — 200, 500, exception réseau → status=0
+- Vérifie : guard Pro (401/403 free/starter), isolation inter-users, secret retourné une seule fois (absent du GET list), soft-delete (is_active=False en DB), limite 5 webhooks/compte, tous les événements valides acceptés
+
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 7)
 
 ### Tests — contact_router + newsletter_router (test_contact_newsletter.py)
