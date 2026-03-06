@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 16)
+> Dernière mise à jour : 2026-03-06 (session 17)
 
 ---
 
@@ -313,6 +313,31 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 17)
+
+### Tests — brevo_service.py (test_brevo_service.py) + scheduler._scan_and_alert (test_scan_and_alert.py)
+- **37 + 12 = 49 nouveaux tests**, total **634 tests, 0 échec**
+
+#### test_brevo_service.py (37 tests)
+- Couvre toutes les fonctions d'envoi email et gestion contacts de `brevo_service.py`
+- **Pattern critique** : conftest patche les fonctions à scope session → sauvegarder les vraies références au niveau module *avant* que conftest s'exécute :
+  ```python
+  import app.services.brevo_service as _svc
+  _real_send_welcome = _svc.send_welcome_email
+  _real_send_reset   = _svc.send_password_reset_email
+  # etc.
+  ```
+- `add_newsletter_contact` / `remove_newsletter_contact` utilisent httpx directement (pas `_contacts_request`) → mockées via `patch("httpx.AsyncClient")`
+- `_mock_http_client(response)` helper construit un context manager AsyncClient mock
+- Tests : pas de clé API → False, 200/201/204 → True, 400/500 → False, exception réseau → False, champs user HTML-escapés, méthodes HTTP correctes (POST/PUT/DELETE), liste ID 2 pour utilisateurs inscrits, attribut PLAN défini
+
+#### test_scan_and_alert.py (12 tests)
+- Couvre `scheduler._scan_and_alert` — logique centrale de monitoring
+- **Import local** : `AuditManager` importé dans la fonction → patch à `app.scanner.AuditManager`
+- **Import local** : `fire_webhooks` importé dans la fonction → patch à `app.routers.webhook_router.fire_webhooks`
+- `_audit_mock(result)` : wraps un MagicMock avec `run = AsyncMock(return_value=result)`
+- Tests : user inactif skippé, score/risk/SSL/ports mis à jour en DB, alerte sur drop ≥ seuil, alerte sur finding CRITICAL, pas d'alerte premier scan (no prev_score), alerte SSL ≤7 jours, alerte nouveau port ouvert, rapport PDF envoyé/non-envoyé selon `email_report`
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 16)
 
