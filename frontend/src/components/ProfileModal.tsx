@@ -1,9 +1,10 @@
 // ─── ProfileModal — profil, sécurité, clé API, suppression de compte ──────────
-import { useState, useEffect, useCallback, FormEvent } from 'react';
+import { useState, useEffect, useCallback, FormEvent, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Trash2, Save, AlertTriangle, CheckCircle,
   Lock, Copy, RefreshCw, Eye, EyeOff, KeyRound,
+  User, ShieldCheck, Mail,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -16,24 +17,63 @@ interface Props {
 
 type Tab = 'profile' | 'security' | 'api' | 'danger';
 
-// ─── Input helper (factorised style) ──────────────────────────────────────────
+// ─── SkuIcon — boîte d'icône skeuomorphique (pattern Dashboard) ───────────────
+// Usage : <SkuIcon color="#22d3ee" size={36}><User size={16} /></SkuIcon>
+// color  : couleur hex de l'icône (ex. '#22d3ee', '#a78bfa', '#f87171')
+// size   : taille du carré (défaut 36 — pour 32 ajuster borderRadius si besoin)
+function SkuIcon({
+  children, color, size = 36,
+}: { children: ReactNode; color: string; size?: number }) {
+  const r = Math.round(size * 0.28); // border-radius proportionnel
+  return (
+    <div
+      className="shrink-0 flex items-center justify-center relative overflow-hidden"
+      style={{
+        width: size, height: size, borderRadius: r,
+        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
+        border: `1px solid ${color}40`,
+        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
+      }}
+    >
+      {/* reflet supérieur */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }}
+      />
+      {children}
+    </div>
+  );
+}
+
+// ─── SectionHeader — en-tête de section pour chaque onglet ───────────────────
+function SectionHeader({ icon, title, sub }: { icon: ReactNode; title: string; sub?: string }) {
+  return (
+    <div className="flex items-center gap-3 pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      {icon}
+      <div>
+        <p className="text-white font-semibold text-sm leading-tight"
+          style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}>
+          {title}
+        </p>
+        {sub && <p className="text-slate-500 text-xs mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Input helper ─────────────────────────────────────────────────────────────
 function Input({
-  type = 'text', value, onChange, placeholder, required, maxLength, readOnly, mono,
+  type = 'text', value, onChange, placeholder, required, maxLength, readOnly,
 }: {
   type?: string; value: string; onChange?: (v: string) => void;
-  placeholder?: string; required?: boolean; maxLength?: number;
-  readOnly?: boolean; mono?: boolean;
+  placeholder?: string; required?: boolean; maxLength?: number; readOnly?: boolean;
 }) {
   return (
     <input
-      type={type}
-      value={value}
+      type={type} value={value}
       onChange={onChange ? e => onChange(e.target.value) : undefined}
-      placeholder={placeholder}
-      required={required}
-      maxLength={maxLength}
-      readOnly={readOnly}
-      className={`w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition ${mono ? 'font-mono' : ''} ${readOnly ? 'text-slate-400 cursor-default' : ''}`}
+      placeholder={placeholder} required={required} maxLength={maxLength} readOnly={readOnly}
+      className={`w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition ${readOnly ? 'text-slate-400 cursor-default' : ''}`}
       style={{
         background: readOnly ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.04)',
         border: `1px solid ${readOnly ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.08)'}`,
@@ -45,7 +85,7 @@ function Input({
   );
 }
 
-// ─── PasswordInput — toggle visibility ────────────────────────────────────────
+// ─── PasswordInput — avec toggle visibilité ────────────────────────────────────
 function PasswordInput({
   value, onChange, placeholder, required, focusColor = 'rgba(34,211,238,0.4)',
 }: {
@@ -56,11 +96,9 @@ function PasswordInput({
   return (
     <div className="relative">
       <input
-        type={show ? 'text' : 'password'}
-        value={value}
+        type={show ? 'text' : 'password'} value={value}
         onChange={e => onChange(e.target.value)}
-        placeholder={placeholder ?? '••••••••'}
-        required={required}
+        placeholder={placeholder ?? '••••••••'} required={required}
         className="w-full rounded-xl px-4 py-2.5 pr-10 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
         style={{
           background: 'rgba(255,255,255,0.04)',
@@ -71,14 +109,29 @@ function PasswordInput({
         onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
       />
       <button
-        type="button"
-        onClick={() => setShow(s => !s)}
+        type="button" onClick={() => setShow(s => !s)}
         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300 transition"
         tabIndex={-1}
       >
         {show ? <EyeOff size={14} /> : <Eye size={14} />}
       </button>
     </div>
+  );
+}
+
+// ─── Feedback rows ────────────────────────────────────────────────────────────
+function ErrMsg({ msg }: { msg: string }) {
+  return (
+    <p className="text-red-400 text-xs flex items-center gap-1.5">
+      <AlertTriangle size={13} />{msg}
+    </p>
+  );
+}
+function OkMsg({ msg }: { msg: string }) {
+  return (
+    <p className="text-emerald-400 text-xs flex items-center gap-1.5">
+      <CheckCircle size={13} />{msg}
+    </p>
   );
 }
 
@@ -96,27 +149,25 @@ export function ProfileModal({ open, onClose }: Props) {
   const [saveErr,   setSaveErr]   = useState('');
 
   // ── Security tab ────────────────────────────────────────────────────────────
-  const [secMode,       setSecMode]       = useState<'password' | 'email'>('password');
-  // change password
-  const [curPwd,        setCurPwd]        = useState('');
-  const [newPwd,        setNewPwd]        = useState('');
-  const [confirmPwd,    setConfirmPwd]    = useState('');
-  const [pwdOk,         setPwdOk]         = useState(false);
-  const [pwdErr,        setPwdErr]        = useState('');
-  const [pwdSaving,     setPwdSaving]     = useState(false);
-  // change email
-  const [newEmail,      setNewEmail]      = useState('');
-  const [emailPwd,      setEmailPwd]      = useState('');
-  const [emailOk,       setEmailOk]       = useState(false);
-  const [emailErr,      setEmailErr]      = useState('');
-  const [emailSaving,   setEmailSaving]   = useState(false);
+  const [secMode,     setSecMode]     = useState<'password' | 'email'>('password');
+  const [curPwd,      setCurPwd]      = useState('');
+  const [newPwd,      setNewPwd]      = useState('');
+  const [confirmPwd,  setConfirmPwd]  = useState('');
+  const [pwdOk,       setPwdOk]       = useState(false);
+  const [pwdErr,      setPwdErr]      = useState('');
+  const [pwdSaving,   setPwdSaving]   = useState(false);
+  const [newEmail,    setNewEmail]    = useState('');
+  const [emailPwd,    setEmailPwd]    = useState('');
+  const [emailOk,     setEmailOk]     = useState(false);
+  const [emailErr,    setEmailErr]    = useState('');
+  const [emailSaving, setEmailSaving] = useState(false);
 
   // ── API tab ──────────────────────────────────────────────────────────────────
-  const [apiKey,        setApiKey]        = useState<string | null>(null);
-  const [apiKeyVisible, setApiKeyVisible] = useState(false);
-  const [apiCopied,     setApiCopied]     = useState(false);
-  const [apiRegen,      setApiRegen]      = useState(false);
-  const [apiRegenOk,    setApiRegenOk]    = useState(false);
+  const [apiKey,       setApiKey]       = useState<string | null>(null);
+  const [apiVisible,   setApiVisible]   = useState(false);
+  const [apiCopied,    setApiCopied]    = useState(false);
+  const [apiRegen,     setApiRegen]     = useState(false);
+  const [apiRegenOk,   setApiRegenOk]   = useState(false);
 
   // ── Delete tab ───────────────────────────────────────────────────────────────
   const [delPassword, setDelPassword] = useState('');
@@ -138,14 +189,12 @@ export function ProfileModal({ open, onClose }: Props) {
     setNewEmail(''); setEmailPwd('');
     setEmailOk(false); setEmailErr('');
     setApiKey(user.api_key ?? null);
-    setApiKeyVisible(false); setApiCopied(false); setApiRegenOk(false);
+    setApiVisible(false); setApiCopied(false); setApiRegenOk(false);
     setDelPassword(''); setDelConfirm(''); setDelErr('');
     setTab('profile');
   }, [user]);
 
-  useEffect(() => {
-    if (open) resetAll();
-  }, [open, resetAll]);
+  useEffect(() => { if (open) resetAll(); }, [open, resetAll]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -169,10 +218,7 @@ export function ProfileModal({ open, onClose }: Props) {
     }
     setPwdSaving(true); setPwdErr(''); setPwdOk(false);
     try {
-      await apiClient.post('/auth/change-password', {
-        current_password: curPwd,
-        new_password: newPwd,
-      });
+      await apiClient.post('/auth/change-password', { current_password: curPwd, new_password: newPwd });
       setPwdOk(true);
       setCurPwd(''); setNewPwd(''); setConfirmPwd('');
       setTimeout(() => setPwdOk(false), 3500);
@@ -185,10 +231,7 @@ export function ProfileModal({ open, onClose }: Props) {
     e.preventDefault();
     setEmailSaving(true); setEmailErr(''); setEmailOk(false);
     try {
-      await apiClient.post('/auth/change-email', {
-        new_email:        newEmail,
-        current_password: emailPwd,
-      });
+      await apiClient.post('/auth/change-email', { new_email: newEmail, current_password: emailPwd });
       setEmailOk(true);
       if (refreshUser) await refreshUser();
       setNewEmail(''); setEmailPwd('');
@@ -210,7 +253,7 @@ export function ProfileModal({ open, onClose }: Props) {
     try {
       const { data } = await apiClient.post<{ api_key: string }>('/auth/api-key/regenerate');
       setApiKey(data.api_key);
-      setApiKeyVisible(true);
+      setApiVisible(true);
       setApiRegenOk(true);
       setTimeout(() => setApiRegenOk(false), 3500);
     } catch { /* ignore */ } finally { setApiRegen(false); }
@@ -235,12 +278,11 @@ export function ProfileModal({ open, onClose }: Props) {
 
   const isPro = user?.plan === 'pro';
 
-  // ── Tab definitions ───────────────────────────────────────────────────────────
   const tabs: Array<{ id: Tab; label: string }> = [
-    { id: 'profile',  label: lang === 'fr' ? '👤 Infos'      : '👤 Info'          },
-    { id: 'security', label: lang === 'fr' ? '🔐 Sécurité'   : '🔐 Security'      },
-    { id: 'api',      label: lang === 'fr' ? '🔌 API'         : '🔌 API'           },
-    { id: 'danger',   label: lang === 'fr' ? '⚠️ Supprimer'  : '⚠️ Delete'        },
+    { id: 'profile',  label: lang === 'fr' ? '👤 Infos'     : '👤 Info'     },
+    { id: 'security', label: lang === 'fr' ? '🔐 Sécurité'  : '🔐 Security' },
+    { id: 'api',      label: '🔌 API'                                         },
+    { id: 'danger',   label: lang === 'fr' ? '⚠️ Supprimer' : '⚠️ Delete'   },
   ];
 
   return (
@@ -273,22 +315,23 @@ export function ProfileModal({ open, onClose }: Props) {
                 boxShadow: '0 24px 80px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.06) inset',
               }}
             >
-              {/* Header */}
+
+              {/* ── Header ─────────────────────────────────────────────────── */}
               <div
                 className="flex items-center justify-between px-6 py-4"
                 style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
               >
                 <div className="flex items-center gap-3">
-                  {/* Skeuomorphic avatar — initiales + couleur selon plan */}
+                  {/* Avatar skeuomorphique — initiales + couleur selon plan */}
                   <div className="relative shrink-0">
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black"
                       style={{
                         background: user?.plan === 'pro'
-                          ? 'linear-gradient(145deg, rgba(167,139,250,0.35) 0%, rgba(139,92,246,0.15) 100%)'
+                          ? 'linear-gradient(145deg,rgba(167,139,250,0.35) 0%,rgba(139,92,246,0.15) 100%)'
                           : user?.plan === 'starter'
-                          ? 'linear-gradient(145deg, rgba(34,211,238,0.3) 0%, rgba(6,182,212,0.12) 100%)'
-                          : 'linear-gradient(145deg, rgba(100,116,139,0.25) 0%, rgba(71,85,105,0.1) 100%)',
+                          ? 'linear-gradient(145deg,rgba(34,211,238,0.3) 0%,rgba(6,182,212,0.12) 100%)'
+                          : 'linear-gradient(145deg,rgba(100,116,139,0.25) 0%,rgba(71,85,105,0.1) 100%)',
                         border: user?.plan === 'pro'
                           ? '1px solid rgba(167,139,250,0.45)'
                           : user?.plan === 'starter'
@@ -315,7 +358,7 @@ export function ProfileModal({ open, onClose }: Props) {
                           : { color: '#64748b', background: 'rgba(10,15,20,0.95)', border: '1px solid rgba(100,116,139,0.25)' }
                       }
                     >
-                      {user?.plan === 'pro' ? 'PRO' : user?.plan === 'starter' ? 'STR' : (lang === 'fr' ? 'FREE' : 'FREE')}
+                      {user?.plan === 'pro' ? 'PRO' : user?.plan === 'starter' ? 'STR' : 'FREE'}
                     </div>
                   </div>
 
@@ -331,6 +374,7 @@ export function ProfileModal({ open, onClose }: Props) {
                     <p className="text-slate-500 text-xs mt-0.5">{user?.email}</p>
                   </div>
                 </div>
+
                 <button
                   onClick={onClose}
                   className="text-slate-600 hover:text-slate-300 transition p-1 rounded-lg hover:bg-slate-800"
@@ -339,7 +383,7 @@ export function ProfileModal({ open, onClose }: Props) {
                 </button>
               </div>
 
-              {/* Tabs */}
+              {/* ── Tabs ───────────────────────────────────────────────────── */}
               <div className="flex" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                 {tabs.map(({ id, label }) => (
                   <button
@@ -359,92 +403,87 @@ export function ProfileModal({ open, onClose }: Props) {
                 ))}
               </div>
 
-              {/* Body */}
-              <div className="p-6 max-h-[70vh] overflow-y-auto">
+              {/* ── Body ───────────────────────────────────────────────────── */}
+              <div className="p-6 max-h-[70vh] overflow-y-auto flex flex-col gap-5">
 
                 {/* ── Profile Tab ─────────────────────────────────────────── */}
                 {tab === 'profile' && (
-                  <form onSubmit={handleSave} className="flex flex-col gap-4">
-                    <p className="text-slate-500 text-xs leading-relaxed">
-                      {lang === 'fr'
-                        ? 'Ces informations sont facultatives et stockées de façon sécurisée.'
-                        : 'This information is optional and stored securely.'}
-                    </p>
+                  <>
+                    <SectionHeader
+                      icon={<SkuIcon color="#22d3ee" size={36}><User size={16} className="text-cyan-300" /></SkuIcon>}
+                      title={lang === 'fr' ? 'Informations du compte' : 'Account information'}
+                      sub={lang === 'fr' ? 'Facultatif — stocké de façon sécurisée' : 'Optional — stored securely'}
+                    />
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-medium text-slate-400">
-                        {lang === 'fr' ? 'Prénom' : 'First name'}
-                      </label>
-                      <Input value={firstName} onChange={setFirstName} maxLength={100}
-                        placeholder={lang === 'fr' ? 'Votre prénom' : 'Your first name'} />
-                    </div>
+                    <form onSubmit={handleSave} className="flex flex-col gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-slate-400">
+                          {lang === 'fr' ? 'Prénom' : 'First name'}
+                        </label>
+                        <Input value={firstName} onChange={setFirstName} maxLength={100}
+                          placeholder={lang === 'fr' ? 'Votre prénom' : 'Your first name'} />
+                      </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-medium text-slate-400">
-                        {lang === 'fr' ? 'Nom' : 'Last name'}
-                      </label>
-                      <Input value={lastName} onChange={setLastName} maxLength={100}
-                        placeholder={lang === 'fr' ? 'Votre nom' : 'Your last name'} />
-                    </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-slate-400">
+                          {lang === 'fr' ? 'Nom' : 'Last name'}
+                        </label>
+                        <Input value={lastName} onChange={setLastName} maxLength={100}
+                          placeholder={lang === 'fr' ? 'Votre nom' : 'Your last name'} />
+                      </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-medium text-slate-400">Email</label>
-                      <Input value={user?.email ?? ''} readOnly />
-                    </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-slate-400">Email</label>
+                        <Input value={user?.email ?? ''} readOnly />
+                      </div>
 
-                    {saveErr && (
-                      <p className="text-red-400 text-xs flex items-center gap-1.5">
-                        <AlertTriangle size={13} />{saveErr}
-                      </p>
-                    )}
-                    {saveOk && (
-                      <p className="text-emerald-400 text-xs flex items-center gap-1.5">
-                        <CheckCircle size={13} />
-                        {lang === 'fr' ? 'Profil mis à jour ✓' : 'Profile updated ✓'}
-                      </p>
-                    )}
+                      {saveErr && <ErrMsg msg={saveErr} />}
+                      {saveOk  && <OkMsg msg={lang === 'fr' ? 'Profil mis à jour ✓' : 'Profile updated ✓'} />}
 
-                    <button
-                      type="submit" disabled={saving}
-                      className="sku-btn-primary flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                    >
-                      {saving
-                        ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                        : <Save size={15} />}
-                      {lang === 'fr' ? 'Enregistrer' : 'Save changes'}
-                    </button>
-                  </form>
+                      <button type="submit" disabled={saving}
+                        className="sku-btn-primary flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                      >
+                        {saving
+                          ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                          : <Save size={15} />}
+                        {lang === 'fr' ? 'Enregistrer' : 'Save changes'}
+                      </button>
+                    </form>
+                  </>
                 )}
 
                 {/* ── Security Tab ────────────────────────────────────────── */}
                 {tab === 'security' && (
-                  <div className="flex flex-col gap-5">
-                    {isGoogle && (
+                  <>
+                    <SectionHeader
+                      icon={<SkuIcon color="#818cf8" size={36}><ShieldCheck size={16} className="text-indigo-300" /></SkuIcon>}
+                      title={lang === 'fr' ? 'Sécurité du compte' : 'Account security'}
+                      sub={lang === 'fr' ? 'Mot de passe et adresse email' : 'Password and email address'}
+                    />
+
+                    {isGoogle ? (
+                      /* Compte Google — notice */
                       <div
-                        className="rounded-xl p-4 flex gap-3"
+                        className="rounded-xl p-4 flex gap-3 items-start"
                         style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)' }}
                       >
-                        <Lock size={15} className="text-indigo-400 shrink-0 mt-0.5" />
-                        <p className="text-slate-400 text-xs leading-relaxed">
+                        <SkuIcon color="#818cf8" size={32}>
+                          <Lock size={14} className="text-indigo-300" />
+                        </SkuIcon>
+                        <p className="text-slate-400 text-xs leading-relaxed pt-1">
                           {lang === 'fr'
                             ? 'Votre compte est lié à Google. La gestion du mot de passe et de l\'email se fait via votre compte Google.'
                             : 'Your account is linked to Google. Password and email are managed through your Google account.'}
                         </p>
                       </div>
-                    )}
-
-                    {!isGoogle && (
+                    ) : (
                       <>
-                        {/* Sub-tabs : password / email */}
+                        {/* Sub-tabs password / email */}
                         <div className="flex gap-2">
                           {(['password', 'email'] as const).map(m => (
-                            <button
-                              key={m}
-                              onClick={() => setSecMode(m)}
-                              className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${
-                                secMode === m
-                                  ? 'text-cyan-300'
-                                  : 'text-slate-500 hover:text-slate-300'
+                            <button key={m} onClick={() => setSecMode(m)}
+                              className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                                secMode === m ? 'text-cyan-300' : 'text-slate-500 hover:text-slate-300'
                               }`}
                               style={{
                                 background: secMode === m ? 'rgba(34,211,238,0.08)' : 'rgba(255,255,255,0.03)',
@@ -452,8 +491,8 @@ export function ProfileModal({ open, onClose }: Props) {
                               }}
                             >
                               {m === 'password'
-                                ? (lang === 'fr' ? '🔑 Mot de passe' : '🔑 Password')
-                                : (lang === 'fr' ? '✉️ Adresse email' : '✉️ Email address')}
+                                ? <><Lock size={11} />{lang === 'fr' ? 'Mot de passe' : 'Password'}</>
+                                : <><Mail size={11} />{lang === 'fr' ? 'Adresse email' : 'Email address'}</>}
                             </button>
                           ))}
                         </div>
@@ -467,7 +506,6 @@ export function ProfileModal({ open, onClose }: Props) {
                               </label>
                               <PasswordInput value={curPwd} onChange={setCurPwd} required />
                             </div>
-
                             <div className="flex flex-col gap-1.5">
                               <label className="text-xs font-medium text-slate-400">
                                 {lang === 'fr' ? 'Nouveau mot de passe' : 'New password'}
@@ -475,28 +513,18 @@ export function ProfileModal({ open, onClose }: Props) {
                               <PasswordInput value={newPwd} onChange={setNewPwd} required
                                 placeholder={lang === 'fr' ? 'Min. 8 caractères' : 'Min. 8 characters'} />
                             </div>
-
                             <div className="flex flex-col gap-1.5">
                               <label className="text-xs font-medium text-slate-400">
-                                {lang === 'fr' ? 'Confirmer le nouveau mot de passe' : 'Confirm new password'}
+                                {lang === 'fr' ? 'Confirmer' : 'Confirm'}
                               </label>
                               <PasswordInput value={confirmPwd} onChange={setConfirmPwd} required />
                             </div>
 
-                            {pwdErr && (
-                              <p className="text-red-400 text-xs flex items-center gap-1.5">
-                                <AlertTriangle size={13} />{pwdErr}
-                              </p>
-                            )}
-                            {pwdOk && (
-                              <p className="text-emerald-400 text-xs flex items-center gap-1.5">
-                                <CheckCircle size={13} />
-                                {lang === 'fr' ? 'Mot de passe modifié ✓' : 'Password updated ✓'}
-                              </p>
-                            )}
+                            {pwdErr && <ErrMsg msg={pwdErr} />}
+                            {pwdOk  && <OkMsg msg={lang === 'fr' ? 'Mot de passe modifié ✓' : 'Password updated ✓'} />}
 
-                            <button
-                              type="submit" disabled={pwdSaving || !curPwd || !newPwd || !confirmPwd}
+                            <button type="submit"
+                              disabled={pwdSaving || !curPwd || !newPwd || !confirmPwd}
                               className="sku-btn-primary flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                             >
                               {pwdSaving
@@ -516,7 +544,6 @@ export function ProfileModal({ open, onClose }: Props) {
                               </label>
                               <Input value={user?.email ?? ''} readOnly />
                             </div>
-
                             <div className="flex flex-col gap-1.5">
                               <label className="text-xs font-medium text-slate-400">
                                 {lang === 'fr' ? 'Nouvel email' : 'New email'}
@@ -524,7 +551,6 @@ export function ProfileModal({ open, onClose }: Props) {
                               <Input type="email" value={newEmail} onChange={setNewEmail}
                                 required placeholder="new@example.com" />
                             </div>
-
                             <div className="flex flex-col gap-1.5">
                               <label className="text-xs font-medium text-slate-400">
                                 {lang === 'fr' ? 'Mot de passe actuel' : 'Current password'}
@@ -532,20 +558,11 @@ export function ProfileModal({ open, onClose }: Props) {
                               <PasswordInput value={emailPwd} onChange={setEmailPwd} required />
                             </div>
 
-                            {emailErr && (
-                              <p className="text-red-400 text-xs flex items-center gap-1.5">
-                                <AlertTriangle size={13} />{emailErr}
-                              </p>
-                            )}
-                            {emailOk && (
-                              <p className="text-emerald-400 text-xs flex items-center gap-1.5">
-                                <CheckCircle size={13} />
-                                {lang === 'fr' ? 'Email modifié ✓' : 'Email updated ✓'}
-                              </p>
-                            )}
+                            {emailErr && <ErrMsg msg={emailErr} />}
+                            {emailOk  && <OkMsg msg={lang === 'fr' ? 'Email modifié ✓' : 'Email updated ✓'} />}
 
-                            <button
-                              type="submit" disabled={emailSaving || !newEmail || !emailPwd}
+                            <button type="submit"
+                              disabled={emailSaving || !newEmail || !emailPwd}
                               className="sku-btn-primary flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                             >
                               {emailSaving
@@ -557,34 +574,39 @@ export function ProfileModal({ open, onClose }: Props) {
                         )}
                       </>
                     )}
-                  </div>
+                  </>
                 )}
 
                 {/* ── API Tab ─────────────────────────────────────────────── */}
                 {tab === 'api' && (
-                  <div className="flex flex-col gap-4">
+                  <>
+                    <SectionHeader
+                      icon={<SkuIcon color="#a78bfa" size={36}><KeyRound size={16} className="text-violet-300" /></SkuIcon>}
+                      title={lang === 'fr' ? 'Clé API' : 'API key'}
+                      sub={lang === 'fr' ? 'Intégration & automatisation' : 'Integration & automation'}
+                    />
+
                     {!isPro ? (
                       /* Paywall — Pro only */
                       <div
-                        className="rounded-xl p-5 flex flex-col items-center gap-3 text-center"
-                        style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.18)' }}
+                        className="rounded-xl p-5 flex flex-col items-center gap-4 text-center"
+                        style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.15)' }}
                       >
-                        <div
-                          className="p-3 rounded-xl"
-                          style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.22)', boxShadow: '0 2px 12px rgba(139,92,246,0.2), 0 1px 0 rgba(255,255,255,0.06) inset' }}
-                        >
-                          <KeyRound size={20} className="text-violet-400" />
+                        <SkuIcon color="#a78bfa" size={52}>
+                          <KeyRound size={22} className="text-violet-300" />
+                        </SkuIcon>
+                        <div>
+                          <p className="text-white font-semibold text-sm mb-1">
+                            {lang === 'fr' ? 'Réservé au plan Pro' : 'Pro plan required'}
+                          </p>
+                          <p className="text-slate-400 text-xs leading-relaxed">
+                            {lang === 'fr'
+                              ? 'Automatisez vos scans et intégrez les rapports de sécurité dans vos outils et workflows.'
+                              : 'Automate scans and integrate security reports into your tools and workflows.'}
+                          </p>
                         </div>
-                        <p className="text-white font-semibold text-sm">
-                          {lang === 'fr' ? 'Clé API — plan Pro' : 'API key — Pro plan'}
-                        </p>
-                        <p className="text-slate-400 text-xs leading-relaxed">
-                          {lang === 'fr'
-                            ? 'Accédez à l\'API CyberHealth pour automatiser vos scans et intégrer les rapports dans vos outils.'
-                            : 'Access the CyberHealth API to automate scans and integrate reports into your tools.'}
-                        </p>
                         <span
-                          className="text-[10px] font-bold font-mono px-2 py-1 rounded"
+                          className="text-[10px] font-bold font-mono px-2.5 py-1 rounded"
                           style={{ color: '#a78bfa', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(167,139,250,0.25)' }}
                         >
                           PRO
@@ -592,7 +614,7 @@ export function ProfileModal({ open, onClose }: Props) {
                       </div>
                     ) : (
                       <>
-                        <p className="text-slate-500 text-xs leading-relaxed">
+                        <p className="text-slate-500 text-xs leading-relaxed -mt-2">
                           {lang === 'fr'
                             ? 'Utilisez cette clé pour authentifier vos requêtes API. Ne la partagez pas — régénérez-la si elle est compromise.'
                             : 'Use this key to authenticate API requests. Do not share it — regenerate if compromised.'}
@@ -613,29 +635,24 @@ export function ProfileModal({ open, onClose }: Props) {
                                 letterSpacing: '0.04em',
                               }}
                             >
-                              {apiKeyVisible
-                                ? (apiKey ?? '—')
-                                : '••••••••••••••••••••••••••••••••'}
+                              {apiVisible ? (apiKey ?? '—') : '••••••••••••••••••••••••••••••••'}
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setApiKeyVisible(v => !v)}
+                            {/* Toggle visibility */}
+                            <button type="button" onClick={() => setApiVisible(v => !v)}
                               className="shrink-0 px-3 rounded-xl text-slate-400 hover:text-slate-200 transition"
-                              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                              title={apiKeyVisible
-                                ? (lang === 'fr' ? 'Masquer' : 'Hide')
-                                : (lang === 'fr' ? 'Afficher' : 'Show')}
+                              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 1px 0 rgba(255,255,255,0.05) inset, 0 2px 4px rgba(0,0,0,0.25)' }}
+                              title={apiVisible ? (lang === 'fr' ? 'Masquer' : 'Hide') : (lang === 'fr' ? 'Afficher' : 'Show')}
                             >
-                              {apiKeyVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                              {apiVisible ? <EyeOff size={14} /> : <Eye size={14} />}
                             </button>
-                            <button
-                              type="button"
-                              onClick={handleCopyApiKey}
+                            {/* Copy */}
+                            <button type="button" onClick={handleCopyApiKey}
                               className="shrink-0 px-3 rounded-xl transition"
                               style={{
                                 background: apiCopied ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.04)',
                                 border: `1px solid ${apiCopied ? 'rgba(52,211,153,0.25)' : 'rgba(255,255,255,0.08)'}`,
                                 color: apiCopied ? '#34d399' : '#94a3b8',
+                                boxShadow: '0 1px 0 rgba(255,255,255,0.05) inset, 0 2px 4px rgba(0,0,0,0.25)',
                               }}
                               title={lang === 'fr' ? 'Copier' : 'Copy'}
                             >
@@ -644,113 +661,106 @@ export function ProfileModal({ open, onClose }: Props) {
                           </div>
                         </div>
 
-                        {apiRegenOk && (
-                          <p className="text-emerald-400 text-xs flex items-center gap-1.5">
-                            <CheckCircle size={13} />
-                            {lang === 'fr' ? 'Nouvelle clé générée ✓' : 'New key generated ✓'}
-                          </p>
-                        )}
+                        {apiRegenOk && <OkMsg msg={lang === 'fr' ? 'Nouvelle clé générée ✓' : 'New key generated ✓'} />}
 
-                        {/* Regen button */}
-                        <button
-                          type="button"
-                          onClick={handleRegenApiKey}
-                          disabled={apiRegen}
+                        {/* Regen */}
+                        <button type="button" onClick={handleRegenApiKey} disabled={apiRegen}
                           className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           style={{
                             background: 'rgba(245,158,11,0.08)',
                             border: '1px solid rgba(245,158,11,0.2)',
                             color: '#fbbf24',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                            boxShadow: '0 1px 0 rgba(255,255,255,0.04) inset, 0 2px 8px rgba(0,0,0,0.3)',
                           }}
                         >
                           {apiRegen
                             ? <div className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
-                            : <RefreshCw size={14} className={apiRegen ? 'animate-spin' : ''} />}
+                            : <RefreshCw size={14} />}
                           {lang === 'fr' ? 'Régénérer la clé' : 'Regenerate key'}
                         </button>
 
-                        <p className="text-slate-600 text-xs">
+                        <p className="text-slate-600 text-xs -mt-2">
                           {lang === 'fr'
                             ? '⚠️ La régénération invalide immédiatement l\'ancienne clé.'
                             : '⚠️ Regenerating immediately invalidates the current key.'}
                         </p>
                       </>
                     )}
-                  </div>
+                  </>
                 )}
 
                 {/* ── Danger Tab ──────────────────────────────────────────── */}
                 {tab === 'danger' && (
-                  <form onSubmit={handleDelete} className="flex flex-col gap-4">
-                    <div
-                      className="rounded-xl p-4 flex gap-3"
-                      style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}
-                    >
-                      <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-red-400 text-xs font-medium mb-1">
-                          {lang === 'fr' ? 'Action irréversible' : 'Irreversible action'}
-                        </p>
-                        <p className="text-slate-400 text-xs leading-relaxed">
+                  <>
+                    <SectionHeader
+                      icon={<SkuIcon color="#f87171" size={36}><Trash2 size={15} className="text-red-300" /></SkuIcon>}
+                      title={lang === 'fr' ? 'Suppression du compte' : 'Account deletion'}
+                      sub={lang === 'fr' ? 'Action irréversible' : 'Irreversible action'}
+                    />
+
+                    <form onSubmit={handleDelete} className="flex flex-col gap-4">
+                      {/* Warning notice */}
+                      <div
+                        className="rounded-xl p-4 flex gap-3 items-start"
+                        style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}
+                      >
+                        <SkuIcon color="#f87171" size={32}>
+                          <AlertTriangle size={14} className="text-red-300" />
+                        </SkuIcon>
+                        <p className="text-slate-400 text-xs leading-relaxed pt-1">
                           {lang === 'fr'
-                            ? 'La suppression de votre compte effacera définitivement toutes vos données, y compris l\'historique de scans. Cette action ne peut pas être annulée.'
-                            : 'Deleting your account will permanently erase all your data, including scan history. This action cannot be undone.'}
+                            ? 'La suppression effacera définitivement toutes vos données, y compris l\'historique de scans. Cette action ne peut pas être annulée.'
+                            : 'Deletion will permanently erase all your data, including scan history. This action cannot be undone.'}
                         </p>
                       </div>
-                    </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-medium text-slate-400">
-                        {lang === 'fr' ? 'Mot de passe actuel' : 'Current password'}
-                      </label>
-                      <PasswordInput
-                        value={delPassword} onChange={setDelPassword}
-                        required focusColor="rgba(239,68,68,0.4)" />
-                    </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-slate-400">
+                          {lang === 'fr' ? 'Mot de passe actuel' : 'Current password'}
+                        </label>
+                        <PasswordInput value={delPassword} onChange={setDelPassword}
+                          required focusColor="rgba(239,68,68,0.4)" />
+                      </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-medium text-slate-400">
-                        {lang === 'fr' ? 'Tapez SUPPRIMER pour confirmer' : 'Type DELETE to confirm'}
-                      </label>
-                      <input
-                        type="text" value={delConfirm}
-                        onChange={e => setDelConfirm(e.target.value)}
-                        required placeholder={lang === 'fr' ? 'SUPPRIMER' : 'DELETE'}
-                        className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition font-mono tracking-wider"
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-slate-400">
+                          {lang === 'fr' ? 'Tapez SUPPRIMER pour confirmer' : 'Type DELETE to confirm'}
+                        </label>
+                        <input
+                          type="text" value={delConfirm}
+                          onChange={e => setDelConfirm(e.target.value)}
+                          required placeholder={lang === 'fr' ? 'SUPPRIMER' : 'DELETE'}
+                          className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition font-mono tracking-wider"
+                          style={{
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.3) inset',
+                          }}
+                          onFocus={e => (e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)')}
+                          onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+                        />
+                      </div>
+
+                      {delErr && <ErrMsg msg={delErr} />}
+
+                      <button
+                        type="submit"
+                        disabled={deleting || !delPassword || (delConfirm !== 'SUPPRIMER' && delConfirm !== 'DELETE')}
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                         style={{
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.08)',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.3) inset',
+                          background: deleting ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.15)',
+                          border: '1px solid rgba(239,68,68,0.3)',
+                          color: '#f87171',
+                          boxShadow: '0 1px 0 rgba(255,255,255,0.04) inset, 0 2px 8px rgba(0,0,0,0.3)',
                         }}
-                        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)')}
-                        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
-                      />
-                    </div>
-
-                    {delErr && (
-                      <p className="text-red-400 text-xs flex items-center gap-1.5">
-                        <AlertTriangle size={13} />{delErr}
-                      </p>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={deleting || !delPassword || (delConfirm !== 'SUPPRIMER' && delConfirm !== 'DELETE')}
-                      className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm w-full font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{
-                        background: deleting ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.15)',
-                        border: '1px solid rgba(239,68,68,0.3)',
-                        color: '#f87171',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                      }}
-                    >
-                      {deleting
-                        ? <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                        : <Trash2 size={15} />}
-                      {lang === 'fr' ? 'Supprimer mon compte' : 'Delete my account'}
-                    </button>
-                  </form>
+                      >
+                        {deleting
+                          ? <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                          : <Trash2 size={15} />}
+                        {lang === 'fr' ? 'Supprimer mon compte' : 'Delete my account'}
+                      </button>
+                    </form>
+                  </>
                 )}
 
               </div>

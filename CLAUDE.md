@@ -100,6 +100,54 @@ Toutes les pages doivent utiliser ces classes CSS définies dans `index.css` :
 
 **IMPORTANT** : Le body a `background-attachment: fixed` — les gradients sont fixés au viewport. Ne pas retirer cette propriété, sinon les gradients deviennent invisibles sur les pages longues.
 
+### 🔲 Pattern SkuIcon — boîte d'icône skeuomorphique
+
+**TOUJOURS utiliser ce pattern** pour toute icône non-inline (en-têtes de section, notices, paywalls, cards). Reproduire l'implémentation ci-dessous à chaque nouvel usage.
+
+```tsx
+// Composant SkuIcon — à copier dans chaque fichier qui en a besoin
+// color : hex de la couleur thématique (voir palette ci-dessous)
+function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: string; size?: number }) {
+  const r = Math.round(size * 0.28);
+  return (
+    <div className="shrink-0 flex items-center justify-center relative overflow-hidden"
+      style={{
+        width: size, height: size, borderRadius: r,
+        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
+        border: `1px solid ${color}40`,
+        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
+      }}
+    >
+      {/* Reflet supérieur — NE PAS OMETTRE */}
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
+      {children}
+    </div>
+  );
+}
+```
+
+**Palette de couleurs thématiques :**
+
+| Contexte | Couleur hex | Classe Lucide |
+|----------|-------------|---------------|
+| Info / compte / cyan | `#22d3ee` | `text-cyan-300` |
+| Sécurité / auth | `#818cf8` | `text-indigo-300` |
+| API / intégration | `#a78bfa` | `text-violet-300` |
+| Danger / suppression | `#f87171` | `text-red-300` |
+| Succès / validation | `#4ade80` | `text-green-300` |
+| Avertissement | `#fbbf24` | `text-amber-300` |
+| Pro / premium | `#a78bfa` | `text-violet-300` |
+| Scan / analyse | `#22d3ee` | `text-cyan-300` |
+
+**Tailles recommandées :**
+- `size={32}` — notices inline, petites cards
+- `size={36}` — en-têtes de section (usage principal)
+- `size={44}` — paywalls, éléments hero d'une section
+- `size={52}` — éléments centraux (ex : paywall sans header au-dessus)
+
+**Règle** : les icônes dans les **boutons** (Save, Lock, Trash2…) restent sans SkuIcon — elles font partie du bouton lui-même. Seules les icônes **standalone** (section headers, notices, cards, paywalls) utilisent SkuIcon.
+
 ### Pages stylisées (skeuomorphique ✅)
 - `Dashboard.tsx` ✅
 - `LoginPage.tsx` ✅
@@ -109,6 +157,7 @@ Toutes les pages doivent utiliser ces classes CSS définies dans `index.css` :
 - `LegalPage.tsx` ✅
 - `ClientSpace.tsx` ✅
 - `PricingModal.tsx` ✅
+- `ProfileModal.tsx` ✅ (SkuIcon dans tous les en-têtes de section + notices)
 - `PublicScanPage.tsx` ✅ (page publique /r/{uuid}, pas de skeu — style épuré)
 
 ---
