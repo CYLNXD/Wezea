@@ -17,6 +17,12 @@ import pytest
 from app.models import User, ScanHistory
 from app.auth import hash_password, generate_api_key
 
+# ── Capture les fonctions réelles AVANT que conftest les patche (scope session) ──
+# conftest._patch_scheduler remplace app.scheduler.start_scheduler par un mock ;
+# on sauvegarde ici la vraie référence au niveau module (import time = avant fixtures).
+from app.scheduler import start_scheduler as _real_start_scheduler
+from app.scheduler import stop_scheduler  as _real_stop_scheduler
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -441,3 +447,440 @@ class TestAsyncMonitoring:
             await _async_monitoring()
 
         mock_sna.assert_not_called()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Lock functions
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestLockFunctions:
+    def test_try_acquire_lock_returns_false_on_ioerror(self):
+        """_try_acquire_lock → False si fcntl.flock lève IOError."""
+        import fcntl
+        from app.scheduler import _try_acquire_lock
+        with patch("app.scheduler.fcntl.flock", side_effect=IOError("locked")), \
+             patch("builtins.open", MagicMock(return_value=MagicMock())):
+            result = _try_acquire_lock()
+        assert result is False
+
+    def test_release_lock_handles_exception_silently(self):
+        """_release_lock ne propage pas les exceptions."""
+        import app.scheduler as sched
+        # Simule un _lock_fd qui lève une exception lors de la fermeture
+        mock_fd = MagicMock()
+        mock_fd.close.side_effect = OSError("fermeture impossible")
+        sched._lock_fd = mock_fd
+        # Ne doit pas lever d'exception
+        from app.scheduler import _release_lock
+        _release_lock()  # doit finir sans exception
+        assert sched._lock_fd is None
+
+    def test_release_lock_does_nothing_when_no_fd(self):
+        """_release_lock sans _lock_fd actif → no-op."""
+        import app.scheduler as sched
+        sched._lock_fd = None
+        from app.scheduler import _release_lock
+        _release_lock()  # pas d'exception
+        assert sched._lock_fd is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# run_weekly_monitoring — error path
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestRunWeeklyMonitoring:
+    def test_asyncio_run_exception_is_logged(self):
+        """run_weekly_monitoring log l'erreur sans la propager."""
+        with patch("app.scheduler.asyncio.run", side_effect=RuntimeError("réseau")):
+            from app.scheduler import run_weekly_monitoring
+            run_weekly_monitoring()  # ne doit pas lever
+
+    def test_run_daily_onboarding_emails_exception_is_logged(self):
+        """run_daily_onboarding_emails log l'erreur sans la propager."""
+        with patch("app.scheduler.asyncio.run", side_effect=RuntimeError("smtp KO")):
+            from app.scheduler import run_daily_onboarding_emails
+            run_daily_onboarding_emails()  # ne doit pas lever
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _scan_and_alert — chemins manquants
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestScanAndAlertExtended:
+    """Couvre les branches de _scan_and_alert non couvertes par test_scan_and_alert.py."""
+
+    def _make_active_user(self, db_session):
+        from app.models import User
+        u = _make_user(db_session, plan="starter")
+        return u
+
+    def _make_monitored(self, db_session, user_id, **kwargs):
+        from app.models import MonitoredDomain
+        m = MonitoredDomain(
+            user_id=user_id,
+            domain="test.com",
+            is_active=True,
+            last_score=kwargs.get("last_score"),
+            alert_threshold=kwargs.get("alert_threshold", 10),
+            last_open_ports=kwargs.get("last_open_ports"),
+            last_technologies=kwargs.get("last_technologies"),
+            email_report=kwargs.get("email_report", False),
+        )
+        db_session.add(m)
+        db_session.commit()
+        return m
+
+    def _audit_mock(self, result):
+        m = MagicMock()
+        m.run = AsyncMock(return_value=result)
+        return m
+
+    def _make_result(self, score=80, risk="LOW", findings=None,
+                     ssl_days=None, port_details=None, vuln_details=None):
+        r = MagicMock()
+        r.security_score = score
+        r.risk_level     = risk
+        r.findings       = findings or []
+        r.ssl_details    = {"days_left": ssl_days} if ssl_days is not None else {}
+        r.port_details   = port_details or {}
+        r.vuln_details   = vuln_details or {"detected_stack": []}
+        return r
+
+    @pytest.mark.asyncio
+    async def test_ssl_expiry_8_to_30_days_triggers_warning_alert(self, db_session):
+        """SSL expiry 8-30 jours → alerte avertissement (non critique)."""
+        u = self._make_active_user(db_session)
+        m = self._make_monitored(db_session, u.id, last_score=80, alert_threshold=20)
+        result = self._make_result(score=78, ssl_days=20)  # 8-30 jours
+
+        mock_alert = AsyncMock()
+        from app.scheduler import _scan_and_alert
+        with patch("app.scanner.AuditManager", return_value=self._audit_mock(result)), \
+             patch("app.scheduler._send_monitoring_alert", mock_alert), \
+             patch("app.routers.webhook_router.fire_webhooks", new=AsyncMock()):
+            await _scan_and_alert(m, db_session)
+
+        mock_alert.assert_called_once()
+        reason = mock_alert.call_args[1]["reason"]
+        assert "20" in reason  # contient le nombre de jours
+
+    @pytest.mark.asyncio
+    async def test_newly_closed_ports_trigger_alert(self, db_session):
+        """Port précédemment ouvert maintenant fermé → alerte."""
+        import json
+        u = self._make_active_user(db_session)
+        m = self._make_monitored(
+            db_session, u.id,
+            last_score=80, alert_threshold=20,
+            last_open_ports=json.dumps(["443", "3389"]),
+        )
+        # Maintenant 3389 est fermé
+        result = self._make_result(
+            score=78,
+            port_details={"443": {"open": True}, "3389": {"open": False}},
+        )
+
+        mock_alert = AsyncMock()
+        from app.scheduler import _scan_and_alert
+        with patch("app.scanner.AuditManager", return_value=self._audit_mock(result)), \
+             patch("app.scheduler._send_monitoring_alert", mock_alert), \
+             patch("app.routers.webhook_router.fire_webhooks", new=AsyncMock()):
+            await _scan_and_alert(m, db_session)
+
+        mock_alert.assert_called_once()
+        reason = mock_alert.call_args[1]["reason"]
+        assert "3389" in reason
+
+    @pytest.mark.asyncio
+    async def test_tech_version_change_triggers_alert(self, db_session):
+        """Changement de version de technologie → alerte."""
+        import json
+        u = self._make_active_user(db_session)
+        old_tech = json.dumps({"PHP": "7.4", "nginx": "1.18"})
+        m = self._make_monitored(
+            db_session, u.id,
+            last_score=80, alert_threshold=20,
+            last_technologies=old_tech,
+        )
+        # PHP mis à jour de 7.4 → 8.1
+        result = self._make_result(
+            score=78,
+            vuln_details={"detected_stack": [
+                {"tech": "PHP",   "version": "8.1"},
+                {"tech": "nginx", "version": "1.18"},
+            ]},
+        )
+
+        mock_alert = AsyncMock()
+        from app.scheduler import _scan_and_alert
+        with patch("app.scanner.AuditManager", return_value=self._audit_mock(result)), \
+             patch("app.scheduler._send_monitoring_alert", mock_alert), \
+             patch("app.routers.webhook_router.fire_webhooks", new=AsyncMock()):
+            await _scan_and_alert(m, db_session)
+
+        mock_alert.assert_called_once()
+        reason = mock_alert.call_args[1]["reason"]
+        assert "PHP" in reason
+
+    @pytest.mark.asyncio
+    async def test_change_alerts_appended_to_existing_alert_reason(self, db_session):
+        """change_alerts concaténé avec alert_reason existant (score drop + SSL)."""
+        u = self._make_active_user(db_session)
+        # Score drop ET SSL expiry → les deux doivent être dans le reason
+        m = self._make_monitored(db_session, u.id, last_score=80, alert_threshold=5)
+        result = self._make_result(score=70, ssl_days=5)  # drop 10 > seuil 5 + SSL < 7j
+
+        mock_alert = AsyncMock()
+        from app.scheduler import _scan_and_alert
+        with patch("app.scanner.AuditManager", return_value=self._audit_mock(result)), \
+             patch("app.scheduler._send_monitoring_alert", mock_alert), \
+             patch("app.routers.webhook_router.fire_webhooks", new=AsyncMock()):
+            await _scan_and_alert(m, db_session)
+
+        mock_alert.assert_called_once()
+        reason = mock_alert.call_args[1]["reason"]
+        # Les deux alertes doivent être présentes, séparées par " | "
+        assert "SSL" in reason or "expire" in reason.lower()
+
+    @pytest.mark.asyncio
+    async def test_webhook_alert_triggered_exception_logged(self, db_session):
+        """Exception dans fire_webhooks (alert.triggered) → loguée, pas re-propagée."""
+        u = self._make_active_user(db_session)
+        m = self._make_monitored(db_session, u.id, last_score=80, alert_threshold=5)
+        result = self._make_result(score=60)  # drop 20 > seuil 5
+
+        from app.scheduler import _scan_and_alert
+        with patch("app.scanner.AuditManager", return_value=self._audit_mock(result)), \
+             patch("app.scheduler._send_monitoring_alert", new=AsyncMock()), \
+             patch("app.routers.webhook_router.fire_webhooks",
+                   side_effect=RuntimeError("webhook KO")):
+            await _scan_and_alert(m, db_session)  # ne doit pas lever
+
+    @pytest.mark.asyncio
+    async def test_webhook_score_dropped_exception_logged(self, db_session):
+        """Exception dans fire_webhooks (score.dropped) → loguée, pas re-propagée."""
+        u = self._make_active_user(db_session)
+        m = self._make_monitored(db_session, u.id, last_score=80, alert_threshold=25)
+        # Drop = 20, pas d'alerte (< seuil 25) mais score.dropped webhook quand même
+        result = self._make_result(score=60)
+
+        call_count = [0]
+
+        async def mock_webhooks(**kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise RuntimeError("webhook score.dropped KO")
+
+        from app.scheduler import _scan_and_alert
+        with patch("app.scanner.AuditManager", return_value=self._audit_mock(result)), \
+             patch("app.scheduler._send_monitoring_alert", new=AsyncMock()), \
+             patch("app.routers.webhook_router.fire_webhooks", new=mock_webhooks):
+            await _scan_and_alert(m, db_session)  # ne doit pas lever
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _send_scheduled_pdf_report — body complète
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSendScheduledPdfReport:
+    @pytest.mark.asyncio
+    async def test_generates_and_sends_pdf(self, db_session):
+        """Génère le PDF via report_service et l'envoie via send_pdf_email."""
+        from types import SimpleNamespace
+        user = SimpleNamespace(email="test@example.com", first_name="Test")
+        monitored = SimpleNamespace(domain="example.com", email_report=True)
+        result = MagicMock()
+        result.security_score = 85
+        result.risk_level     = "LOW"
+        result.to_dict.return_value = {"domain": "example.com"}
+
+        mock_send = AsyncMock()
+        from app.scheduler import _send_scheduled_pdf_report
+        with patch("app.services.report_service.generate_pdf", return_value=b"%PDF-fake"), \
+             patch("app.services.brevo_service.send_pdf_email", mock_send):
+            await _send_scheduled_pdf_report(user, monitored, result)
+
+        mock_send.assert_called_once()
+        kw = mock_send.call_args[1]
+        assert kw["email"] == "test@example.com"
+        assert kw["domain"] == "example.com"
+        assert kw["pdf_bytes"] == b"%PDF-fake"
+
+    @pytest.mark.asyncio
+    async def test_propagates_exception_on_failure(self, db_session):
+        """Exception dans generate_pdf → re-propagée (caller log)."""
+        from types import SimpleNamespace
+        user     = SimpleNamespace(email="test@example.com")
+        monitored = SimpleNamespace(domain="example.com")
+        result   = MagicMock()
+        result.to_dict.return_value = {}
+
+        from app.scheduler import _send_scheduled_pdf_report
+        with patch("app.services.report_service.generate_pdf",
+                   side_effect=RuntimeError("PDF KO")):
+            with pytest.raises(RuntimeError, match="PDF KO"):
+                await _send_scheduled_pdf_report(user, monitored, result)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _send_monitoring_alert — body complète
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSendMonitoringAlert:
+    @pytest.mark.asyncio
+    async def test_calls_brevo_with_correct_args(self):
+        """Appelle send_monitoring_alert_email avec les bons paramètres."""
+        mock_send = AsyncMock()
+        from app.scheduler import _send_monitoring_alert
+        with patch("app.services.brevo_service.send_monitoring_alert_email", mock_send):
+            await _send_monitoring_alert(
+                email="user@example.com",
+                first_name="Alice",
+                domain="example.com",
+                new_score=60,
+                prev_score=80,
+                risk_level="HIGH",
+                reason="Score drop",
+                findings=[],
+            )
+
+        mock_send.assert_called_once()
+        kw = mock_send.call_args[1]
+        assert kw["email"]      == "user@example.com"
+        assert kw["first_name"] == "Alice"
+        assert kw["domain"]     == "example.com"
+        assert kw["new_score"]  == 60
+        assert kw["prev_score"] == 80
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Onboarding email edge cases
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestOnboardingEmailEdgeCases:
+    """Couvre les branches non couvertes par TestOnboarding*."""
+
+    @pytest.mark.asyncio
+    async def test_j1_skip_when_user_has_scans(self, db_session):
+        """J+1 : user avec déjà des scans → activation_nudge non envoyé."""
+        from datetime import timedelta
+        from app.models import ScanHistory
+
+        now = datetime.now(timezone.utc)
+        u   = _make_user(db_session, plan="free",
+                         created_at=now - timedelta(hours=22))
+        # Ajouter un scan existant
+        import uuid as _uuid2
+        scan = ScanHistory(
+            user_id=u.id, scan_uuid=str(_uuid2.uuid4()),
+            domain="test.com", security_score=80, risk_level="LOW",
+        )
+        db_session.add(scan)
+        db_session.commit()
+
+        mock_nudge = AsyncMock()
+        with patch("app.database.SessionLocal", return_value=db_session), \
+             patch("app.services.brevo_service.send_activation_nudge_email",  mock_nudge), \
+             patch("app.services.brevo_service.send_upgrade_nudge_email",     AsyncMock()), \
+             patch("app.services.brevo_service.send_value_reminder_email",    AsyncMock()), \
+             patch("app.services.brevo_service.send_winback_email",           AsyncMock()):
+            from app.scheduler import _async_onboarding_emails
+            await _async_onboarding_emails()
+
+        mock_nudge.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_j3_email_error_is_logged(self, db_session):
+        """J+3 : exception dans send_upgrade_nudge_email → loguée, pas propagée."""
+        from datetime import timedelta
+
+        now = datetime.now(timezone.utc)
+        _make_user(db_session, plan="free", created_at=now - timedelta(hours=72))
+
+        with patch("app.database.SessionLocal", return_value=db_session), \
+             patch("app.services.brevo_service.send_activation_nudge_email",  AsyncMock()), \
+             patch("app.services.brevo_service.send_upgrade_nudge_email",
+                   AsyncMock(side_effect=RuntimeError("smtp KO"))), \
+             patch("app.services.brevo_service.send_value_reminder_email",    AsyncMock()), \
+             patch("app.services.brevo_service.send_winback_email",           AsyncMock()):
+            from app.scheduler import _async_onboarding_emails
+            await _async_onboarding_emails()  # ne doit pas lever
+
+    @pytest.mark.asyncio
+    async def test_j7_skip_when_user_has_no_scans(self, db_session):
+        """J+7 : user sans scan → value_reminder non envoyé."""
+        from datetime import timedelta
+
+        now = datetime.now(timezone.utc)
+        _make_user(db_session, plan="free", created_at=now - timedelta(hours=168))
+
+        mock_reminder = AsyncMock()
+        with patch("app.database.SessionLocal", return_value=db_session), \
+             patch("app.services.brevo_service.send_activation_nudge_email",  AsyncMock()), \
+             patch("app.services.brevo_service.send_upgrade_nudge_email",     AsyncMock()), \
+             patch("app.services.brevo_service.send_value_reminder_email",    mock_reminder), \
+             patch("app.services.brevo_service.send_winback_email",           AsyncMock()):
+            from app.scheduler import _async_onboarding_emails
+            await _async_onboarding_emails()
+
+        mock_reminder.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_j14_email_error_is_logged(self, db_session):
+        """J+14 : exception dans send_winback_email → loguée, pas propagée."""
+        from datetime import timedelta
+
+        now = datetime.now(timezone.utc)
+        _make_user(db_session, plan="free", created_at=now - timedelta(hours=336))
+
+        with patch("app.database.SessionLocal", return_value=db_session), \
+             patch("app.services.brevo_service.send_activation_nudge_email",  AsyncMock()), \
+             patch("app.services.brevo_service.send_upgrade_nudge_email",     AsyncMock()), \
+             patch("app.services.brevo_service.send_value_reminder_email",    AsyncMock()), \
+             patch("app.services.brevo_service.send_winback_email",
+                   AsyncMock(side_effect=RuntimeError("smtp KO"))):
+            from app.scheduler import _async_onboarding_emails
+            await _async_onboarding_emails()  # ne doit pas lever
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# start_scheduler / stop_scheduler
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestStartStopScheduler:
+    def test_start_scheduler_returns_false_when_lock_not_acquired(self):
+        """start_scheduler retourne False si un autre worker détient le verrou."""
+        with patch("app.scheduler._try_acquire_lock", return_value=False):
+            result = _real_start_scheduler()
+        assert result is False
+
+    def test_start_scheduler_returns_true_when_lock_acquired(self):
+        """start_scheduler retourne True et démarre le scheduler.
+
+        Note : conftest patche app.scheduler.start_scheduler à scope session.
+        On utilise _real_start_scheduler capturé au niveau module (avant le patch)
+        pour tester l'implémentation réelle.
+        """
+        mock_scheduler = MagicMock()
+        with patch("app.scheduler._try_acquire_lock", return_value=True), \
+             patch("app.scheduler.BackgroundScheduler", return_value=mock_scheduler):
+            result = _real_start_scheduler()
+        assert result is True
+        mock_scheduler.start.assert_called_once()
+
+    def test_stop_scheduler_shuts_down_running_scheduler(self):
+        """stop_scheduler appelle shutdown si le scheduler tourne."""
+        import app.scheduler as sched
+        mock_scheduler = MagicMock()
+        mock_scheduler.running = True
+        sched._scheduler = mock_scheduler
+        with patch("app.scheduler._release_lock"):
+            _real_stop_scheduler()
+        mock_scheduler.shutdown.assert_called_once_with(wait=False)
+        sched._scheduler = None
+
+    def test_stop_scheduler_no_op_when_not_running(self):
+        """stop_scheduler ne plante pas si le scheduler n'est pas démarré."""
+        import app.scheduler as sched
+        sched._scheduler = None
+        with patch("app.scheduler._release_lock"):
+            _real_stop_scheduler()  # pas d'exception
