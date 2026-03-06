@@ -529,6 +529,13 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   })();
 
   const criticalDomains = domains.filter(d => d.last_score !== null && d.last_score < 40).length;
+
+  // Total findings du dernier scan connu par domaine surveillé
+  const totalOpenFindings = domains.reduce((sum, d) => {
+    const latest = historyByDomain[d.domain]?.[0]; // tri newest-first côté API
+    return sum + (latest?.findings_count ?? 0);
+  }, 0);
+
   const filteredHistory = historyDomain === 'all' ? history : history.filter(s => s.domain === historyDomain);
 
   // ── Settings handlers ──────────────────────────────────────────────────────
@@ -743,8 +750,8 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                   {/* KPI cards */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
-                    {/* Domaines */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                    {/* Domaines surveillés */}
+                    <div className="sku-card rounded-xl p-4">
                       <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">{lang === 'fr' ? 'Domaines surveillés' : 'Monitored domains'}</p>
                       <p className="text-3xl font-black font-mono text-white">
                         {domains.length}
@@ -752,19 +759,18 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                           /{planLimit !== null ? planLimit : '∞'}
                         </span>
                       </p>
-                      <div className="mt-3 h-1 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="mt-3 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                         <div
                           className="h-1 bg-cyan-500 rounded-full transition-all"
-                          style={{ width: planLimit !== null
-                            ? `${(domains.length / planLimit) * 100}%`
-                            : '100%'
-                          }}
+                          style={{ width: planLimit !== null ? `${Math.min((domains.length / planLimit) * 100, 100)}%` : '100%' }}
                         />
                       </div>
                     </div>
 
                     {/* Score moyen */}
-                    <div className={`border rounded-xl p-4 ${avgScore !== null ? scoreBorder(avgScore) : 'border-slate-800 bg-slate-900'}`}>
+                    <div className="sku-card rounded-xl p-4" style={avgScore !== null ? {
+                      borderColor: avgScore >= 70 ? 'rgba(52,211,153,0.2)' : avgScore >= 40 ? 'rgba(251,191,36,0.2)' : 'rgba(248,113,113,0.2)',
+                    } : {}}>
                       <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">{lang === 'fr' ? 'Score moyen' : 'Average score'}</p>
                       <p className={`text-3xl font-black font-mono ${scoreColor(avgScore)}`}>
                         {avgScore !== null ? avgScore : '—'}
@@ -772,8 +778,11 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                       </p>
                     </div>
 
-                    {/* Alertes critiques */}
-                    <div className={`border rounded-xl p-4 ${criticalDomains > 0 ? 'border-red-500/30 bg-red-500/5' : 'border-slate-800 bg-slate-900'}`}>
+                    {/* Domaines critiques */}
+                    <div className="sku-card rounded-xl p-4" style={criticalDomains > 0 ? {
+                      borderColor: 'rgba(248,113,113,0.25)',
+                      background: 'linear-gradient(180deg,rgba(30,10,10,0.9) 0%,rgba(20,5,5,0.95) 100%)',
+                    } : {}}>
                       <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">{lang === 'fr' ? 'Domaines critiques' : 'Critical domains'}</p>
                       <div className="flex items-end gap-2">
                         <p className={`text-3xl font-black font-mono ${criticalDomains > 0 ? 'text-red-400' : 'text-slate-500'}`}>
@@ -783,14 +792,17 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                       </div>
                     </div>
 
-                    {/* Prochain scan */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                      <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">{lang === 'fr' ? 'Prochain scan auto' : 'Next auto scan'}</p>
-                      <div className="flex items-center gap-1.5">
-                        <Clock size={13} className="text-cyan-400" />
-                        <p className="text-white font-bold text-sm">{lang === 'fr' ? 'Lundi 06:00 UTC' : 'Monday 06:00 UTC'}</p>
-                      </div>
-                      <p className="text-slate-600 text-xs font-mono mt-1">{lang === 'fr' ? 'hebdomadaire' : 'weekly'}</p>
+                    {/* Findings ouverts — remplace le "Lundi 06:00 UTC" hardcodé */}
+                    <div className="sku-card rounded-xl p-4" style={totalOpenFindings > 0 ? {
+                      borderColor: 'rgba(251,191,36,0.2)',
+                    } : {}}>
+                      <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">{lang === 'fr' ? 'Findings ouverts' : 'Open findings'}</p>
+                      <p className={`text-3xl font-black font-mono ${totalOpenFindings > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                        {totalOpenFindings}
+                      </p>
+                      <p className="text-slate-600 text-xs font-mono mt-1">
+                        {lang === 'fr' ? 'tous domaines' : 'all domains'}
+                      </p>
                     </div>
                   </div>
 
@@ -1193,7 +1205,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                   )}
 
                   <p className="text-center text-[11px] text-slate-700 font-mono">
-                    {lang === 'fr' ? 'Alerte email automatique si le score baisse du seuil configuré · Scan chaque lundi à 06:00 UTC' : 'Automatic email alert if score drops below configured threshold · Scan every Monday at 06:00 UTC'}
+                    {lang === 'fr' ? 'Alerte email automatique si le score baisse du seuil configuré · Fréquence configurable par domaine' : 'Automatic email alert if score drops below configured threshold · Configurable frequency per domain'}
                   </p>
                 </div>
               )}
