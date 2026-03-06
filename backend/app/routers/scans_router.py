@@ -1,12 +1,14 @@
 """
-Scans Router — History, detail, delete, export
+Scans Router — History, detail, delete, export (JSON / CSV / PDF)
 """
 
+import asyncio
 import csv
 import io
 import json as _json
+import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -14,6 +16,8 @@ from app.database import get_db
 from app.models import ScanHistory
 from app.routers.auth_router import get_current_user
 from app.models import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 
@@ -98,16 +102,18 @@ def get_scan_detail(
 
 
 @router.get("/history/{scan_uuid}/export")
-def export_scan(
+async def export_scan(
     scan_uuid:    str,
-    format:       str  = Query("json", pattern="^(json|csv)$"),
+    format:       str = Query("json", pattern="^(json|csv|pdf)$"),
+    lang:         str = Query("fr",   pattern="^(fr|en)$"),
     current_user: User    = Depends(get_current_user),
     db:           Session = Depends(get_db),
 ):
     """
-    Exporte un scan en JSON ou CSV.
+    Exporte un scan en JSON, CSV ou PDF.
     GET /scans/history/{uuid}/export?format=json
     GET /scans/history/{uuid}/export?format=csv
+    GET /scans/history/{uuid}/export?format=pdf&lang=fr
     """
     scan = (
         db.query(ScanHistory)
@@ -140,31 +146,98 @@ def export_scan(
             headers     = {"Content-Disposition": f'attachment; filename="{filename_base}.json"'},
         )
 
-    # CSV — une ligne par finding
-    output  = io.StringIO()
-    writer  = csv.writer(output)
-    writer.writerow(["domain", "scanned_at", "security_score", "risk_level",
-                     "finding_title", "category", "severity", "penalty",
-                     "plain_explanation", "recommendation", "technical_detail"])
-    for f in findings:
-        writer.writerow([
-            scan.domain,
-            scan.created_at.isoformat(),
-            scan.security_score,
-            scan.risk_level,
-            f.get("title", ""),
-            f.get("category", ""),
-            f.get("severity", ""),
-            f.get("penalty", ""),
-            f.get("plain_explanation", ""),
-            f.get("recommendation", ""),
-            f.get("technical_detail", ""),
-        ])
+    if format == "csv":
+        # Une ligne par finding
+        output  = io.StringIO()
+        writer  = csv.writer(output)
+        writer.writerow(["domain", "scanned_at", "security_score", "risk_level",
+                         "finding_title", "category", "severity", "penalty",
+                         "plain_explanation", "recommendation", "technical_detail"])
+        for f in findings:
+            writer.writerow([
+                scan.domain,
+                scan.created_at.isoformat(),
+                scan.security_score,
+                scan.risk_level,
+                f.get("title", ""),
+                f.get("category", ""),
+                f.get("severity", ""),
+                f.get("penalty", ""),
+                f.get("plain_explanation", ""),
+                f.get("recommendation", ""),
+                f.get("technical_detail", ""),
+            ])
+        return Response(
+            content     = output.getvalue(),
+            media_type  = "text/csv; charset=utf-8",
+            headers     = {"Content-Disposition": f'attachment; filename="{filename_base}.csv"'},
+        )
+
+    # ── PDF ────────────────────────────────────────────────────────────────────
+    from app.services import report_service  # import local — évite le chargement au démarrage
+
+    audit_data = {
+        "scan_id":           scan.scan_uuid,
+        "domain":            scan.domain,
+        "scanned_at":        scan.created_at.isoformat(),
+        "security_score":    scan.security_score,
+        "risk_level":        scan.risk_level,
+        "findings":          findings,
+        "dns_details":       details.get("dns_details", {}),
+        "ssl_details":       details.get("ssl_details", {}),
+        "port_details":      details.get("port_details", {}),
+        "recommendations":   details.get("recommendations", []),
+        "scan_duration_ms":  int(getattr(scan, "scan_duration", 0) or 0),
+        "subdomain_details": details.get("subdomain_details", {}),
+        "vuln_details":      details.get("vuln_details", {}),
+    }
+
+    # White-label si utilisateur Pro
+    white_label = None
+    if (
+        current_user.plan == "pro"
+        and getattr(current_user, "wb_enabled", False)
+        and getattr(current_user, "wb_company_name", None)
+    ):
+        white_label = {
+            "enabled":       True,
+            "company_name":  current_user.wb_company_name,
+            "logo_b64":      getattr(current_user, "wb_logo_b64", None),
+            "primary_color": getattr(current_user, "wb_primary_color", None),
+        }
+
+    brand = (
+        current_user.wb_company_name.lower().replace(" ", "-")
+        if white_label else "wezea"
+    )
+    filename_pdf = f"{brand}-report-{scan.domain}-{scan.created_at.strftime('%Y%m%d')}.pdf"
+
+    try:
+        loop      = asyncio.get_event_loop()
+        pdf_bytes = await loop.run_in_executor(
+            None,
+            lambda: report_service.generate_pdf(audit_data, lang, white_label),
+        )
+    except RuntimeError as exc:
+        logger.error("PDF generation error (RuntimeError): %s", exc)
+        raise HTTPException(
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail      = "Service de génération PDF indisponible.",
+        ) from exc
+    except Exception as exc:
+        logger.error("PDF generation error (Exception): %s", exc)
+        raise HTTPException(
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail      = "Erreur lors de la génération du rapport PDF.",
+        ) from exc
 
     return Response(
-        content     = output.getvalue(),
-        media_type  = "text/csv; charset=utf-8",
-        headers     = {"Content-Disposition": f'attachment; filename="{filename_base}.csv"'},
+        content    = pdf_bytes,
+        media_type = "application/pdf",
+        headers    = {
+            "Content-Disposition": f'attachment; filename="{filename_pdf}"',
+            "Content-Length":      str(len(pdf_bytes)),
+        },
     )
 
 

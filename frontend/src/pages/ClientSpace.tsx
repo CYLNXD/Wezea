@@ -427,34 +427,26 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
     setPdfLoading(scanUuid);
     setPdfError(null);
     try {
-      const { data: scanData } = await apiClient.get(`/scans/history/${scanUuid}`);
-      const payload = {
-        ...scanData,
-        scan_id:           scanData.scan_uuid,
-        // scan_duration est stocké en ms dans la DB (= scan_duration_ms du résultat)
-        scan_duration_ms:  Math.round(scanData.scan_duration ?? 0),
-        scanned_at:        scanData.created_at,
-        port_details:      scanData.port_details      ?? {},
-        dns_details:       scanData.dns_details       ?? {},
-        ssl_details:       scanData.ssl_details       ?? {},
-        recommendations:   scanData.recommendations   ?? [],
-        subdomain_details: scanData.subdomain_details ?? {},
-        vuln_details:      scanData.vuln_details      ?? {},
-        meta:              scanData.meta              ?? {},
-      };
-      const { data } = await apiClient.post('/generate-pdf', { ...payload, lang }, { responseType: 'blob' });
+      // Un seul appel — le backend construit le PDF directement depuis la DB
+      const { data, headers } = await apiClient.get(
+        `/scans/history/${scanUuid}/export?format=pdf&lang=${lang}`,
+        { responseType: 'blob' },
+      );
+      const cd = (headers['content-disposition'] ?? '') as string;
+      const match = cd.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : `wezea-report-${domain}-${new Date().toISOString().slice(0, 10)}.pdf`;
       const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
       const a   = document.createElement('a');
       a.href = url;
-      a.download = `cyberhealth-${domain}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      // Quand responseType: 'blob', les erreurs sont aussi des Blobs → on les lit en texte
+      // Quand responseType: 'blob', les erreurs HTTP arrivent aussi en Blob → on lit le texte
       let msg = lang === 'fr' ? 'Erreur lors de la génération du PDF. Réessayez.' : 'Error generating PDF. Please try again.';
       if (err?.response?.data instanceof Blob) {
         try {
-          const text = await err.response.data.text();
+          const text = await (err.response.data as Blob).text();
           const json = JSON.parse(text);
           msg = json?.detail?.message ?? json?.detail ?? json?.message ?? text;
         } catch { /* ignore parse errors */ }
@@ -462,8 +454,9 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
         msg = err?.response?.data?.detail?.message ?? err?.response?.data?.message ?? err?.message ?? msg;
       }
       setPdfError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setPdfLoading(null);
     }
-    finally { setPdfLoading(null); }
   };
 
   // ── Export scan JSON / CSV ─────────────────────────────────────────────────
