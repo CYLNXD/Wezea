@@ -155,6 +155,7 @@ export type PricingSource =
   | 'nav'
   | 'upgrade_banner'
   | 'scan_limit'
+  | 'scan_limit_error'
   | 'agences_block'
   | 'pricing_section'
   | 'user_menu';

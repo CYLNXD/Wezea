@@ -308,7 +308,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
 
   const [pricingModalOpen, setPricingModalOpen] = useState(false);
   const isPremium = user?.plan === 'starter' || user?.plan === 'pro';
-  const planLimit = user?.plan === 'starter' ? 1 : null; // null = illimité (pro/team)
+  const planLimit = user?.plan === 'starter' ? 1 : null; // null = illimité (pro)
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -334,7 +334,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
 
   // Charger les settings white-label si plan Pro
   useEffect(() => {
-    if (!user || !['pro', 'team'].includes(user.plan)) return;
+    if (!user || user.plan !== 'pro') return;
     setWbLoading(true);
     getWhiteLabel()
       .then(data => {
@@ -548,7 +548,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   // ── Developer tab helpers ──────────────────────────────────────────────────
 
   const fetchWebhooks = useCallback(async () => {
-    if (!user || !['pro', 'team'].includes(user.plan)) return;
+    if (!user || user.plan !== 'pro') return;
     setWhLoading(true);
     try {
       const { data } = await apiClient.get('/webhooks');
@@ -623,7 +623,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
     { id: 'monitoring', label: lang === 'fr' ? 'Monitoring' : 'Monitoring',       icon: <Globe size={14} /> },
     { id: 'history',    label: lang === 'fr' ? 'Historique' : 'History',       icon: <RefreshCw size={14} /> },
     { id: 'settings',   label: lang === 'fr' ? 'Paramètres' : 'Settings',           icon: <Settings size={14} /> },
-    ...(user?.plan && ['pro', 'team'].includes(user.plan) ? [{
+    ...(user?.plan && user.plan === 'pro' ? [{
       id: 'developer' as const,
       label: lang === 'fr' ? 'Développeur' : 'Developer',
       icon: <Code size={14} />,
@@ -924,49 +924,30 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                     )}
                   </div>
 
-                  {/* Upsell banner — Starter at 2/3 or 3/3 domains */}
-                  {user?.plan === 'starter' && domains.length >= 2 && (
+                  {/* Upsell banner — Starter avec 1 domaine (limite atteinte) */}
+                  {user?.plan === 'starter' && domains.length >= 1 && (
                     <motion.div
                       initial={{ opacity: 0, y: -6 }}
                       animate={{ opacity: 1, y: 0 }}
                       className={`rounded-xl border p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 ${
-                        planLimit !== null && domains.length >= planLimit
+                        domains.length >= 1
                           ? 'border-orange-500/30 bg-orange-500/5'
                           : 'border-purple-500/30 bg-purple-500/5'
                       }`}
                     >
                       <div className="flex-1 min-w-0">
-                        {planLimit !== null && domains.length >= planLimit ? (
-                          <>
-                            <p className="text-orange-300 font-bold text-sm">
-                              {lang === 'fr' ? '⚠ Limite Starter atteinte' : '⚠ Starter limit reached'}
-                            </p>
-                            <p className="text-slate-400 text-xs mt-0.5">
-                              {lang === 'fr'
-                                ? 'Passez Pro pour surveiller des domaines en illimité et débloquer toutes les fonctionnalités.'
-                                : 'Upgrade to Pro to monitor unlimited domains and unlock all features.'}
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-purple-300 font-bold text-sm">
-                              {lang === 'fr' ? '✦ Vous utilisez votre seul emplacement Starter' : '✦ Using your only Starter slot'}
-                            </p>
-                            <p className="text-slate-400 text-xs mt-0.5">
-                              {lang === 'fr'
-                                ? 'Passez Pro pour surveiller des domaines en illimité, rapports PDF avancés et alertes prioritaires.'
-                                : 'Upgrade to Pro to monitor unlimited domains, advanced PDF reports, and priority alerts.'}
-                            </p>
-                          </>
-                        )}
+                        <p className="text-orange-300 font-bold text-sm">
+                          {lang === 'fr' ? '⚠ Limite Starter atteinte' : '⚠ Starter limit reached'}
+                        </p>
+                        <p className="text-slate-400 text-xs mt-0.5">
+                          {lang === 'fr'
+                            ? 'Passez Pro pour surveiller des domaines en illimité, accéder aux webhooks et débloquer toutes les fonctionnalités.'
+                            : 'Upgrade to Pro to monitor unlimited domains, access webhooks and unlock all features.'}
+                        </p>
                       </div>
                       <button
                         onClick={() => setPricingModalOpen(true)}
-                        className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                          planLimit !== null && domains.length >= planLimit
-                            ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30 hover:bg-orange-500/30'
-                            : 'bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30'
-                        }`}
+                        className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition bg-orange-500/20 text-orange-300 border border-orange-500/30 hover:bg-orange-500/30"
                       >
                         {lang === 'fr' ? 'Passer Pro →' : 'Upgrade to Pro →'}
                       </button>
@@ -1609,7 +1590,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                     {([
                       { id: 'profile'     as const, label: lang === 'fr' ? 'Profil & Sécurité' : 'Profile & Security', icon: <Key size={13} /> },
                       { id: 'billing'     as const, label: lang === 'fr' ? 'Facturation' : 'Billing',                  icon: <CreditCard size={13} /> },
-                      ...(user?.plan && ['pro', 'team'].includes(user.plan) ? [{
+                      ...(user?.plan && user.plan === 'pro' ? [{
                         id: 'whitelabel' as const,
                         label: lang === 'fr' ? 'Marque blanche' : 'White-label',
                         icon: <Shield size={13} />,

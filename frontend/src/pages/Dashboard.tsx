@@ -931,14 +931,36 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     </div>
                   )}
 
-                  {/* Bouton déjà connecté (plan free) */}
-                  {user && (
-                    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4 mb-5 text-left">
-                      <p className="text-slate-400 text-xs leading-relaxed">
-                        {lang === 'fr'
-                          ? "Votre quota de 5 scans/jour est épuisé. Revenez demain ou passez à un plan Pro."
-                          : 'Your 5 scans/day quota is exhausted. Come back tomorrow or upgrade to Pro.'}
-                      </p>
+                  {/* CTA upgrade — free connecté */}
+                  {user && user.plan === 'free' && (
+                    <div className="rounded-2xl overflow-hidden mb-5 text-left"
+                      style={{ border: '1px solid rgba(34,211,238,0.2)', background: 'linear-gradient(135deg,rgba(8,60,80,0.6) 0%,rgba(15,21,30,0.95) 100%)' }}>
+                      <div className="px-5 pt-5 pb-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Zap size={14} className="text-cyan-400" />
+                          <p className="text-cyan-400 font-bold text-sm">
+                            {lang === 'fr' ? 'Passez Starter — scans illimités' : 'Go Starter — unlimited scans'}
+                          </p>
+                        </div>
+                        <p className="text-slate-400 text-xs mb-4 leading-relaxed">
+                          {lang === 'fr'
+                            ? 'Votre quota de 5 scans/jour est épuisé. Passez Starter pour analyser sans limite, accéder au monitoring et aux rapports PDF complets.'
+                            : 'Your 5 scans/day quota is up. Go Starter for unlimited scans, monitoring, and full PDF reports.'}
+                        </p>
+                        <button
+                          onClick={() => openPricing('scan_limit_error')}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all"
+                          style={{ background: 'linear-gradient(135deg,rgba(34,211,238,0.22),rgba(59,130,246,0.18))', border: '1px solid rgba(34,211,238,0.35)', color: '#a5f3fc' }}>
+                          <Zap size={13} />
+                          {lang === 'fr' ? 'Voir les offres →' : 'View plans →'}
+                        </button>
+                      </div>
+                      <div className="px-5 pb-4 flex items-center justify-center gap-5">
+                        {(lang === 'fr'
+                          ? ['✓ Scans illimités', '✓ Monitoring', '✓ PDF complet']
+                          : ['✓ Unlimited scans', '✓ Monitoring', '✓ Full PDF']
+                        ).map(f => <span key={f} className="text-[10px] text-cyan-700 font-mono">{f}</span>)}
+                      </div>
                     </div>
                   )}
 
