@@ -4,10 +4,12 @@ CyberHealth Scanner — Monitoring Router
 Endpoints pour la surveillance automatique hebdomadaire des domaines.
 Réservé aux plans Starter et Pro.
 
-GET  /monitoring/domains          → liste des domaines surveillés
-POST /monitoring/domains          → ajouter un domaine
-DELETE /monitoring/domains/{domain} → supprimer un domaine
-GET  /monitoring/status           → état du scheduler + prochain scan
+GET  /monitoring/domains                   → liste des domaines surveillés
+POST /monitoring/domains                   → ajouter un domaine
+DELETE /monitoring/domains/{domain}        → supprimer un domaine
+PATCH /monitoring/domains/{domain}         → mettre à jour seuil/fréquence/email
+POST /monitoring/domains/{domain}/scan     → déclencher un scan immédiat (3/hour/user)
+GET  /monitoring/status                    → état du scheduler + prochain scan
 """
 
 import ipaddress
@@ -307,6 +309,75 @@ def update_monitored_domain(
 
     db.commit()
     return {"message": f"'{domain}' mis à jour.", "domain": domain}
+
+
+@router.post("/domains/{domain}/scan", status_code=200)
+@limiter.limit("3/hour")
+async def scan_domain_now(
+    request: Request,
+    domain: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Déclenche un scan immédiat d'un domaine sous surveillance.
+    Limité à 3 scans/heure par utilisateur pour éviter l'abus.
+    Met à jour last_score, last_risk_level, last_scan_at et les champs étendus.
+    N'envoie pas d'alerte email — uniquement le scan de diagnostic.
+    """
+    _require_premium(current_user)
+
+    domain = domain.lower().strip()
+    monitored = db.query(MonitoredDomain).filter(
+        MonitoredDomain.user_id == current_user.id,
+        MonitoredDomain.domain  == domain,
+        MonitoredDomain.is_active == True,
+    ).first()
+
+    if not monitored:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": f"'{domain}' n'est pas sous surveillance ou n'est pas actif."},
+        )
+
+    # Import ici pour éviter l'import circulaire
+    from app.scheduler import _scan_and_alert
+
+    try:
+        await _scan_and_alert(monitored, db)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": f"Le scan a échoué : {exc}"},
+        )
+
+    # Recharger le domaine depuis la DB pour avoir les valeurs à jour
+    db.refresh(monitored)
+
+    import json as _json
+
+    def _parse_json_list(raw: str | None) -> list | None:
+        try:
+            return _json.loads(raw) if raw else None
+        except Exception:
+            return None
+
+    def _parse_json_dict(raw: str | None) -> dict | None:
+        try:
+            return _json.loads(raw) if raw else None
+        except Exception:
+            return None
+
+    return {
+        "domain":               monitored.domain,
+        "new_score":            monitored.last_score,
+        "new_risk_level":       monitored.last_risk_level,
+        "scanned_at":           monitored.last_scan_at.isoformat() if monitored.last_scan_at else None,
+        "last_ssl_expiry_days": monitored.last_ssl_expiry_days,
+        "last_open_ports":      _parse_json_list(monitored.last_open_ports),
+        "last_technologies":    _parse_json_dict(monitored.last_technologies),
+        "message":              f"Scan de '{domain}' terminé avec succès.",
+    }
 
 
 @router.get("/status")

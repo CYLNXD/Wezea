@@ -415,6 +415,23 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
     } catch { /* silencieux */ }
   };
 
+  const [scanningDomain, setScanningDomain] = useState<string | null>(null);
+  const [scanDoneMap, setScanDoneMap]       = useState<Record<string, boolean>>({});
+
+  const scanDomainNow = async (domain: string) => {
+    if (scanningDomain) return;
+    setScanningDomain(domain);
+    setScanDoneMap(prev => ({ ...prev, [domain]: false }));
+    try {
+      await apiClient.post(`/monitoring/domains/${domain}/scan`);
+      await fetchDomains();
+      await fetchHistory();
+      setScanDoneMap(prev => ({ ...prev, [domain]: true }));
+      setTimeout(() => setScanDoneMap(prev => { const n = { ...prev }; delete n[domain]; return n; }), 3000);
+    } catch { /* silencieux */ }
+    finally { setScanningDomain(null); }
+  };
+
   const saveThreshold = async (domain: string) => {
     try {
       await apiClient.patch(`/monitoring/domains/${domain}`, { alert_threshold: thresholdValue });
@@ -1205,15 +1222,35 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                                   </div>
                                 </td>
 
-                                {/* Delete */}
+                                {/* Actions — Scan Now + Delete */}
                                 <td className="px-4 py-4 text-right">
-                                  <button
-                                    onClick={() => removeDomain(d.domain)}
-                                    className="p-1.5 rounded-lg text-slate-700 hover:text-red-400 hover:bg-red-500/10 transition opacity-0 group-hover:opacity-100"
-                                    title={lang === 'fr' ? 'Retirer du monitoring' : 'Remove from monitoring'}
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
+                                  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {/* Scan maintenant */}
+                                    <button
+                                      onClick={() => scanDomainNow(d.domain)}
+                                      disabled={!!scanningDomain}
+                                      title={lang === 'fr' ? 'Lancer un scan immédiat' : 'Run an immediate scan'}
+                                      className={`p-1.5 rounded-lg transition ${
+                                        scanDoneMap[d.domain]
+                                          ? 'text-green-400 bg-green-500/10'
+                                          : 'text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10'
+                                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                                    >
+                                      {scanningDomain === d.domain
+                                        ? <RefreshCw size={13} className="animate-spin" />
+                                        : scanDoneMap[d.domain]
+                                          ? <Check size={13} />
+                                          : <RefreshCw size={13} />}
+                                    </button>
+                                    {/* Supprimer */}
+                                    <button
+                                      onClick={() => removeDomain(d.domain)}
+                                      className="p-1.5 rounded-lg text-slate-700 hover:text-red-400 hover:bg-red-500/10 transition"
+                                      title={lang === 'fr' ? 'Retirer du monitoring' : 'Remove from monitoring'}
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
