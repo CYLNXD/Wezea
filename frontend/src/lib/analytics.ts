@@ -158,6 +158,7 @@ export type PricingSource =
   | 'scan_limit_error'
   | 'agences_block'
   | 'pricing_section'
+  | 'pro_features_section'
   | 'user_menu';
 
 export function capturePricingModalOpened(source: PricingSource): void {

@@ -32,7 +32,7 @@
     <meta name="twitter:description" content="SPF, DMARC, SSL, ports critiques, CVE. Rapport PDF professionnel. Gratuit pour PME et agences." />
     <meta name="twitter:image"       content="https://wezea.net/og-image.png" />
 
-    <!-- JSON-LD Structured Data -->
+    <!-- JSON-LD Structured Data — WebApplication -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -43,6 +43,11 @@
       "applicationCategory": "SecurityApplication",
       "operatingSystem": "Web",
       "inLanguage": "fr",
+      "featureList": [
+        "Audit SSL/TLS", "Vérification SPF DMARC", "Scan ports ouverts",
+        "Rapport PDF professionnel", "Monitoring continu", "Alertes email",
+        "Webhooks", "Badge SVG dynamique", "Export JSON CSV", "Marque blanche"
+      ],
       "offers": [
         { "@type": "Offer", "name": "Free",    "price": "0",     "priceCurrency": "EUR" },
         { "@type": "Offer", "name": "Starter", "price": "9.90",  "priceCurrency": "EUR", "billingDuration": "P1M" },
@@ -53,6 +58,56 @@
         "name": "Wezea",
         "url": "https://wezea.net"
       }
+    }
+    </script>
+
+    <!-- JSON-LD Structured Data — FAQ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Wezea est-il vraiment gratuit ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Oui, le plan Free permet 5 scans par jour sans carte bancaire. Les plans Starter (9,90€/mois) et Pro (19,90€/mois) ajoutent des scans illimités, le monitoring continu, les rapports PDF et des intégrations avancées."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Comment fonctionne le scanner de sécurité Wezea ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Entrez votre nom de domaine et notre moteur analyse en moins de 60 secondes : SSL/TLS, DNS (SPF, DMARC, DNSSEC), ports ouverts, headers HTTP, réputation (blacklists), technologies exposées et vulnérabilités CVE connues. Le résultat est un score de sécurité sur 100 avec des recommandations concrètes."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Quelle est la différence entre le plan Starter et le plan Pro ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Le plan Starter (9,90€/mois) inclut les scans illimités, 1 domaine en monitoring, les rapports PDF avancés et les alertes email. Le plan Pro (19,90€/mois) ajoute le monitoring illimité (domaines), les rapports en marque blanche, les webhooks, la clé API, le badge SVG dynamique et l'export JSON/CSV."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Wezea peut-il surveiller mon domaine automatiquement ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Oui. Avec les plans Starter et Pro, vous pouvez activer le monitoring continu. Un scan automatique est effectué régulièrement et vous recevez une alerte email si le score de sécurité baisse en dessous d'un seuil que vous définissez."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Les rapports PDF peuvent-ils être personnalisés avec mon logo ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Oui, avec le plan Pro. La fonctionnalité marque blanche vous permet d'intégrer votre logo, vos couleurs et le nom de votre entreprise dans les rapports PDF. Idéal pour les agences web et les MSP qui souhaitent facturer des audits de sécurité à leurs clients."
+          }
+        }
+      ]
     }
     </script>
 

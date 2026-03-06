@@ -1633,6 +1633,114 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
               </div>
             </section>
 
+            {/* ── 2b. FONCTIONNALITÉS PRO ──────────────────────────────────── */}
+            <section>
+              <div className="text-center mb-10">
+                <span className="text-xs font-semibold text-cyan-400 tracking-widest uppercase mb-3 block">
+                  {lang === 'fr' ? 'Plan Pro' : 'Pro plan'}
+                </span>
+                <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
+                  {lang === 'fr' ? 'Intégrez la sécurité dans votre stack' : 'Integrate security into your stack'}
+                </h2>
+                <p className="text-slate-500 text-sm max-w-lg mx-auto">
+                  {lang === 'fr'
+                    ? 'Le plan Pro va au-delà du scan : automatisation, intégrations et personnalisation pour les équipes et agences.'
+                    : 'The Pro plan goes beyond scanning: automation, integrations and customisation for teams and agencies.'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-4xl mx-auto">
+                {([
+                  {
+                    color: '#22d3ee',
+                    icon: (
+                      <svg width="20" height="20" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+                      </svg>
+                    ),
+                    title: lang === 'fr' ? 'Webhooks en temps réel' : 'Real-time webhooks',
+                    desc: lang === 'fr'
+                      ? 'Recevez les événements de scan (scan.completed, alert.triggered, score.dropped) directement dans Zapier, Slack ou votre CI/CD. Signature HMAC-SHA256 incluse.'
+                      : 'Receive scan events (scan.completed, alert.triggered, score.dropped) directly in Zapier, Slack or your CI/CD. HMAC-SHA256 signing included.',
+                    tags: ['Zapier', 'Slack', 'CI/CD', 'n8n'],
+                  },
+                  {
+                    color: '#c084fc',
+                    icon: (
+                      <svg width="20" height="20" fill="none" stroke="#c084fc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/>
+                      </svg>
+                    ),
+                    title: lang === 'fr' ? 'Rapports en marque blanche' : 'White-label reports',
+                    desc: lang === 'fr'
+                      ? 'Personnalisez les rapports PDF avec votre logo, couleurs et nom d\'entreprise. Idéal pour facturer vos audits à vos clients sans mentionner Wezea.'
+                      : 'Customise PDF reports with your logo, colours and company name. Perfect for reselling audits to clients without mentioning Wezea.',
+                    tags: [lang === 'fr' ? 'Logo custom' : 'Custom logo', lang === 'fr' ? 'Couleurs' : 'Colours', 'PDF'],
+                  },
+                  {
+                    color: '#4ade80',
+                    icon: (
+                      <svg width="20" height="20" fill="none" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                      </svg>
+                    ),
+                    title: lang === 'fr' ? 'Badge SVG dynamique' : 'Dynamic SVG badge',
+                    desc: lang === 'fr'
+                      ? 'Affichez votre score de sécurité en temps réel sur votre site, README GitHub ou signature d\'email. Le badge se met à jour automatiquement après chaque scan.'
+                      : 'Show your real-time security score on your website, GitHub README or email signature. The badge updates automatically after each scan.',
+                    tags: ['README', 'HTML', 'Markdown'],
+                  },
+                  {
+                    color: '#fb923c',
+                    icon: (
+                      <svg width="20" height="20" fill="none" stroke="#fb923c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    ),
+                    title: lang === 'fr' ? 'Export & accès API' : 'Export & API access',
+                    desc: lang === 'fr'
+                      ? 'Exportez l\'historique de vos scans en JSON ou CSV. Intégrez Wezea dans vos scripts et outils via la clé API Bearer — sans dépendre du navigateur.'
+                      : 'Export your scan history as JSON or CSV. Integrate Wezea into your scripts and tools via Bearer API key — without relying on a browser.',
+                    tags: ['JSON', 'CSV', 'API key', 'Bearer'],
+                  },
+                ] as Array<{color:string;icon:React.ReactNode;title:string;desc:string;tags:string[]}>).map((f, i) => (
+                  <div key={i} className="relative flex flex-col gap-4 rounded-2xl p-6 overflow-hidden"
+                    style={{ border: `1px solid ${f.color}25`, background: `linear-gradient(135deg, ${f.color}08 0%, rgba(15,21,30,0.8) 100%)` }}>
+                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl pointer-events-none"
+                      style={{ background: `${f.color}15` }} />
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl shrink-0"
+                        style={{ background: `${f.color}15`, border: `1px solid ${f.color}30` }}>
+                        {f.icon}
+                      </div>
+                      <p className="text-white font-bold text-sm leading-snug">{f.title}</p>
+                    </div>
+                    <p className="text-slate-400 text-xs leading-relaxed">{f.desc}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-auto">
+                      {f.tags.map(tag => (
+                        <span key={tag} className="text-[10px] font-mono px-2 py-0.5 rounded-full"
+                          style={{ background: `${f.color}12`, border: `1px solid ${f.color}25`, color: f.color }}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="text-center mt-8">
+                <button
+                  onClick={() => openPricing('pro_features_section')}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all"
+                  style={{ background: 'linear-gradient(135deg,rgba(34,211,238,0.18),rgba(59,130,246,0.14))', border: '1px solid rgba(34,211,238,0.3)', color: '#a5f3fc' }}
+                >
+                  <Zap size={14} />
+                  {lang === 'fr' ? 'Passer au plan Pro — 19,90€/mois' : 'Upgrade to Pro — €19.90/mo'}
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+            </section>
+
             {/* ── 3. PREUVES SOCIALES ──────────────────────────────────────── */}
             <section>
               <div className="text-center mb-10">
@@ -1903,9 +2011,11 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   <ul className="space-y-2.5 flex-1 mb-6">
                     {[
                       { fr: 'Tout le plan Starter', en: 'Everything in Starter' },
-                      { fr: 'Checks CVE / versions avancés', en: 'Advanced CVE / version checks' },
+                      { fr: 'Monitoring illimité (domaines)', en: 'Unlimited monitoring (domains)' },
                       { fr: 'Rapports en marque blanche', en: 'White-label reports' },
-                      { fr: 'Accès API (bientôt)', en: 'API access (coming soon)' },
+                      { fr: 'Webhooks & clé API', en: 'Webhooks & API key' },
+                      { fr: 'Badge SVG dynamique', en: 'Dynamic SVG badge' },
+                      { fr: 'Export JSON / CSV', en: 'JSON / CSV export' },
                     ].map((f, i) => (
                       <li key={i} className="flex items-center gap-2.5 text-sm text-slate-200">
                         <svg width="14" height="14" fill="none" stroke="#22d3ee" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
@@ -1920,6 +2030,43 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     {lang === 'fr' ? 'Choisir Pro' : 'Choose Pro'}
                   </button>
                 </div>
+              </div>
+              {/* ── Tableau comparatif ─────────────────────────────────────── */}
+              <div className="mt-8 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th className="text-left text-slate-500 font-medium py-3 pr-4 text-xs w-1/2">{lang === 'fr' ? 'Fonctionnalité' : 'Feature'}</th>
+                      <th className="text-center text-slate-400 font-semibold py-3 px-4 text-xs">Free</th>
+                      <th className="text-center text-emerald-400 font-semibold py-3 px-4 text-xs">Starter</th>
+                      <th className="text-center text-cyan-400 font-semibold py-3 px-4 text-xs">Pro</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {([
+                      { fr: 'Scans / jour', en: 'Scans / day',                      free: '5',     starter: '∞',  pro: '∞'   },
+                      { fr: 'Rapport PDF',  en: 'PDF report',                         free: '—',     starter: '✓',  pro: '✓'   },
+                      { fr: 'Historique',   en: 'History',                             free: '20',    starter: '∞',  pro: '∞'   },
+                      { fr: 'Monitoring continu', en: 'Continuous monitoring',         free: '—',     starter: '1 domaine', pro: '∞' },
+                      { fr: 'Alertes email', en: 'Email alerts',                       free: '—',     starter: '✓',  pro: '✓'   },
+                      { fr: 'Marque blanche', en: 'White-label',                       free: '—',     starter: '—',  pro: '✓'   },
+                      { fr: 'Webhooks & clé API', en: 'Webhooks & API key',            free: '—',     starter: '—',  pro: '✓'   },
+                      { fr: 'Badge SVG dynamique', en: 'Dynamic SVG badge',            free: '—',     starter: '—',  pro: '✓'   },
+                      { fr: 'Export JSON / CSV', en: 'JSON / CSV export',              free: '—',     starter: '—',  pro: '✓'   },
+                    ] as Array<{fr:string;en:string;free:string;starter:string;pro:string}>).map((row, i) => (
+                      <tr key={i} className="hover:bg-slate-900/40 transition-colors">
+                        <td className="py-3 pr-4 text-slate-400 text-xs">{lang === 'fr' ? row.fr : row.en}</td>
+                        <td className="py-3 px-4 text-center text-xs text-slate-500 font-mono">{row.free}</td>
+                        <td className="py-3 px-4 text-center text-xs font-mono">
+                          <span className={row.starter === '—' ? 'text-slate-700' : row.starter === '✓' ? 'text-emerald-400' : 'text-emerald-300 font-semibold'}>{row.starter}</span>
+                        </td>
+                        <td className="py-3 px-4 text-center text-xs font-mono">
+                          <span className={row.pro === '—' ? 'text-slate-700' : row.pro === '✓' ? 'text-cyan-400' : 'text-cyan-300 font-semibold'}>{row.pro}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </section>
 
