@@ -45,8 +45,11 @@ jobs:
           COOKIE_SECURE: "false"
           COOKIE_SAMESITE: lax
         run: |
-          .venv/bin/pip install --quiet pytest pytest-asyncio httpx 2>/dev/null || true
-          .venv/bin/pytest tests/ -v --tb=short
+          # Venv jetable dans /tmp — isolé du venv de prod, propre à chaque run CI
+          python3 -m venv /tmp/cyberhealth-test-venv
+          /tmp/cyberhealth-test-venv/bin/pip install --quiet -r requirements.txt
+          /tmp/cyberhealth-test-venv/bin/pytest tests/ -v --tb=short
+          rm -rf /tmp/cyberhealth-test-venv
           echo "✓ Tests backend OK"
 
       # ── 5. Déployer le frontend (nginx) ───────────────────────────────────
