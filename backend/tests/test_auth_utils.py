@@ -252,3 +252,79 @@ class TestBrEsc:
         assert "<img" not in escaped
         assert "alert" in escaped   # le texte reste mais les balises sont échappées
         assert "&lt;" in escaped
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# auth.py — JWT_SECRET_KEY absent ou trop court → secret temporaire généré
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestJwtSecretKeyFallback:
+    """Couvre les lignes 30-38 de app/auth.py (module-level fallback logic)."""
+
+    def test_missing_jwt_secret_generates_temp_secret(self):
+        """JWT_SECRET_KEY absent → secret temporaire généré, avertissement stderr."""
+        import importlib
+        import sys
+        import io
+
+        # Retirer le module du cache pour forcer le rechargement
+        sys.modules.pop("app.auth", None)
+
+        old_env = {}
+        import os
+        if "JWT_SECRET_KEY" in os.environ:
+            old_env["JWT_SECRET_KEY"] = os.environ.pop("JWT_SECRET_KEY")
+
+        try:
+            captured = io.StringIO()
+            old_stderr = sys.stderr
+            sys.stderr = captured
+
+            import app.auth as auth_mod
+            sys.stderr = old_stderr
+
+            # Le module doit avoir généré un SECRET_KEY non vide
+            assert auth_mod.SECRET_KEY
+            assert len(auth_mod.SECRET_KEY) >= 32
+            # L'avertissement doit être dans stderr
+            output = captured.getvalue()
+            assert "JWT_SECRET_KEY" in output or "AVERTISSEMENT" in output
+        finally:
+            sys.stderr = old_stderr if 'old_stderr' in dir() else sys.stderr
+            # Restaurer l'env et recharger avec le bon secret pour ne pas casser les autres tests
+            for k, v in old_env.items():
+                os.environ[k] = v
+            sys.modules.pop("app.auth", None)
+            import app.auth  # noqa: F401 – recharge avec env restauré
+
+    def test_short_jwt_secret_also_generates_temp_secret(self):
+        """JWT_SECRET_KEY trop court (<32 chars) → secret temporaire généré."""
+        import importlib
+        import sys
+        import io
+        import os
+
+        sys.modules.pop("app.auth", None)
+
+        old_val = os.environ.get("JWT_SECRET_KEY")
+        os.environ["JWT_SECRET_KEY"] = "tooshort"
+
+        old_stderr = sys.stderr
+        try:
+            captured = io.StringIO()
+            sys.stderr = captured
+
+            import app.auth as auth_mod
+            sys.stderr = old_stderr
+
+            # La clé générée ne doit PAS être "tooshort"
+            assert auth_mod.SECRET_KEY != "tooshort"
+            assert len(auth_mod.SECRET_KEY) >= 32
+        finally:
+            sys.stderr = old_stderr
+            if old_val is None:
+                os.environ.pop("JWT_SECRET_KEY", None)
+            else:
+                os.environ["JWT_SECRET_KEY"] = old_val
+            sys.modules.pop("app.auth", None)
+            import app.auth  # noqa: F401 – recharge avec env restauré

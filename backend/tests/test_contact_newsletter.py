@@ -287,3 +287,58 @@ class TestNewsletterUnsubscribe:
         resp = client.post("/newsletter/unsubscribe",
                            json={"email": "idempotent@example.com"})
         assert resp.status_code == 200
+
+
+# =============================================================================
+# contact_router.py line 81 — GET /contact redirect
+# newsletter_router.py line 48 — _get_client_ip X-Forwarded-For
+# =============================================================================
+
+class TestContactRedirect:
+    """GET /contact → RedirectResponse vers le frontend (line 81)."""
+
+    def test_get_contact_redirects(self, client, db_session):
+        """GET /contact retourne une redirection 302."""
+        resp = client.get("/contact", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "contact" in resp.headers["location"]
+
+
+class TestNewsletterClientIp:
+    """_get_ip : couvre line 48 (X-Forwarded-For) en appelant la fonction directement (pas d'HTTP)."""
+
+    def test_get_ip_with_x_forwarded_for(self):
+        """X-Forwarded-For header → premier IP extrait (line 48 newsletter_router)."""
+        from app.routers.newsletter_router import _get_ip
+        from unittest.mock import MagicMock
+
+        request = MagicMock()
+        request.headers = {"X-Forwarded-For": "192.0.2.1, 10.0.0.1"}
+        request.client = None
+
+        ip = _get_ip(request)
+        assert ip == "192.0.2.1"
+
+    def test_get_ip_without_forwarded_for_uses_client_host(self):
+        """Sans X-Forwarded-For → request.client.host (line 49)."""
+        from app.routers.newsletter_router import _get_ip
+        from unittest.mock import MagicMock
+
+        request = MagicMock()
+        request.headers = {}
+        request.client.host = "10.0.0.5"
+
+        ip = _get_ip(request)
+        assert ip == "10.0.0.5"
+
+    def test_get_ip_no_client_returns_unknown(self):
+        """Sans X-Forwarded-For et client None → 'unknown' (line 49)."""
+        from app.routers.newsletter_router import _get_ip
+        from unittest.mock import MagicMock
+
+        request = MagicMock()
+        request.headers = {}
+        request.client = None
+
+        ip = _get_ip(request)
+        assert ip == "unknown"

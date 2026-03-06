@@ -884,3 +884,76 @@ class TestStartStopScheduler:
         sched._scheduler = None
         with patch("app.scheduler._release_lock"):
             _real_stop_scheduler()  # pas d'exception
+
+
+# =============================================================================
+# _try_acquire_lock success path (line 38)
+# _release_lock success path (line 48)
+# _async_onboarding_emails — J+1 exception (lines 416-417)
+# _async_onboarding_emails — J+7 exception (lines 468-469)
+# =============================================================================
+
+class TestLockFunctionsSuccessPaths:
+
+    def test_try_acquire_lock_returns_true_on_success(self):
+        """_try_acquire_lock → True si fcntl.flock réussit (line 38)."""
+        import fcntl as _fcntl
+        from app.scheduler import _try_acquire_lock
+        with patch("builtins.open", MagicMock(return_value=MagicMock())), \
+             patch("app.scheduler.fcntl.flock", return_value=None):
+            result = _try_acquire_lock()
+        assert result is True
+
+    def test_release_lock_closes_fd_on_success(self):
+        """_release_lock → _lock_fd.close() appelé quand flock réussit (line 48)."""
+        import app.scheduler as sched
+        mock_fd = MagicMock()
+        sched._lock_fd = mock_fd
+        with patch("app.scheduler.fcntl.flock", return_value=None):
+            from app.scheduler import _release_lock
+            _release_lock()
+        mock_fd.close.assert_called_once()
+        assert sched._lock_fd is None
+
+
+class TestOnboardingEmailExceptions:
+
+    @pytest.mark.asyncio
+    async def test_j1_nudge_exception_is_logged(self, db_session):
+        """J+1 : exception dans send_activation_nudge_email → loguée, pas propagée (lines 416-417)."""
+        now = datetime.now(timezone.utc)
+        _make_user(db_session, plan="free", created_at=now - timedelta(hours=22))
+
+        with patch("app.database.SessionLocal", return_value=db_session), \
+             patch("app.services.brevo_service.send_activation_nudge_email",
+                   AsyncMock(side_effect=RuntimeError("smtp KO"))), \
+             patch("app.services.brevo_service.send_upgrade_nudge_email",  AsyncMock()), \
+             patch("app.services.brevo_service.send_value_reminder_email", AsyncMock()), \
+             patch("app.services.brevo_service.send_winback_email",        AsyncMock()):
+            from app.scheduler import _async_onboarding_emails
+            await _async_onboarding_emails()  # ne doit pas lever
+
+    @pytest.mark.asyncio
+    async def test_j7_value_reminder_exception_is_logged(self, db_session):
+        """J+7 : exception dans send_value_reminder_email → loguée, pas propagée (lines 468-469)."""
+        import uuid as _uuid
+        from app.models import ScanHistory
+
+        now = datetime.now(timezone.utc)
+        u   = _make_user(db_session, plan="free", created_at=now - timedelta(hours=168))
+        # Créer au moins 1 scan pour que la condition scan_count >= 1 soit vraie
+        scan = ScanHistory(
+            user_id=u.id, scan_uuid=str(_uuid.uuid4()),
+            domain="j7test.com", security_score=70, risk_level="MEDIUM",
+        )
+        db_session.add(scan)
+        db_session.commit()
+
+        with patch("app.database.SessionLocal", return_value=db_session), \
+             patch("app.services.brevo_service.send_activation_nudge_email",  AsyncMock()), \
+             patch("app.services.brevo_service.send_upgrade_nudge_email",     AsyncMock()), \
+             patch("app.services.brevo_service.send_value_reminder_email",
+                   AsyncMock(side_effect=RuntimeError("smtp KO"))), \
+             patch("app.services.brevo_service.send_winback_email",           AsyncMock()):
+            from app.scheduler import _async_onboarding_emails
+            await _async_onboarding_emails()  # ne doit pas lever

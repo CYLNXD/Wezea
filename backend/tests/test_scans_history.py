@@ -528,3 +528,107 @@ class TestExportScanEdgeCases:
         assert resp.status_code == 200
         assert captured.get("white_label") is not None
         assert captured["white_label"]["company_name"] == "AcmeCorp"
+
+
+# =============================================================================
+# public_router.py lines 26-28 — _score_color with score < 60 and < 40
+# models.py lines 85, 90, 147-148
+# =============================================================================
+
+class TestPublicBadgeColors:
+    """Teste _score_color pour les seuils < 60 et < 40 (lines 26-28)."""
+
+    def _make_shared_scan(self, db_session, domain: str, score: int,
+                          risk_level: str = "MEDIUM") -> dict:
+        from app.models import ScanHistory
+        import uuid as _u
+        u = _make_user(db_session, plan="pro")
+        scan = ScanHistory(
+            user_id=u["user"].id,
+            domain=domain,
+            security_score=score,
+            risk_level=risk_level,
+            scan_uuid=str(_u.uuid4()),
+            public_share=True,
+        )
+        db_session.add(scan)
+        db_session.commit()
+        db_session.refresh(scan)
+        return {"user": u, "scan": scan}
+
+    def test_badge_score_moderate_range(self, client, db_session):
+        """Score 55 (40 ≤ s < 60) → couleur moderate (line 26-27)."""
+        data = self._make_shared_scan(db_session, "moderate.badge.com", 55)
+        resp = client.get(f"/public/badge/moderate.badge.com")
+        assert resp.status_code == 200
+        assert "X-Score" in resp.headers
+        assert int(resp.headers["X-Score"]) == 55
+
+    def test_badge_score_critical_range(self, client, db_session):
+        """Score 25 (< 40) → couleur critical (line 28)."""
+        data = self._make_shared_scan(db_session, "critical.badge.com", 25)
+        resp = client.get(f"/public/badge/critical.badge.com")
+        assert resp.status_code == 200
+        assert int(resp.headers["X-Score"]) == 25
+
+
+class TestModelsProperties:
+    """Tests des propriétés Python dans models.py (lines 85, 90, 147-148)."""
+
+    def test_scan_history_get_findings_empty_when_no_json(self, db_session):
+        """ScanHistory.get_findings() → [] quand findings_json est None (line 85)."""
+        from app.models import ScanHistory
+        import uuid
+        u = _make_user(db_session, plan="free")
+        scan = ScanHistory(
+            user_id=u["user"].id,
+            domain="model-test.com",
+            security_score=80,
+            risk_level="LOW",
+            scan_uuid=str(uuid.uuid4()),
+            findings_json=None,
+        )
+        db_session.add(scan)
+        db_session.commit()
+        assert scan.get_findings() == []
+
+    def test_scan_history_get_scan_details_empty_when_no_json(self, db_session):
+        """ScanHistory.get_scan_details() → {} quand scan_details_json est None (line 90)."""
+        from app.models import ScanHistory
+        import uuid
+        u = _make_user(db_session, plan="free")
+        scan = ScanHistory(
+            user_id=u["user"].id,
+            domain="model-test2.com",
+            security_score=75,
+            risk_level="MEDIUM",
+            scan_uuid=str(uuid.uuid4()),
+            scan_details_json=None,
+        )
+        db_session.add(scan)
+        db_session.commit()
+        assert scan.get_scan_details() == {}
+
+    def test_monitored_domain_get_checks_config_with_custom_json(self, db_session):
+        """MonitoredDomain.get_checks_config() fusionne checks_config JSON avec défauts (lines 147-148)."""
+        import json as _json
+        from app.models import MonitoredDomain
+        u = _make_user(db_session, plan="starter")
+        custom_config = {"ssl": False, "ports": True}
+        domain = MonitoredDomain(
+            user_id=u["user"].id,
+            domain="checks-config.example.com",
+            is_active=True,
+            checks_config=_json.dumps(custom_config),
+        )
+        db_session.add(domain)
+        db_session.commit()
+
+        result = domain.get_checks_config()
+        # Custom config merged with defaults
+        assert result["ssl"] is False    # overridden
+        assert result["ports"] is True   # overridden or default
+        # All default keys should be present
+        from app.models import MonitoredDomain as MD
+        for key in MD.DEFAULT_CHECKS:
+            assert key in result

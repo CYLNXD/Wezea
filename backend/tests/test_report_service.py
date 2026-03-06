@@ -724,3 +724,28 @@ class TestGeneratePdf:
              patch("weasyprint.text.fonts.FontConfiguration", return_value=mock_font_config):
             with pytest.raises(RuntimeError, match="PDF"):
                 generate_pdf(self._scan_data(), "fr")
+
+    def test_generate_pdf_success_returns_bytes(self):
+        """Chemin nominal : template render OK + write_pdf OK → retourne les bytes PDF (line 228)."""
+        from app.services.report_service import generate_pdf
+        from unittest.mock import patch, MagicMock
+
+        fake_pdf_bytes = b"%PDF-1.4 fake"
+
+        mock_template = MagicMock()
+        mock_template.render.return_value = "<html><body>ok</body></html>"
+        mock_env = MagicMock()
+        mock_env.get_template.return_value = mock_template
+
+        mock_html_inst = MagicMock()
+        mock_html_inst.write_pdf.return_value = fake_pdf_bytes
+        mock_html_cls = MagicMock(return_value=mock_html_inst)
+        mock_font_config = MagicMock()
+
+        with patch("app.services.report_service._build_jinja_env", return_value=mock_env), \
+             patch("weasyprint.HTML", mock_html_cls), \
+             patch("weasyprint.text.fonts.FontConfiguration", return_value=mock_font_config):
+            result = generate_pdf(self._scan_data(), "fr")
+
+        assert result == fake_pdf_bytes
+        mock_html_inst.write_pdf.assert_called_once()

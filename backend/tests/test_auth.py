@@ -1135,3 +1135,114 @@ class TestResetPasswordEdgeCases:
         })
         assert resp.status_code == 400
         assert "invalide" in resp.json()["detail"].lower()
+
+
+# =============================================================================
+# auth_router.py missing lines:
+#   166-179 — get_optional_user with Bearer token
+#   196-197 — _send_welcome_sync exception handler
+#   559-560 — _send_reset_email exception handler
+# =============================================================================
+
+class TestGetOptionalUserWithBearer:
+    """Couvre get_optional_user lines 166-179 — appel direct sans HTTP (évite le rate limit /contact)."""
+
+    def test_valid_jwt_returns_user(self, db_session):
+        """Bearer JWT valide → get_optional_user retourne le user (lines 166-171)."""
+        from app.auth import create_access_token, hash_password, generate_api_key
+        from app.models import User
+        from app.routers.auth_router import get_optional_user
+
+        u = User(
+            email="optional-jwt@example.com",
+            password_hash=hash_password("Pass123"),
+            plan="free", api_key=generate_api_key(), is_active=True,
+        )
+        db_session.add(u)
+        db_session.commit()
+        db_session.refresh(u)
+        token = create_access_token(u.id, u.email, "free")
+
+        result = get_optional_user(authorization=f"Bearer {token}", db=db_session)
+        assert result is not None
+        assert result.id == u.id
+
+    def test_wsk_pro_key_returns_user(self, db_session):
+        """Bearer wsk_ Pro → get_optional_user retourne le user (lines 174-177)."""
+        from app.auth import hash_password, generate_api_key
+        from app.models import User
+        from app.routers.auth_router import get_optional_user
+
+        u = User(
+            email="optional-wsk@example.com",
+            password_hash=hash_password("Pass123"),
+            plan="pro", api_key=generate_api_key(), is_active=True,
+        )
+        db_session.add(u)
+        db_session.commit()
+        db_session.refresh(u)
+
+        result = get_optional_user(authorization=f"Bearer {u.api_key}", db=db_session)
+        assert result is not None
+        assert result.id == u.id
+
+    def test_invalid_non_wsk_token_returns_none(self, db_session):
+        """Bearer invalide non-wsk_ → get_optional_user retourne None (line 179)."""
+        from app.routers.auth_router import get_optional_user
+
+        result = get_optional_user(authorization="Bearer totally-invalid-token-xyz", db=db_session)
+        assert result is None
+
+    def test_no_authorization_returns_none(self, db_session):
+        """Pas de header → retourne None immédiatement (line 164)."""
+        from app.routers.auth_router import get_optional_user
+
+        result = get_optional_user(authorization=None, db=db_session)
+        assert result is None
+
+
+class TestAuthRouterSendWelcomeSync:
+    """Couvre _send_welcome_sync exception handler (lines 196-197)."""
+
+    def test_send_welcome_sync_exception_silenced(self, db_session):
+        """send_welcome_email lève → exception capturée silencieusement."""
+        from app.routers.auth_router import _send_welcome_sync
+        with patch("app.routers.auth_router.send_welcome_email",
+                   side_effect=Exception("SMTP error")):
+            # Ne doit pas lever
+            _send_welcome_sync("test@example.com")
+
+
+class TestAuthRouterResetEmailException:
+    """Couvre _send_reset_email exception handler (lines 559-560)."""
+
+    def test_reset_email_exception_silenced(self, db_session):
+        """send_password_reset_email lève → exception capturée, no crash."""
+        from fastapi import BackgroundTasks
+        from starlette.requests import Request as StarletteRequest
+        from app.routers.auth_router import forgot_password, ForgotPasswordRequest
+
+        u_email = f"reset-exc-{__import__('uuid').uuid4().hex[:8]}@example.com"
+        from app.models import User
+        from app.auth import hash_password, generate_api_key
+        user = User(
+            email=u_email, password_hash=hash_password("Pass123"),
+            plan="free", api_key=generate_api_key(), is_active=True,
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        scope = {"type": "http", "method": "POST", "path": "/auth/forgot-password",
+                 "headers": [], "query_string": b"", "client": ("127.77.77.77", 7777)}
+        fake_request = StarletteRequest(scope)
+        bt = BackgroundTasks()
+        req = ForgotPasswordRequest(email=u_email)
+
+        with patch("app.routers.auth_router.send_password_reset_email",
+                   side_effect=Exception("SMTP down")):
+            forgot_password(fake_request, req, bt, db=db_session)
+            for task in bt.tasks:
+                try:
+                    task.func(*task.args, **task.kwargs)
+                except Exception:
+                    pass  # exception silencieuse dans _send_reset_email

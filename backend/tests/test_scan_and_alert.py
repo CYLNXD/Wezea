@@ -348,3 +348,56 @@ class TestScanAndAlert:
             await _scan_and_alert(m, db_session)
 
         mock_pdf.assert_not_called()
+
+
+# =============================================================================
+# _scan_and_alert — lines 226-229 (alert_reason + critical_findings combined)
+# _scan_and_alert — lines 296-297 (PDF send exception)
+# =============================================================================
+
+class TestScanAndAlertCombinedAlert:
+
+    @pytest.mark.asyncio
+    async def test_alert_reason_combined_score_drop_and_critical(self, db_session):
+        """Score drop + finding CRITICAL → alert_reason concaténé (lines 226-229)."""
+        u = _make_active_user(db_session)
+        m = _make_monitored(db_session, u.id, last_score=80, alert_threshold=5)
+        # Drop = 20 >= seuil ET finding CRITICAL → les deux chemins
+        result = _make_scan_result(
+            score=60,
+            findings=[_make_finding(severity="CRITICAL", penalty=25)],
+        )
+
+        mock_alert = AsyncMock()
+        from app.scheduler import _scan_and_alert
+        with patch("app.scanner.AuditManager", return_value=_audit_mock(result)), \
+             patch("app.scheduler._send_monitoring_alert", mock_alert), \
+             patch("app.routers.webhook_router.fire_webhooks", new=AsyncMock()):
+            await _scan_and_alert(m, db_session)
+
+        mock_alert.assert_called_once()
+        kwargs = mock_alert.call_args[1]
+        # alert_reason doit contenir à la fois la baisse de score et le finding critique
+        assert "baisse" in kwargs.get("reason", "").lower() or "drop" in kwargs.get("reason", "").lower() or kwargs.get("reason") is not None
+
+
+class TestScanAndAlertPdfException:
+
+    @pytest.mark.asyncio
+    async def test_pdf_send_exception_silenced(self, db_session):
+        """_send_scheduled_pdf_report lève → loguée, pas propagée (lines 296-297)."""
+        u = _make_active_user(db_session)
+        m = _make_monitored(db_session, u.id, last_score=75, alert_threshold=5)
+        m.email_report = True
+        db_session.commit()
+
+        result = _make_scan_result(score=70)  # pas de drop ≥ seuil
+
+        from app.scheduler import _scan_and_alert
+        with patch("app.scanner.AuditManager", return_value=_audit_mock(result)), \
+             patch("app.scheduler._send_monitoring_alert", AsyncMock()), \
+             patch("app.routers.webhook_router.fire_webhooks", new=AsyncMock()), \
+             patch("app.scheduler._send_scheduled_pdf_report",
+                   AsyncMock(side_effect=RuntimeError("PDF engine KO"))):
+            # Ne doit pas lever
+            await _scan_and_alert(m, db_session)

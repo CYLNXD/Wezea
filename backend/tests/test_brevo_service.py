@@ -666,15 +666,15 @@ class TestSendNewsletterWelcomeEmail:
 class TestAddNewsletterContactFallback:
     @pytest.mark.asyncio
     async def test_fallback_list_add_on_non_2xx(self):
-        """Si PUT contact renvoie 400 (contact existant), on tente POST /lists/.../add."""
-        # Premier appel (PUT createContact) → 400
+        """Si POST createContact renvoie 400 (contact existant), on tente POST /lists/.../add."""
+        # Les deux appels utilisent client.post() — side_effect liste pour séquencer les réponses
+        # Premier appel (POST createContact) → 400
         # Deuxième appel (POST lists/add) → 200
-        put_response  = _make_response(400)
-        post_response = _make_response(200)
+        first_response  = _make_response(400)
+        second_response = _make_response(200)
 
         mock_client = AsyncMock()
-        mock_client.post   = AsyncMock(return_value=post_response)
-        mock_client.put    = AsyncMock(return_value=put_response)
+        mock_client.post   = AsyncMock(side_effect=[first_response, second_response])
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__  = AsyncMock(return_value=False)
 
@@ -683,8 +683,8 @@ class TestAddNewsletterContactFallback:
             result = await _svc.add_newsletter_contact("existing@example.com")
 
         assert result is True
-        # Vérifier que le fallback POST /lists/.../add a été appelé
-        mock_client.post.assert_called_once()
+        # Vérifier que le fallback POST /lists/.../add a été appelé (2 appels au total)
+        assert mock_client.post.call_count == 2
 
 
 # ─────────────────────────────────────────────────────────────────────────────

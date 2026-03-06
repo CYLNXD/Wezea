@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 20)
+> Dernière mise à jour : 2026-03-06 (session 21)
 
 ---
 
@@ -313,6 +313,46 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 21)
+
+### Tests — main.py + database.py + quickwins (+75 tests) → 896 tests, 99%
+
+#### test_main_helpers.py (nouveau, 44 tests)
+- `TestScanRequestValidateLang` (4) : lang fr/en valides, lang invalide → fallback "fr", lang vide → "fr" (line 199)
+- `TestReportRequestValidateEmail` (4) : email valid, lowercase normalisé, sans @, sans point → 422 (lines 237-240)
+- `TestHealthCheck` (1) : GET /health → 200 + status/version/timestamp (lines 294-296)
+- `TestCheckAnonRateLimit` (4) : sous limite, cookie limite 429, IP limite 429, pas de record = 0 (lines 329-364)
+- `TestIncrementAnonCount` (2) : incrémente existants, crée nouveaux (lines 384-407)
+- `TestCheckUserRateLimit` (3) : illimité, sous limite, dépassé → 429 (lines 412-421)
+- `TestClientId` (2) : GET /client-id nouveau cookie, cookie existant (lines 448-461)
+- `TestReportRequest` (3) : POST /report/request valide → 202, _build_report_structure, email invalide → 422 (lines 691-701, 729)
+- `TestRunInExecutor` (1) : fn synchrone → résultat correct (lines 894-895)
+- `TestScanLimits` (3) : Pro illimité, Free limité, wsk_ Pro key (lines 489-492)
+- `TestScanEndpoint` (6) : anonyme, authentifié + history, wsk_, timeout 504, exception 500, debug mode (lines 554-655)
+- `TestGeneratePdfEndpoint` (6) : succès, RuntimeError 503, Exception 500, white-label, debug RuntimeError, debug Exception (lines 844-880)
+- `TestLifespanSchedulerStarted` (1) : scheduler_started=True → stop_scheduler appelé (lines 108, 113)
+- `TestSentryInit` (1) : SENTRY_DSN défini → sentry_sdk.init() appelé (lines 129-147)
+- `TestGlobalExceptionHandler` (2) : exception → 500, debug mode → détail exposé (lines 905-909)
+- **main.py : 61% → 100%** 🎯
+
+#### test_database.py (nouveau, 8 tests)
+- `TestGetDb` (1) : get_db() yield session + close (lines 23-27)
+- `TestAddColumnIfMissing` (2) : ajoute si absente, skip si existante (lines 133-138)
+- `TestApplyMigrations` (4) : table créée, 9 migrations enregistrées, idempotent, legacy table → ALTER TABLE
+- `TestInitDb` (1) : create_all + migrations appliquées
+- **database.py : 47% → 100%** 🎯
+
+#### Corrections de tests existants
+- `test_brevo_service.py::TestAddNewsletterContactFallback` : mock `put` remplacé par `side_effect=[400, 200]` sur `post` (la fn utilise post pour les 2 appels, pas put) → **brevo_service.py 100%**
+- `test_report_service.py::TestGeneratePdf` : ajout `test_generate_pdf_success_returns_bytes` → chemin nominal (line 228) → **report_service.py 100%**
+- `test_auth_utils.py::TestJwtSecretKeyFallback` (+2) : reload auth.py avec JWT_SECRET_KEY absent/trop court → warning stderr → **auth.py 100%**
+- `test_auth.py::TestGetOptionalUserWithBearer` : refactorisé de HTTP vers appel direct `get_optional_user()` → élimine 3 appels POST /contact qui épuisaient le rate limit (5/hour) → fix de 2 tests qui failaient en suite complète
+- `test_contact_newsletter.py::TestNewsletterClientIp` : refactorisé de HTTP vers appel direct `_get_ip(mock_request)` → élimine call POST /newsletter qui épuisait le rate limit → **newsletter_router.py 100%**
+
+**Couverture globale : 99%** (896 tests, 0 échec)
+**100% sur** : tous les routers + auth + database + main + scheduler + brevo + report + models + advanced_checks + extra_checks + limiter
+**Seul gap** : `scanner.py` lines 1016-1027 (`if __name__ == "__main__":` block, non coverable par pytest)
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 20)
 
