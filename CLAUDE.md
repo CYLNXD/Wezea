@@ -314,6 +314,14 @@ ls -lh /home/cyberhealth/backups/
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
 
+## 🆕 Fonctionnalités récentes (2026-03-06, session 6)
+
+### Tests — admin_router (test_admin.py)
+- 32 nouveaux tests, total **186 tests, 0 échec**
+- Couvre : `GET /admin/users`, `PATCH /admin/users/{id}`, `DELETE /admin/users/{id}`, `GET /admin/stats`, `GET /admin/metrics`
+- 6 classes : `TestAdminGuard`, `TestAdminListUsers`, `TestAdminUpdateUser`, `TestAdminDeleteUser`, `TestAdminStats`, `TestAdminMetrics`
+- Vérifie : guard `require_admin` (401/403 pour non-admin), auto-protection (admin ne peut ni modifier ni supprimer son propre compte), plan invalide → 400, MRR calculé correctement sur subscriptions actives, conversion_rate dans [0,100], séries temporelles (signups/scans) bien formées
+
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 5)
 
 ### Tests — scans_router + public_router (test_scans_history.py)
