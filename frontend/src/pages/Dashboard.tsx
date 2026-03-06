@@ -67,6 +67,27 @@ function CountUp({ to, suffix = '' }: { to: number; suffix?: string }) {
   return <span ref={ref}>{val.toLocaleString()}{suffix}</span>;
 }
 
+// ─── MiniSparkline — historique des scores ────────────────────────────────────
+function MiniSparkline({ scores }: { scores: number[] }) {
+  if (scores.length < 2) return null;
+  const W = 130, H = 30, PAD = 3;
+  const min = Math.min(...scores), max = Math.max(...scores);
+  const range = max - min || 10; // évite division par 0
+  const pts = scores.map((v, i) => ({
+    x: PAD + (i / (scores.length - 1)) * (W - PAD * 2),
+    y: PAD + (1 - (v - min) / range) * (H - PAD * 2),
+  }));
+  const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const last = scores[scores.length - 1];
+  const color = last >= 70 ? '#4ade80' : last >= 40 ? '#fb923c' : '#f87171';
+  return (
+    <svg width={W} height={H} className="shrink-0 overflow-visible">
+      <path d={line} stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
+      <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r="2.5" fill={color} />
+    </svg>
+  );
+}
+
 interface Props {
   onGoLogin?:      () => void;
   onGoRegister?:   () => void;
@@ -107,7 +128,8 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [publicStats, setPublicStats]   = useState<{ total_scans: number } | null>(null);
   const [faqOpen, setFaqOpen]           = useState<number | null>(null);
   const [newsletterConfirmed, setNewsletterConfirmed] = useState(false);
-  const [previousScore, setPreviousScore] = useState<number | null>(null);
+  const [previousScore,  setPreviousScore]  = useState<number | null>(null);
+  const [domainHistory,  setDomainHistory]  = useState<number[]>([]);
   const inputRef                    = useRef<HTMLInputElement>(null);
   const resultsRef                  = useRef<HTMLDivElement>(null);
 
@@ -253,20 +275,24 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
         findings_count: scanner.result.findings?.length ?? 0,
         duration_ms:    scanner.result.scan_duration_ms ?? undefined,
       });
-      // Comparaison avec le scan précédent du même domaine
+      // Comparaison avec le scan précédent du même domaine + sparkline historique
       if (user) {
         apiClient.get('/scans/history').then(res => {
           const scans: Array<{ domain: string; security_score: number; created_at: string }> = res.data;
-          const domainScans = scans
+          // Tri newest-first : [0]=actuel, [1]=précédent
+          const byNewest = scans
             .filter(s => s.domain === scanner.result!.domain)
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-          // [0] = scan actuel, [1] = scan précédent
-          setPreviousScore(domainScans.length >= 2 ? domainScans[1].security_score : null);
-        }).catch(() => { setPreviousScore(null); });
+          // Tri chronologique (oldest-first) pour la sparkline
+          const byOldest = [...byNewest].reverse();
+          setPreviousScore(byNewest.length >= 2 ? byNewest[1].security_score : null);
+          setDomainHistory(byOldest.map(s => s.security_score));
+        }).catch(() => { setPreviousScore(null); setDomainHistory([]); });
       }
     }
     if (scanner.status === 'scanning') {
-      setPreviousScore(null); // reset à chaque nouveau scan
+      setPreviousScore(null);   // reset à chaque nouveau scan
+      setDomainHistory([]);
     }
     if (scanner.status === 'error') {
       captureScanFailed(scanner.result?.domain ?? domain, scanner.error ?? undefined);
@@ -1106,6 +1132,22 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                         />
                       </div>
                       <PortSummary portDetails={r.port_details} />
+                      {/* Mini sparkline — historique des scores du domaine */}
+                      {domainHistory.length >= 2 && (
+                        <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-800/40 border border-slate-700/50">
+                          <div className="flex flex-col shrink-0">
+                            <span className="text-[10px] text-slate-500 font-mono leading-tight">historique</span>
+                            <span className="text-xs text-slate-400 font-mono font-bold leading-tight">{domainHistory.length} scans</span>
+                          </div>
+                          <MiniSparkline scores={domainHistory} />
+                          <div className="flex flex-col items-end shrink-0 ml-auto">
+                            <span className="text-[10px] text-slate-500 font-mono leading-tight">
+                              {Math.min(...domainHistory)} → {Math.max(...domainHistory)}
+                            </span>
+                            <span className="text-[10px] text-slate-600 font-mono leading-tight">min / max</span>
+                          </div>
+                        </div>
+                      )}
                       {isPremium && (
                         <div className="rounded-xl border border-slate-700/60 bg-slate-800/30 overflow-hidden">
                           <button
