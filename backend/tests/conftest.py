@@ -52,7 +52,13 @@ def test_engine():
     """
     Moteur SQLite en mémoire — scope=function → DB fraîche à chaque test.
     StaticPool garantit que toutes les connexions partagent la même DB en mémoire.
+
+    IMPORTANT : importer app.models AVANT create_all() pour que Base.metadata
+    connaisse toutes les tables. Sans cet import, la DB est créée vide quand le
+    test est lancé en isolation (les modèles sont sinon importés plus tard, dans
+    le fixture `client`, via `from app.main import app`).
     """
+    import app.models  # noqa: F401 — enregistre tous les modèles dans Base.metadata
     from app.database import Base
     engine = create_engine(
         TEST_DB_URL,
