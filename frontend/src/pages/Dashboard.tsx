@@ -1886,6 +1886,72 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
               </div>
             </section>
 
+            {/* ── 2c. POUR QUI ? ────────────────────────────────────────────── */}
+            <section>
+              <div className="text-center mb-10">
+                <span className="text-xs font-semibold text-cyan-400 tracking-widest uppercase mb-3 block">
+                  {lang === 'fr' ? 'Pour qui ?' : 'Who is it for?'}
+                </span>
+                <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
+                  {lang === 'fr' ? 'Fait pour les professionnels du web' : 'Built for web professionals'}
+                </h2>
+                <p className="text-slate-500 text-sm max-w-md mx-auto">
+                  {lang === 'fr'
+                    ? 'Wezea est utilisé par des agences, freelances et équipes IT pour surveiller la sécurité de leurs clients.'
+                    : 'Wezea is used by agencies, freelancers and IT teams to monitor their clients\' security.'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
+                {([
+                  {
+                    color: '#22d3ee',
+                    icon: <Building2 size={20} className="text-cyan-300" />,
+                    title: lang === 'fr' ? 'Agences web' : 'Web agencies',
+                    desc:  lang === 'fr'
+                      ? 'Auditez vos clients et livrez des rapports à votre marque en quelques clics.'
+                      : 'Audit your clients and deliver branded reports in just a few clicks.',
+                  },
+                  {
+                    color: '#818cf8',
+                    icon: <UserPlus size={20} className="text-indigo-300" />,
+                    title: lang === 'fr' ? 'Freelances IT' : 'IT freelancers',
+                    desc:  lang === 'fr'
+                      ? 'Proposez la sécurité comme service additionnel à haute valeur perçue.'
+                      : 'Offer security as a high-value add-on service to your clients.',
+                  },
+                  {
+                    color: '#4ade80',
+                    icon: <Globe size={20} className="text-green-300" />,
+                    title: lang === 'fr' ? 'MSP & infogérance' : 'MSP & managed IT',
+                    desc:  lang === 'fr'
+                      ? 'Monitoring continu de l\'ensemble de votre parc clients depuis un tableau de bord.'
+                      : 'Continuous monitoring of your entire client portfolio from a single dashboard.',
+                  },
+                  {
+                    color: '#fb923c',
+                    icon: <BookOpen size={20} className="text-orange-300" />,
+                    title: lang === 'fr' ? 'Développeurs' : 'Developers',
+                    desc:  lang === 'fr'
+                      ? 'Vérifiez la configuration sécurité de vos projets avant chaque mise en production.'
+                      : 'Check your project\'s security configuration before every deployment.',
+                  },
+                ] as Array<{ color: string; icon: React.ReactNode; title: string; desc: string }>).map((a, i) => (
+                  <div key={i}
+                    className="flex flex-col gap-3 rounded-2xl p-5"
+                    style={{ border: `1px solid ${a.color}22`, background: `linear-gradient(135deg, ${a.color}0a 0%, rgba(15,21,30,0.6) 100%)` }}
+                  >
+                    <div className="p-2.5 rounded-xl self-start"
+                      style={{ background: `${a.color}15`, border: `1px solid ${a.color}30` }}>
+                      {a.icon}
+                    </div>
+                    <p className="text-white font-bold text-sm">{a.title}</p>
+                    <p className="text-slate-400 text-xs leading-relaxed">{a.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
             {/* ── 3. PREUVES SOCIALES ──────────────────────────────────────── */}
             <section>
               <div className="text-center mb-10">
