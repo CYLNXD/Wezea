@@ -11,7 +11,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Shield, Search, ArrowRight, RotateCcw,
   FileDown, Globe, AlertTriangle, Info, Lock, X, UserPlus, MessageSquare,
-  CheckCircle, ChevronDown, Zap, Eye, Star, ListChecks, BookOpen, Building2,
+  CheckCircle, ChevronDown, Zap, Eye, Star, ListChecks, BookOpen, Building2, Bell,
 } from 'lucide-react';
 
 import { useLanguage } from '../i18n/LanguageContext';
@@ -1877,15 +1877,15 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     </h2>
                     <p className="text-slate-400 text-sm leading-relaxed mb-6">
                       {lang === 'fr'
-                        ? 'Utilisez Wezea comme outil de prospection, de fidélisation ou de service additionnel. Scannez les domaines de vos clients, générez un rapport PDF professionnel et identifiez des opportunités de mission.'
-                        : 'Use Wezea as a prospecting, retention, or add-on service tool. Scan your clients\' domains, generate a professional PDF report, and identify engagement opportunities.'}
+                        ? 'Utilisez Wezea comme outil de prospection, de fidélisation ou de service additionnel. Rapport PDF en marque blanche, webhooks vers votre CRM et badge SVG à intégrer sur le site de vos clients.'
+                        : 'Use Wezea as a prospecting, retention, or add-on service tool. White-label PDF reports, webhooks to your CRM and SVG badge to embed on your clients\' sites.'}
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                       {[
-                        { Icon: Search,   bg: 'bg-cyan-500/10',    border: 'border-cyan-500/20',    color: 'text-cyan-400',    fr: 'Scan rapide sans installation',       en: 'Quick scan with no setup' },
-                        { Icon: FileDown, bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    color: 'text-blue-400',    fr: 'Rapport PDF à remettre au client',    en: 'PDF report to hand to the client' },
-                        { Icon: Globe,    bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', color: 'text-emerald-400', fr: 'Monitoring de plusieurs domaines',    en: 'Monitor multiple domains' },
-                        { Icon: Shield,   bg: 'bg-violet-500/10',  border: 'border-violet-500/20',  color: 'text-violet-400',  fr: 'Rapports en marque blanche',          en: 'White-label reports' },
+                        { Icon: FileDown, bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    color: 'text-blue-400',    fr: 'Rapports PDF en marque blanche',      en: 'White-label PDF reports' },
+                        { Icon: Globe,    bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', color: 'text-emerald-400', fr: 'Monitoring illimité (tous vos clients)', en: 'Unlimited monitoring (all your clients)' },
+                        { Icon: Bell,     bg: 'bg-cyan-500/10',    border: 'border-cyan-500/20',    color: 'text-cyan-400',    fr: 'Webhooks vers votre CRM / Slack',     en: 'Webhooks to your CRM / Slack' },
+                        { Icon: Shield,   bg: 'bg-violet-500/10',  border: 'border-violet-500/20',  color: 'text-violet-400',  fr: 'Badge SVG sur le site du client',     en: 'SVG badge on the client\'s site' },
                       ].map((item, i) => (
                         <div key={i} className="flex items-center gap-2.5 text-sm text-slate-300">
                           <div
