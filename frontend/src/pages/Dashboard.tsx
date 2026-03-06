@@ -336,6 +336,9 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     if (!target) return;
     setDomain(target);
     captureScanStarted(target);
+    // Scroll vers la zone de scan avant de démarrer — l'animation est visible
+    // même si l'utilisateur était scrollé dans les résultats d'un scan précédent
+    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     await scanner.startScan(target, lang);
     // Scroll vers les résultats après un court délai
     setTimeout(() => {
