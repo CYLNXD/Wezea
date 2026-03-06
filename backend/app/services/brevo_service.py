@@ -682,6 +682,93 @@ async def add_newsletter_contact(email: str) -> bool:
         return False
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Lead Generation (landing page /report/request)
+# ─────────────────────────────────────────────────────────────────────────────
+
+LEADS_LIST_ID = 4  # Liste Brevo dédiée aux leads landing (à créer dans Brevo si besoin)
+
+
+async def add_lead_contact(email: str, domain: str) -> bool:
+    """Ajoute un lead (demande de rapport landing page) dans le CRM Brevo.
+
+    Crée ou met à jour le contact avec les attributs DOMAIN et LEAD_SOURCE,
+    et l'affecte à la liste dédiée leads (id=4).
+    """
+    return await _contacts_request(
+        "post",
+        BREVO_CONTACTS,
+        json={
+            "email":         email,
+            "attributes":    {
+                "DOMAIN":      _esc(domain),
+                "LEAD_SOURCE": "landing_report",
+            },
+            "listIds":       [LEADS_LIST_ID],
+            "updateEnabled": True,
+        },
+    )
+
+
+async def send_lead_report_email(
+    email:      str,
+    domain:     str,
+    pdf_bytes:  bytes,
+    score:      int,
+    risk_level: str,
+) -> bool:
+    """Envoie le rapport PDF expert au lead (demande depuis la landing page).
+
+    Template distinct du rapport hebdomadaire monitoring : met en avant
+    la consultation offerte et l'appel à l'action vers l'inscription.
+    """
+    pdf_b64   = base64.b64encode(pdf_bytes).decode()
+    today     = datetime.date.today().isoformat()
+    filename  = f"rapport-expert-{_esc(domain)}-{today}.pdf"
+    risk_color = {
+        "CRITICAL": "#f87171",
+        "HIGH":     "#fb923c",
+        "MEDIUM":   "#fbbf24",
+        "LOW":      "#4ade80",
+    }.get((risk_level or "").upper(), "#94a3b8")
+
+    html = _base_html(f"""
+    <div class="card">
+      <h1>Votre rapport de s&eacute;curit&eacute; expert</h1>
+      <p>
+        Comme promis, voici votre analyse compl&egrave;te pour
+        <strong style="color:#e2e8f0;">{_esc(domain)}</strong>.
+        Le rapport d&eacute;taill&eacute; est disponible en pi&egrave;ce jointe.
+      </p>
+      <div class="panel" style="text-align:center; padding:20px 0;">
+        <span class="score">{score}/100</span>
+        &nbsp;&nbsp;
+        <span style="font-size:13px; color:{risk_color}; font-weight:600;">
+          {_esc((risk_level or "").upper())}
+        </span>
+      </div>
+      <p style="color:#94a3b8; font-size:13px;">
+        Le rapport inclut votre plan d&apos;action prioris&eacute;,
+        les vuln&eacute;rabilit&eacute;s d&eacute;tect&eacute;es
+        et les recommandations techniques.
+      </p>
+      <a href="{FRONTEND_URL}" class="btn">&rarr; Surveiller mon domaine en continu</a>
+      <p style="color:#64748b; font-size:12px; margin-top:24px;">
+        Un consultant vous contactera sous 24h pour analyser vos r&eacute;sultats
+        et vous offrir <strong>30 min de consultation offerte</strong>.
+      </p>
+    </div>
+    """)
+
+    return await _send({
+        "sender":      SENDER,
+        "to":          [{"email": email}],
+        "subject":     f"Votre rapport d'expert CyberHealth — {_esc(domain)}",
+        "htmlContent": html,
+        "attachment":  [{"content": pdf_b64, "name": filename}],
+    })
+
+
 async def remove_newsletter_contact(email: str) -> bool:
     """Retire le contact de la liste newsletter Brevo (désabonnement)."""
     if not BREVO_API_KEY:

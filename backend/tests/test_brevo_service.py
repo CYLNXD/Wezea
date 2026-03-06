@@ -705,3 +705,128 @@ class TestRemoveNewsletterContactException:
             result = await _svc.remove_newsletter_contact("user@example.com")
 
         assert result is False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Lead Generation — add_lead_contact + send_lead_report_email
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAddLeadContact:
+    @pytest.mark.asyncio
+    async def test_delegates_to_contacts_request(self):
+        """add_lead_contact délègue à _contacts_request (liste 4, attrs DOMAIN)."""
+        mock_cr = AsyncMock(return_value=True)
+        with patch.object(_svc, "_contacts_request", mock_cr):
+            result = await _svc.add_lead_contact("lead@example.com", "example.com")
+        assert result is True
+        mock_cr.assert_called_once()
+        _, url, kwargs = mock_cr.call_args[0][0], mock_cr.call_args[0][1], mock_cr.call_args[1]
+        assert "listIds" in kwargs["json"]
+        assert _svc.LEADS_LIST_ID in kwargs["json"]["listIds"]
+
+    @pytest.mark.asyncio
+    async def test_domain_attribute_set(self):
+        """add_lead_contact : attribut DOMAIN transmis dans le payload."""
+        mock_cr = AsyncMock(return_value=True)
+        with patch.object(_svc, "_contacts_request", mock_cr):
+            await _svc.add_lead_contact("lead@example.com", "my-domain.fr")
+        payload = mock_cr.call_args[1]["json"]
+        assert payload["attributes"]["DOMAIN"] == "my-domain.fr"
+
+    @pytest.mark.asyncio
+    async def test_lead_source_attribute_set(self):
+        """add_lead_contact : attribut LEAD_SOURCE = 'landing_report'."""
+        mock_cr = AsyncMock(return_value=True)
+        with patch.object(_svc, "_contacts_request", mock_cr):
+            await _svc.add_lead_contact("lead@example.com", "example.com")
+        payload = mock_cr.call_args[1]["json"]
+        assert payload["attributes"]["LEAD_SOURCE"] == "landing_report"
+
+    @pytest.mark.asyncio
+    async def test_update_enabled(self):
+        """add_lead_contact : updateEnabled=True (contact existant mis à jour)."""
+        mock_cr = AsyncMock(return_value=True)
+        with patch.object(_svc, "_contacts_request", mock_cr):
+            await _svc.add_lead_contact("existing@example.com", "example.com")
+        payload = mock_cr.call_args[1]["json"]
+        assert payload["updateEnabled"] is True
+
+
+class TestSendLeadReportEmail:
+    @pytest.mark.asyncio
+    async def test_delegates_to_send(self):
+        """send_lead_report_email délègue à _send."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            result = await _svc.send_lead_report_email(
+                email="lead@example.com",
+                domain="example.com",
+                pdf_bytes=b"%PDF-fake",
+                score=72,
+                risk_level="MEDIUM",
+            )
+        assert result is True
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_pdf_attachment_base64(self):
+        """Le PDF est encodé en base64 dans l'attachment."""
+        import base64
+        raw = b"%PDF-1.4 lead report"
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_lead_report_email(
+                email="lead@example.com",
+                domain="example.com",
+                pdf_bytes=raw,
+                score=60,
+                risk_level="HIGH",
+            )
+        payload = mock_send.call_args[0][0]
+        encoded = payload["attachment"][0]["content"]
+        assert base64.b64decode(encoded) == raw
+
+    @pytest.mark.asyncio
+    async def test_recipient_correct(self):
+        """Le destinataire correspond à l'email fourni."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_lead_report_email(
+                email="client@agency.com",
+                domain="example.com",
+                pdf_bytes=b"pdf",
+                score=85,
+                risk_level="LOW",
+            )
+        payload = mock_send.call_args[0][0]
+        assert payload["to"][0]["email"] == "client@agency.com"
+
+    @pytest.mark.asyncio
+    async def test_risk_color_critical(self):
+        """Risque CRITICAL → couleur rouge dans le HTML."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_lead_report_email(
+                email="lead@example.com",
+                domain="example.com",
+                pdf_bytes=b"pdf",
+                score=20,
+                risk_level="CRITICAL",
+            )
+        payload = mock_send.call_args[0][0]
+        assert "#f87171" in payload["htmlContent"]
+
+    @pytest.mark.asyncio
+    async def test_risk_color_unknown_fallback(self):
+        """Niveau de risque inconnu → couleur grise par défaut."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_lead_report_email(
+                email="lead@example.com",
+                domain="example.com",
+                pdf_bytes=b"pdf",
+                score=50,
+                risk_level="",
+            )
+        payload = mock_send.call_args[0][0]
+        assert "#94a3b8" in payload["htmlContent"]

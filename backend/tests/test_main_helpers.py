@@ -294,6 +294,85 @@ class TestReportRequest:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# _deliver_lead_report — background task CRM Brevo
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestDeliverLeadReport:
+    """Couvre _deliver_lead_report : CRM → scan → PDF → email."""
+
+    def _mocks(self):
+        """Retourne les mocks pour les 4 étapes du pipeline."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_result = MagicMock()
+        mock_result.to_dict.return_value = {
+            "security_score": 78,
+            "risk_level":     "MEDIUM",
+            "findings":       [],
+            "dns_details":    {},
+            "ssl_details":    {},
+            "port_details":   {},
+            "subdomain_details": {},
+            "vuln_details":   {},
+            "scanned_at":     "2026-01-01T00:00:00",
+        }
+        mock_manager = MagicMock()
+        mock_manager.run = AsyncMock(return_value=mock_result)
+        mock_manager_cls = MagicMock(return_value=mock_manager)
+        mock_add_lead    = AsyncMock(return_value=True)
+        mock_send_report = AsyncMock(return_value=True)
+        mock_generate    = MagicMock(return_value=b"%PDF-fake")
+
+        return mock_manager_cls, mock_add_lead, mock_send_report, mock_generate
+
+    @pytest.mark.asyncio
+    async def test_success_calls_all_steps(self):
+        """Pipeline complet : CRM + scan + PDF + email tous appelés."""
+        from app.main import _deliver_lead_report
+        mock_cls, mock_add, mock_send, mock_gen = self._mocks()
+
+        with patch("app.main.AuditManager", mock_cls), \
+             patch("app.main.brevo_service.add_lead_contact", mock_add), \
+             patch("app.main.brevo_service.send_lead_report_email", mock_send), \
+             patch("app.main.report_service.generate_pdf", mock_gen):
+            await _deliver_lead_report("lead@example.com", "example.com", "lead-123")
+
+        mock_add.assert_awaited_once_with("lead@example.com", "example.com")
+        mock_cls.assert_called_once_with("example.com", plan="pro")
+        mock_gen.assert_called_once()
+        mock_send.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_send_report_called_with_correct_args(self):
+        """send_lead_report_email reçoit email, domain, pdf_bytes, score, risk_level."""
+        from app.main import _deliver_lead_report
+        mock_cls, mock_add, mock_send, mock_gen = self._mocks()
+
+        with patch("app.main.AuditManager", mock_cls), \
+             patch("app.main.brevo_service.add_lead_contact", mock_add), \
+             patch("app.main.brevo_service.send_lead_report_email", mock_send), \
+             patch("app.main.report_service.generate_pdf", mock_gen):
+            await _deliver_lead_report("lead@example.com", "example.com", "lead-456")
+
+        kwargs = mock_send.call_args.kwargs
+        assert kwargs["email"]      == "lead@example.com"
+        assert kwargs["domain"]     == "example.com"
+        assert kwargs["pdf_bytes"]  == b"%PDF-fake"
+        assert kwargs["score"]      == 78
+        assert kwargs["risk_level"] == "MEDIUM"
+
+    @pytest.mark.asyncio
+    async def test_exception_is_silenced(self):
+        """Une exception dans le pipeline n'est pas propagée (tâche de fond)."""
+        from app.main import _deliver_lead_report
+
+        with patch("app.main.brevo_service.add_lead_contact",
+                   AsyncMock(side_effect=Exception("Brevo down"))):
+            # Ne doit pas lever d'exception
+            await _deliver_lead_report("lead@example.com", "example.com", "lead-789")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # _run_in_executor — lines 894-895
 # ─────────────────────────────────────────────────────────────────────────────
 

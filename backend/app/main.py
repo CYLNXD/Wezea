@@ -685,17 +685,15 @@ async def request_full_report(request: Request, body: ReportRequest):
     """
     Point d'entrée Lead Gen :
     1. Valide l'email et le domaine.
-    2. Crée un lead dans la CRM (à brancher via variable d'env CRM_WEBHOOK_URL).
-    3. Déclenche la génération et l'envoi du rapport PDF expert.
+    2. Ajoute le lead dans le CRM Brevo (liste dédiée + attribut DOMAIN).
+    3. Lance en background : scan réel → génération PDF → envoi email.
     """
     lead_id = str(uuid.uuid4())
 
-    # ── TODO (production) : brancher sur CRM / email provider ────────────────
-    # await crm_service.create_lead(body, lead_id)
-    # await email_service.send_report(body.email, body.domain, lead_id)
-    # ─────────────────────────────────────────────────────────────────────────
+    # Lance la livraison du rapport en tâche de fond (non bloquant → 202 immédiat)
+    asyncio.create_task(_deliver_lead_report(body.email, body.domain, lead_id))
 
-    # Structure du rapport PDF qui sera généré
+    # Structure de prévisualisation retournée immédiatement
     report_sections = _build_report_structure(body.domain, body.email)
 
     return JSONResponse(
@@ -715,6 +713,61 @@ async def request_full_report(request: Request, body: ReportRequest):
             ],
         },
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Background task : livraison du rapport PDF au lead
+# ─────────────────────────────────────────────────────────────────────────────
+
+_lead_logger = logging.getLogger("cyberhealth.lead")
+
+
+async def _deliver_lead_report(email: str, domain: str, lead_id: str) -> None:
+    """Enchaîne : CRM Brevo → scan → PDF → email (erreurs silencieuses)."""
+    try:
+        # 1. Enregistrer le lead dans le CRM Brevo
+        await brevo_service.add_lead_contact(email, domain)
+
+        # 2. Scanner le domaine (plan pro → tous les auditeurs actifs)
+        manager = AuditManager(domain, plan="pro")
+        result  = await manager.run()
+        rd      = result.to_dict()
+
+        # 3. Générer le PDF
+        scan_data = {
+            "domain":            domain,
+            "scan_id":           lead_id,
+            "security_score":    rd["security_score"],
+            "risk_level":        rd["risk_level"],
+            "findings":          rd["findings"],
+            "dns_details":       rd.get("dns_details") or {},
+            "ssl_details":       rd.get("ssl_details") or {},
+            "port_details":      rd.get("port_details") or {},
+            "subdomain_details": rd.get("subdomain_details") or {},
+            "vuln_details":      rd.get("vuln_details") or {},
+            "scanned_at":        rd["scanned_at"],
+        }
+        pdf_bytes = report_service.generate_pdf(scan_data, lang="fr")
+
+        # 4. Envoyer le PDF par email
+        await brevo_service.send_lead_report_email(
+            email      = email,
+            domain     = domain,
+            pdf_bytes  = pdf_bytes,
+            score      = rd["security_score"],
+            risk_level = rd["risk_level"],
+        )
+
+        _lead_logger.info(
+            "Lead report delivered: %s → %s (score=%s, risk=%s)",
+            domain, email, rd["security_score"], rd["risk_level"],
+        )
+
+    except Exception as exc:
+        _lead_logger.error(
+            "Lead report delivery failed for %s / %s: %s",
+            domain, email, exc,
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 22)
+> Dernière mise à jour : 2026-03-06 (session 23)
 
 ---
 
@@ -313,6 +313,32 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 23)
+
+### CRM Brevo — Lead Gen `/report/request` (910 tests, 100% coverage)
+
+#### `brevo_service.py` — 2 nouvelles fonctions
+- **`add_lead_contact(email, domain)`** : ajoute le lead dans la liste Brevo dédiée (`LEADS_LIST_ID = 4`) avec attributs `DOMAIN` et `LEAD_SOURCE = "landing_report"`, `updateEnabled=True` (idempotent)
+- **`send_lead_report_email(email, domain, pdf_bytes, score, risk_level)`** : envoie le rapport PDF expert par email (template distinct du rapport hebdomadaire monitoring) — couleur de risque dynamique, CTA vers l'inscription, mention consultation 30 min offerte
+
+#### `main.py` — background task `_deliver_lead_report`
+- Remplace le TODO ligne 693 par `asyncio.create_task(_deliver_lead_report(body.email, body.domain, lead_id))`
+- Pipeline (erreurs silencieuses, non bloquant) :
+  1. `brevo_service.add_lead_contact()` → CRM
+  2. `AuditManager(domain, plan="pro").run()` → scan complet
+  3. `report_service.generate_pdf(scan_data, lang="fr")` → PDF
+  4. `brevo_service.send_lead_report_email()` → envoi
+- L'endpoint retourne toujours 202 immédiatement
+
+#### Tests (+12 tests)
+- `TestAddLeadContact` (4) : délègue à `_contacts_request`, attribut DOMAIN, LEAD_SOURCE, `updateEnabled`
+- `TestSendLeadReportEmail` (5) : délègue à `_send`, PDF base64, destinataire, couleur CRITICAL, fallback couleur inconnue
+- `TestDeliverLeadReport` (3) : pipeline complet appelé, args `send_lead_report_email` corrects, exception silencieuse
+
+**Variable d'env à créer dans Brevo** : liste "Leads Landing" (id=4) avec attributs contact `DOMAIN` (text) et `LEAD_SOURCE` (text)
+
+---
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 22)
 
