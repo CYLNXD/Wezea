@@ -330,7 +330,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
 
   const fetchHistory = useCallback(async () => {
     try {
-      const { data } = await apiClient.get('/scans/history?limit=20');
+      const { data } = await apiClient.get('/scans/history?limit=100');
       setHistory(data.scans ?? []);
     } catch { /* silencieux */ }
   }, []);
@@ -1008,7 +1008,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                       <div className="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
                         <p className="text-white font-bold text-sm">{domains.length} {lang === 'fr' ? 'domaine' : 'domain'}{domains.length !== 1 ? (lang === 'fr' ? 's' : 's') : ''} {lang === 'fr' ? 'surveillé' : 'monitored'}{domains.length !== 1 ? (lang === 'fr' ? 's' : '') : ''}</p>
-                        <p className="text-slate-600 text-xs font-mono">{lang === 'fr' ? 'Scan chaque lundi · 06:00 UTC' : 'Scan every Monday · 06:00 UTC'}</p>
+                        <p className="text-slate-600 text-xs font-mono">{lang === 'fr' ? 'Fréquence configurable par domaine' : 'Configurable frequency per domain'}</p>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full">
@@ -1016,6 +1016,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                             <tr className="border-b border-slate-800">
                               <th className="px-5 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Domaine' : 'Domain'}</th>
                               <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Score' : 'Score'}</th>
+                              <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Tendance' : 'Trend'}</th>
                               <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Risque' : 'Risk'}</th>
                               <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Dernier scan' : 'Last scan'}</th>
                               <th className="px-4 py-3 text-left text-xs font-mono text-slate-500 uppercase tracking-wider">{lang === 'fr' ? 'Seuil alerte' : 'Alert threshold'}</th>
@@ -1041,6 +1042,16 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                                   <span className={`text-xl font-black font-mono ${scoreColor(d.last_score)}`}>
                                     {d.last_score ?? '—'}
                                   </span>
+                                </td>
+
+                                {/* Tendance sparkline */}
+                                <td className="px-4 py-4">
+                                  {(() => {
+                                    const scores = [...(historyByDomain[d.domain] ?? [])]
+                                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                                      .map(s => s.security_score);
+                                    return <Sparkline scores={scores} width={80} height={28} />;
+                                  })()}
                                 </td>
 
                                 {/* Risk */}
