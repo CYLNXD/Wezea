@@ -314,6 +314,15 @@ ls -lh /home/cyberhealth/backups/
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
 
+## 🆕 Fonctionnalités récentes (2026-03-06, session 5)
+
+### Tests — scans_router + public_router (test_scans_history.py)
+- 38 nouveaux tests, total **154 tests, 0 échec**
+- Couvre : `GET/DELETE/PATCH /scans/history` + `GET /scans/history/{uuid}/export` + `GET /public/badge`, `/public/scan`, `/public/stats`
+- 8 classes de tests : `TestScanHistoryList`, `TestScanDetail`, `TestExportScan`, `TestToggleShare`, `TestDeleteScan`, `TestPublicBadge`, `TestPublicScan`, `TestPublicStats`
+- Export PDF mocké via `patch("app.services.report_service.generate_pdf")`
+- Vérifie : isolation entre users, toggle share on/off/double, cycle share→public access, 403 si scan non partagé, badge SVG www-stripping + header X-Score
+
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 4 suite)
 
 ### Monitoring — scan immédiat
