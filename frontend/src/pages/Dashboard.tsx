@@ -1778,7 +1778,118 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
               </div>
             </section>
 
-            {/* ── 2b. FONCTIONNALITÉS PRO ──────────────────────────────────── */}
+            {/* ── 2b. RAPPORT EXEMPLE ──────────────────────────────────────── */}
+            <section>
+              <div className="text-center mb-10">
+                <span className="text-xs font-semibold text-cyan-400 tracking-widest uppercase mb-3 block">
+                  {lang === 'fr' ? 'Exemple de résultat' : 'Sample result'}
+                </span>
+                <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
+                  {lang === 'fr' ? 'Un rapport clair et actionnable' : 'A clear and actionable report'}
+                </h2>
+                <p className="text-slate-500 text-sm max-w-md mx-auto">
+                  {lang === 'fr'
+                    ? 'Chaque problème est priorisé par criticité avec une explication et une marche à suivre.'
+                    : 'Each issue is prioritised by severity with an explanation and clear next steps.'}
+                </p>
+              </div>
+
+              <div className="max-w-4xl mx-auto flex flex-col lg:flex-row gap-6 items-start">
+                {/* Mock report panel */}
+                <div className="flex-1 rounded-2xl overflow-hidden border border-slate-700/60 bg-slate-900/80 shadow-2xl">
+                  {/* Header */}
+                  <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-mono font-bold text-sm">exemple-agence.fr</p>
+                      <p className="text-slate-500 text-xs mt-0.5">{lang === 'fr' ? 'Analysé il y a 2 minutes' : 'Analyzed 2 minutes ago'}</p>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25">
+                      <span className="text-2xl font-black font-mono text-amber-400">74</span>
+                      <span className="text-slate-500 text-xs font-mono">/100</span>
+                    </div>
+                  </div>
+                  {/* Check rows */}
+                  <div className="divide-y divide-slate-800/60">
+                    {([
+                      { label: lang === 'fr' ? 'Certificat SSL' : 'SSL certificate',  status: 'ok',   value: lang === 'fr' ? 'Valide · 89j' : 'Valid · 89d' },
+                      { label: lang === 'fr' ? 'HTTPS forcé' : 'Forced HTTPS',        status: 'ok',   value: lang === 'fr' ? 'Actif' : 'Active' },
+                      { label: 'DMARC',                                                status: 'warn', value: 'p=none' },
+                      { label: 'SPF',                                                  status: 'warn', value: lang === 'fr' ? '+all détecté' : '+all detected' },
+                      { label: lang === 'fr' ? 'Port 8080' : 'Port 8080',             status: 'err',  value: lang === 'fr' ? 'Exposé' : 'Exposed' },
+                      { label: lang === 'fr' ? 'Listes noires' : 'Blacklists',        status: 'ok',   value: lang === 'fr' ? 'Propre (52)' : 'Clean (52)' },
+                      { label: lang === 'fr' ? 'Domaine' : 'Domain',                  status: 'ok',   value: lang === 'fr' ? '187j restants' : '187d left' },
+                    ] as Array<{ label: string; status: 'ok' | 'warn' | 'err'; value: string }>).map((row, i) => {
+                      const cfg = {
+                        ok:   { symbol: '✓', color: '#4ade80', bg: 'text-emerald-400' },
+                        warn: { symbol: '⚠', color: '#fbbf24', bg: 'text-amber-400' },
+                        err:  { symbol: '✗', color: '#f87171', bg: 'text-red-400' },
+                      }[row.status];
+                      return (
+                        <div key={i} className="flex items-center justify-between px-5 py-3">
+                          <span className="flex items-center gap-2 text-xs text-slate-300 font-mono">
+                            <span className={cfg.bg}>{cfg.symbol}</span>
+                            {row.label}
+                          </span>
+                          <span className={`text-xs font-mono font-semibold ${cfg.bg}`}>{row.value}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Feature points */}
+                <div className="flex flex-col gap-4 lg:w-64 shrink-0">
+                  {([
+                    {
+                      color: '#22d3ee',
+                      icon: <CheckCircle size={14} className="text-cyan-300" />,
+                      title: lang === 'fr' ? 'Score global /100' : 'Overall score /100',
+                      desc:  lang === 'fr'
+                        ? 'Un score unique pour mesurer et suivre l\'évolution de la sécurité de votre domaine.'
+                        : 'A single score to measure and track your domain\'s security over time.',
+                    },
+                    {
+                      color: '#818cf8',
+                      icon: <Shield size={14} className="text-indigo-300" />,
+                      title: lang === 'fr' ? 'Problèmes priorisés' : 'Prioritised issues',
+                      desc:  lang === 'fr'
+                        ? 'Critique, élevé, moyen, faible — traitez d\'abord ce qui compte vraiment.'
+                        : 'Critical, high, medium, low — fix what matters most first.',
+                    },
+                    {
+                      color: '#4ade80',
+                      icon: <FileDown size={14} className="text-green-300" />,
+                      title: lang === 'fr' ? 'Rapport PDF Pro' : 'Pro PDF report',
+                      desc:  lang === 'fr'
+                        ? 'Exportez un rapport complet à remettre à votre client, avec votre marque.'
+                        : 'Export a full report to deliver to your client, with your own branding.',
+                    },
+                    {
+                      color: '#fb923c',
+                      icon: <Bell size={14} className="text-orange-300" />,
+                      title: lang === 'fr' ? 'Monitoring continu' : 'Continuous monitoring',
+                      desc:  lang === 'fr'
+                        ? 'Soyez alerté dès qu\'un problème apparaît sur vos domaines clients.'
+                        : 'Get alerted as soon as an issue appears on your client domains.',
+                    },
+                  ] as Array<{ color: string; icon: React.ReactNode; title: string; desc: string }>).map((pt, i) => (
+                    <div key={i} className="flex items-start gap-3 p-4 rounded-xl"
+                      style={{ border: `1px solid ${pt.color}20`, background: `${pt.color}08` }}>
+                      <div className="p-1.5 rounded-lg shrink-0"
+                        style={{ background: `${pt.color}18`, border: `1px solid ${pt.color}30` }}>
+                        {pt.icon}
+                      </div>
+                      <div>
+                        <p className="text-white text-xs font-bold mb-0.5">{pt.title}</p>
+                        <p className="text-slate-500 text-[11px] leading-relaxed">{pt.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* ── 2c. FONCTIONNALITÉS PRO ──────────────────────────────────── */}
             <section>
               <div className="text-center mb-10">
                 <span className="text-xs font-semibold text-cyan-400 tracking-widest uppercase mb-3 block">
