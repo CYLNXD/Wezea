@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 18)
+> Dernière mise à jour : 2026-03-06 (session 19)
 
 ---
 
@@ -313,6 +313,25 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 19)
+
+### Tests — auth_router Google OAuth + report_service Jinja2/PDF (+22 tests) → 700 tests, 86%
+
+#### test_auth.py (+10 tests)
+- `TestGoogleAuth` (6) : token invalide → 401, email non vérifié → 401, nouvel user auto-créé, user existant connecté, rattachement compte existant, `GOOGLE_CLIENT_ID` manquant → 400
+- `TestGoogleUserGuards` (2) : `change-password` + `change-email` bloqués pour comptes Google (`password_hash` préfixé `!google:`)
+- `TestOptionalUserApiKey` (2) : clé Pro `wsk_` → 200 sur `/auth/me`, clé Starter → 401
+- **Pattern** : `google_id_token` importé localement dans la fonction → patcher `google.oauth2.id_token.verify_oauth2_token` directement (pas `app.routers.auth_router.google_id_token`)
+- `auth_router.py` 84% → 95%
+
+#### test_report_service.py (+12 tests)
+- `TestBuildJinjaEnv` (9) : filtre `format_eur` (int, float, None, non-numérique), filtre `risk_class` (CRITICAL/HIGH/MEDIUM/LOW/unknown → classes CSS)
+- `TestGeneratePdf` (3) : `WeasyPrint` ImportError → RuntimeError, erreur Jinja2 render → RuntimeError, `write_pdf` error → RuntimeError
+- **Fix** : `from unittest.mock import patch, MagicMock` ajouté au niveau module (les 2 premiers tests importaient `patch` localement, le 3ème non → NameError)
+- `report_service.py` 83% → **99%**
+
+**Couverture globale : 86%** (700 tests, 0 échec)
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 18)
 
