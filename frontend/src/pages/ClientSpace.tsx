@@ -1948,10 +1948,10 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                   {settingsSection === 'whitelabel' && (
                     <div className="flex flex-col gap-5">
                       <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-5">
-                        <h3 className="text-cyan-400 font-semibold text-sm mb-1 flex items-center gap-2">
-                          <Shield size={14} />
-                          {lang === 'fr' ? 'Marque blanche — Rapports PDF' : 'White-label — PDF Reports'}
-                        </h3>
+                        <div className="flex items-center gap-3 mb-1">
+                          <SkuIcon color="#22d3ee" size={32}><Shield size={13} className="text-cyan-300" /></SkuIcon>
+                          <h3 className="text-cyan-400 font-semibold text-sm">{lang === 'fr' ? 'Marque blanche — Rapports PDF' : 'White-label — PDF Reports'}</h3>
+                        </div>
                         <p className="text-slate-400 text-xs mb-5">
                           {lang === 'fr'
                             ? 'Personnalisez les rapports PDF avec le nom et le logo de votre agence. Vos clients verront votre marque, pas Wezea.'
@@ -2116,10 +2116,10 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                   {/* ── DANGER ZONE ── */}
                   {settingsSection === 'danger' && (
                     <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
-                      <h3 className="text-red-400 font-semibold text-sm mb-2 flex items-center gap-2">
-                        <AlertTriangle size={14} />
-                        {lang === 'fr' ? 'Zone dangereuse' : 'Danger zone'}
-                      </h3>
+                      <div className="flex items-center gap-3 mb-2">
+                        <SkuIcon color="#f87171" size={32}><AlertTriangle size={13} className="text-red-300" /></SkuIcon>
+                        <h3 className="text-red-400 font-semibold text-sm">{lang === 'fr' ? 'Zone dangereuse' : 'Danger zone'}</h3>
+                      </div>
                       <p className="text-slate-400 text-xs mb-5">
                         {lang === 'fr'
                           ? 'La suppression de votre compte est définitive. Toutes vos données (scans, domaines surveillés) seront effacées conformément au RGPD.'
@@ -2157,7 +2157,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
             {/* Header */}
             <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/95 backdrop-blur-sm">
               <div className="flex items-center gap-3">
-                <Shield size={16} className="text-cyan-400" />
+                <SkuIcon color="#22d3ee" size={36}><Shield size={15} className="text-cyan-300" /></SkuIcon>
                 <div>
                   <p className="text-white font-mono font-bold text-sm">{scanModal.domain}</p>
                   <p className="text-slate-500 text-xs">

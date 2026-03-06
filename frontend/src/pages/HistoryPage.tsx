@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, type ReactNode } from 'react';
 import { Shield, Clock, Globe, Trash2, ChevronRight, FileDown, Share2, Check, X, Search, TrendingUp, TrendingDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -35,6 +35,24 @@ interface Props {
   onGoAdmin?: () => void;
   onGoClientSpace?: () => void;
   onGoContact?: () => void;
+}
+
+function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: string; size?: number }) {
+  const r = Math.round(size * 0.28);
+  return (
+    <div className="shrink-0 flex items-center justify-center relative overflow-hidden"
+      style={{
+        width: size, height: size, borderRadius: r,
+        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
+        border: `1px solid ${color}40`,
+        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
+      }}
+    >
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
+      {children}
+    </div>
+  );
 }
 
 export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientSpace, onGoContact }: Props) {
@@ -221,18 +239,18 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
           ) : error ? (
             <div className="text-center py-20 text-red-400 text-sm">{error}</div>
           ) : scans.length === 0 ? (
-            <div className="text-center py-20">
-              <Shield size={40} className="text-slate-700 mx-auto mb-3" />
+            <div className="flex flex-col items-center py-20 gap-4">
+              <SkuIcon color="#22d3ee" size={52}><Shield size={24} className="text-cyan-300" /></SkuIcon>
               <p className="text-slate-500 text-sm">
                 {lang === 'fr' ? 'Aucun scan enregistré' : 'No scans yet'}
               </p>
-              <button onClick={onBack} className="mt-4 text-cyan-400 hover:text-cyan-300 text-sm font-medium transition">
+              <button onClick={onBack} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition">
                 {lang === 'fr' ? '→ Lancer un scan' : '→ Run a scan'}
               </button>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-16">
-              <Search size={32} className="text-slate-700 mx-auto mb-3" />
+            <div className="flex flex-col items-center py-16 gap-4">
+              <SkuIcon color="#64748b" size={44}><Search size={20} className="text-slate-300" /></SkuIcon>
               <p className="text-slate-500 text-sm">
                 {lang === 'fr' ? `Aucun scan pour « ${domainFilter} »` : `No scans for "${domainFilter}"`}
               </p>
