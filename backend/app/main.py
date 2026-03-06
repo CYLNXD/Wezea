@@ -309,6 +309,30 @@ COOKIE_SECURE    = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 COOKIE_SAMESITE  = os.getenv("COOKIE_SAMESITE", "none")      # "none" (prod HTTPS) ou "lax" (dev)
 
 
+def _get_real_ip(request: Request) -> str:
+    """
+    Extrait la vraie IP du client en tenant compte du reverse-proxy nginx.
+
+    Priorité :
+    1. X-Real-IP   — posé par nginx (`proxy_set_header X-Real-IP $remote_addr`)
+    2. X-Forwarded-For — premier élément (client original, pas le proxy)
+    3. request.client.host — fallback (= 127.0.0.1 derrière proxy sans config)
+
+    Sans cette fonction, tous les utilisateurs anonymes partageraient le même
+    bucket IP (127.0.0.1 = IP de nginx vu par uvicorn), ce qui provoquerait
+    un 429 global dès 5 scans sur l'ensemble du serveur.
+    """
+    real_ip = request.headers.get("X-Real-IP", "").strip()
+    if real_ip:
+        return real_ip
+
+    forwarded_for = request.headers.get("X-Forwarded-For", "").strip()
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
+    return request.client.host if request.client else "127.0.0.1"
+
+
 def _get_day_key() -> str:
     """Retourne la clé du jour courant, ex: '2026-03-04'."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -473,7 +497,7 @@ async def get_scan_limits(request: Request) -> dict:
     - Free     : basé sur l'historique du jour
     - Pro/Team : illimité
     """
-    ip        = get_remote_address(request)
+    ip        = _get_real_ip(request)
     client_id = request.cookies.get("wezea_cid") or ip  # cookie HttpOnly > IP fallback
 
     db = SessionLocal()
@@ -554,7 +578,7 @@ async def run_scan(
     domain    = body.domain
     lang      = body.lang
     scan_id   = str(uuid.uuid4())
-    ip        = get_remote_address(request)
+    ip        = _get_real_ip(request)
     client_id = request.cookies.get("wezea_cid") or ip  # cookie HttpOnly > IP fallback
 
     # ── Session DB ────────────────────────────────────────────────────────────
