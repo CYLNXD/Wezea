@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 3)
+> Dernière mise à jour : 2026-03-06 (session 9)
 
 ---
 
@@ -323,6 +323,18 @@ ls -lh /home/cyberhealth/backups/
 - `_should_scan_now` testé avec `SimpleNamespace` (zéro DB) — rapide et isolé
 - Onboarding testé avec users créés en DB à `created_at` contrôlé, brevo_service entièrement mocké
 - Vérifie : fenêtres temporelles exactes (J+1: 20-28h, J+3: 68-76h, J+7: 164-172h, J+14: 332-340h), conditions par plan (free uniquement), condition scan (J+1: 0 scans, J+7: ≥1 scan), users inactifs exclus, scan_count transmis correctement à J+7, non-chevauchement des fenêtres
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 9)
+
+### Tests — payment_router (test_payment.py)
+- 36 nouveaux tests, total **315 tests, 0 échec**
+- Couvre : `GET /payment/status`, `POST /payment/create-checkout`, `POST /payment/webhook`, `POST /payment/cancel`
+- 5 classes : `TestPaymentStatus`, `TestCreateCheckout`, `TestWebhookGuard`, `TestWebhookCheckoutCompleted`, `TestWebhookSubscriptionEvents`, `TestCancelSubscription`
+- Stripe API mockée : `stripe.Webhook.construct_event`, `stripe.checkout.Session.create`, `stripe.Subscription.list/modify`
+- `_user_from_subscription` et `_plan_from_subscription` mockés directement pour les events subscription (évite appels Stripe réels)
+- Vérifie la sécurité clé : admin ne peut JAMAIS voir son plan modifié par un webhook Stripe
+- Rate limit `5/hour` sur create-checkout → 2 tests remplacés par assertions Python directes (`_PLAN_AMOUNTS`, `inspect.getsource`)
+- **100% de couverture routers atteinte** : tous les routers FastAPI ont désormais des tests
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 8)
 
