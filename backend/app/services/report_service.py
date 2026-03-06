@@ -255,14 +255,25 @@ def _build_context(
     except (ValueError, AttributeError):
         scanned_at_display = scanned_at_raw
 
-    # Groupes par catégorie
-    dns_findings  = [f for f in findings if f.get("category") == "DNS & Mail"]
-    ssl_findings  = [f for f in findings if f.get("category") == "SSL / HTTPS"]
-    port_findings = [f for f in findings if f.get("category") == "Exposition des Ports"]
+    # Groupes par catégorie — toutes les catégories des auditeurs
+    dns_findings        = [f for f in findings if f.get("category") == "DNS & Mail"]
+    ssl_findings        = [f for f in findings if f.get("category") == "SSL / HTTPS"]
+    port_findings       = [f for f in findings if f.get("category") == "Exposition des Ports"]
+    header_findings     = [f for f in findings if f.get("category") == "En-têtes HTTP"]
+    email_findings      = [f for f in findings if f.get("category") == "Sécurité Email"]
+    tech_findings       = [f for f in findings if f.get("category") == "Exposition Technologique"]
+    reputation_findings = [f for f in findings if f.get("category") == "Réputation du Domaine"]
+    # Autres catégories non listées ci-dessus (ex. futures catégories)
+    known_cats = {"DNS & Mail", "SSL / HTTPS", "Exposition des Ports", "En-têtes HTTP",
+                  "Sécurité Email", "Exposition Technologique", "Réputation du Domaine",
+                  "Sous-domaines & Certificats", "Versions Vulnérables"}
+    other_findings = [f for f in findings if f.get("category") not in known_cats]
 
     # Compteurs
     critical_count = sum(1 for f in findings if f.get("severity") == "CRITICAL")
     high_count     = sum(1 for f in findings if f.get("severity") == "HIGH")
+    medium_count   = sum(1 for f in findings if f.get("severity") == "MEDIUM")
+    low_count      = sum(1 for f in findings if f.get("severity") == "LOW")
 
     # ── White-label branding ──────────────────────────────────────────────────
     wb = white_label or {}
@@ -293,6 +304,10 @@ def _build_context(
             )
             base_strings["copyright"] = f"© {{year}} {wb_company} · All rights reserved · CONFIDENTIAL"
 
+    dns_det  = dict(data.get("dns_details", {}))
+    ssl_det  = dict(data.get("ssl_details", {}))
+    port_det = dict(data.get("port_details", {}))
+
     return {
         # Identifiants
         "domain":           data.get("domain", ""),
@@ -317,22 +332,32 @@ def _build_context(
         "risk_color":       _risk_color(risk_level),
         "score_color":      _score_color(score),
 
-        # Findings
-        "findings":         findings,
-        "dns_findings":     dns_findings,
-        "ssl_findings":     ssl_findings,
-        "port_findings":    port_findings,
-        "critical_count":   critical_count,
-        "high_count":       high_count,
+        # Findings — toutes catégories
+        "findings":             findings,
+        "dns_findings":         dns_findings,
+        "ssl_findings":         ssl_findings,
+        "port_findings":        port_findings,
+        "header_findings":      header_findings,
+        "email_findings":       email_findings,
+        "tech_findings":        tech_findings,
+        "reputation_findings":  reputation_findings,
+        "other_findings":       other_findings,
+        "critical_count":       critical_count,
+        "high_count":           high_count,
+        "medium_count":         medium_count,
+        "low_count":            low_count,
+
+        # Bilan des vérifications (checks passés + échoués)
+        **_checks_context(data, findings, lang),
 
         # Recommandations & plan
         "recommendations":  list(data.get("recommendations", [])),
         "actions":          _build_action_plan(findings, lang),
 
         # Données brutes pour les annexes
-        "dns_details":      dict(data.get("dns_details", {})),
-        "ssl_details":      dict(data.get("ssl_details", {})),
-        "port_details":     dict(data.get("port_details", {})),
+        "dns_details":      dns_det,
+        "ssl_details":      ssl_det,
+        "port_details":     port_det,
         "scan_duration_ms": int(data.get("scan_duration_ms", 0)),
 
         # Données premium (Starter / Pro)
@@ -380,6 +405,252 @@ def _build_action_plan(findings: list[dict], lang: str = "fr") -> dict[str, list
             optimize.append(extra)
 
     return {"urgent": urgent, "important": important, "optimize": optimize}
+
+
+# ── Bilan des vérifications ──────────────────────────────────────────────────
+
+def _checks_context(data: dict, findings: list, lang: str) -> dict:
+    """Retourne checks_overview + les 3 compteurs pour le template."""
+    checks = _derive_checks_overview(data, findings, lang)
+    passed  = sum(1 for c in checks if c["passed"] and not c["warning"])
+    warn    = sum(1 for c in checks if c["warning"])
+    failed  = sum(1 for c in checks if not c["passed"] and not c["warning"])
+    return {
+        "checks_overview":       checks,
+        "passed_checks_count":   passed,
+        "warn_checks_count":     warn,
+        "fail_checks_count":     failed,
+    }
+
+
+def _derive_checks_overview(
+    data: dict[str, Any],
+    findings: list[dict],
+    lang: str = "fr",
+) -> list[dict]:
+    """
+    Dérive la liste complète des vérifications effectuées (passées ET échouées)
+    à partir des findings et des détails bruts du scan.
+
+    Retourne une liste de dicts :
+    {
+      category: str,          # Groupe d'affichage
+      icon:     str,          # Emoji
+      label_fr: str,
+      label_en: str,
+      passed:   bool,         # True = OK, False = problème détecté
+      warning:  bool,         # True = présent mais sous-optimal (ex DMARC p=none)
+      detail_fr: str,         # Valeur courte ou statut
+      detail_en: str,
+    }
+    """
+    dns_det  = data.get("dns_details",  {})
+    ssl_det  = data.get("ssl_details",  {})
+    port_det = data.get("port_details", {})
+
+    # Titres de findings en minuscules pour recherche rapide
+    failed_titles = {f.get("title", "").lower() for f in findings}
+
+    def _failed(*keywords: str) -> bool:
+        return any(any(kw.lower() in t for kw in keywords) for t in failed_titles)
+
+    checks: list[dict] = []
+
+    # ── DNS & Mail ────────────────────────────────────────────────────────────
+    spf_status   = dns_det.get("spf",   {}).get("status",  "missing")
+    dmarc_status = dns_det.get("dmarc", {}).get("status",  "missing")
+    dmarc_policy = dns_det.get("dmarc", {}).get("policy",  "")
+    spf_records  = dns_det.get("spf",   {}).get("records", [])
+
+    spf_ok   = (spf_status == "ok")
+    spf_warn = (spf_status == "misconfigured")
+    checks.append({
+        "category": "DNS & Mail" if lang == "fr" else "DNS & Mail",
+        "icon": "✉",
+        "label_fr": "SPF anti-spoofing",
+        "label_en": "SPF anti-spoofing",
+        "passed":   spf_ok,
+        "warning":  spf_warn,
+        "detail_fr": (spf_records[0][:55] + "…" if spf_records and len(spf_records[0]) > 55 else spf_records[0]) if spf_ok else ("Mal configuré (+all)" if spf_warn else "Enregistrement absent"),
+        "detail_en": (spf_records[0][:55] + "…" if spf_records and len(spf_records[0]) > 55 else spf_records[0]) if spf_ok else ("Misconfigured (+all)" if spf_warn else "Record absent"),
+    })
+
+    dmarc_ok   = (dmarc_status == "ok" and dmarc_policy in ("quarantine", "reject"))
+    dmarc_warn = (dmarc_status == "ok" and dmarc_policy == "none")
+    checks.append({
+        "category": "DNS & Mail",
+        "icon": "✉",
+        "label_fr": "DMARC anti-phishing",
+        "label_en": "DMARC anti-phishing",
+        "passed":   dmarc_ok,
+        "warning":  dmarc_warn,
+        "detail_fr": (f"p={dmarc_policy} ✓" if dmarc_ok else (f"p=none (surveillance seulement)" if dmarc_warn else "Enregistrement absent")),
+        "detail_en": (f"p={dmarc_policy} ✓" if dmarc_ok else (f"p=none (monitoring only)" if dmarc_warn else "Record absent")),
+    })
+
+    dkim_ok = not _failed("dkim non détecté", "dkim not detected", "dkim")
+    checks.append({
+        "category": "DNS & Mail",
+        "icon": "✉",
+        "label_fr": "DKIM signature email",
+        "label_en": "DKIM email signing",
+        "passed":   dkim_ok,
+        "warning":  False,
+        "detail_fr": "Signature détectée" if dkim_ok else "Non configuré",
+        "detail_en": "Signature detected" if dkim_ok else "Not configured",
+    })
+
+    mx_ok = not _failed("mx", "serveur mail absent", "no mail server")
+    checks.append({
+        "category": "DNS & Mail",
+        "icon": "✉",
+        "label_fr": "Serveur mail (MX)",
+        "label_en": "Mail server (MX)",
+        "passed":   mx_ok,
+        "warning":  False,
+        "detail_fr": "Enregistrement MX présent" if mx_ok else "Aucun MX configuré",
+        "detail_en": "MX record present"          if mx_ok else "No MX configured",
+    })
+
+    # ── SSL / HTTPS ───────────────────────────────────────────────────────────
+    ssl_valid = (ssl_det.get("status") == "valid")
+    issuer_name = (ssl_det.get("issuer") or {}).get("organizationName", "") or (ssl_det.get("issuer") or {}).get("O", "")
+    checks.append({
+        "category": "SSL / HTTPS",
+        "icon": "🔒",
+        "label_fr": "Certificat SSL valide",
+        "label_en": "Valid SSL certificate",
+        "passed":   ssl_valid,
+        "warning":  False,
+        "detail_fr": (issuer_name[:40] or "Valide") if ssl_valid else "Invalide ou absent",
+        "detail_en": (issuer_name[:40] or "Valid")  if ssl_valid else "Invalid or absent",
+    })
+
+    tls_version = ssl_det.get("tls_version", "")
+    tls_ok = tls_version in ("TLSv1.2", "TLSv1.3")
+    tls_warn = bool(tls_version) and not tls_ok
+    checks.append({
+        "category": "SSL / HTTPS",
+        "icon": "🔒",
+        "label_fr": "Version TLS",
+        "label_en": "TLS Version",
+        "passed":   tls_ok,
+        "warning":  tls_warn,
+        "detail_fr": tls_version or "Non détecté",
+        "detail_en": tls_version or "Not detected",
+    })
+
+    days_left = ssl_det.get("days_left")
+    cert_exp_ok   = days_left is not None and int(days_left) > 30
+    cert_exp_warn = days_left is not None and 0 < int(days_left) <= 30
+    cert_exp_fail = days_left is not None and int(days_left) <= 0
+    checks.append({
+        "category": "SSL / HTTPS",
+        "icon": "🔒",
+        "label_fr": "Expiration certificat",
+        "label_en": "Certificate expiry",
+        "passed":   cert_exp_ok,
+        "warning":  cert_exp_warn,
+        "detail_fr": (f"{days_left} jours restants" if days_left is not None else "N/A"),
+        "detail_en": (f"{days_left} days remaining" if days_left is not None else "N/A"),
+    })
+
+    https_open = port_det.get("443", {}).get("open", False)
+    checks.append({
+        "category": "SSL / HTTPS",
+        "icon": "🔒",
+        "label_fr": "HTTPS accessible (port 443)",
+        "label_en": "HTTPS accessible (port 443)",
+        "passed":   https_open,
+        "warning":  False,
+        "detail_fr": "Port 443 ouvert"        if https_open else "Port 443 inaccessible",
+        "detail_en": "Port 443 open"           if https_open else "Port 443 inaccessible",
+    })
+
+    hsts_ok = not _failed("strict-transport-security", "hsts")
+    checks.append({
+        "category": "SSL / HTTPS",
+        "icon": "🔒",
+        "label_fr": "En-tête HSTS",
+        "label_en": "HSTS header",
+        "passed":   hsts_ok,
+        "warning":  False,
+        "detail_fr": "Strict-Transport-Security présent" if hsts_ok else "En-tête manquant",
+        "detail_en": "Strict-Transport-Security present" if hsts_ok else "Header missing",
+    })
+
+    # ── Ports réseau ──────────────────────────────────────────────────────────
+    DANGEROUS_PORTS = {
+        3389: ("RDP", "Bureau distant"),
+        445:  ("SMB", "Partage Windows"),
+        21:   ("FTP", "Transfert non chiffré"),
+        23:   ("Telnet", "Protocole obsolète"),
+        3306: ("MySQL", "Base de données"),
+        5432: ("PostgreSQL", "Base de données"),
+        1433: ("MSSQL", "Base de données"),
+    }
+    for port_num, (svc, label_fr) in DANGEROUS_PORTS.items():
+        pdata   = port_det.get(str(port_num), {})
+        is_open = pdata.get("open", False)
+        checks.append({
+            "category": "Ports Réseau",
+            "icon": "🌐",
+            "label_fr": f"Port {port_num} ({svc})",
+            "label_en": f"Port {port_num} ({svc})",
+            "passed":   not is_open,
+            "warning":  False,
+            "detail_fr": "Fermé" if not is_open else f"OUVERT — {label_fr}",
+            "detail_en": "Closed" if not is_open else f"OPEN — exposed service",
+        })
+
+    # SSH (22) : ouvert = warning (pas forcément dangereux, mais à surveiller)
+    ssh_data = port_det.get("22", {})
+    ssh_open = ssh_data.get("open", False)
+    checks.append({
+        "category": "Ports Réseau",
+        "icon": "🌐",
+        "label_fr": "Port 22 (SSH)",
+        "label_en": "Port 22 (SSH)",
+        "passed":   not ssh_open,
+        "warning":  ssh_open,   # SSH ouvert = warning, pas failure directe
+        "detail_fr": "Fermé" if not ssh_open else "Ouvert — auth par clé recommandée",
+        "detail_en": "Closed" if not ssh_open else "Open — key-based auth recommended",
+    })
+
+    # ── En-têtes HTTP ─────────────────────────────────────────────────────────
+    HEADER_CHECKS = [
+        ("x-frame-options", "X-Frame-Options (anti-clickjacking)", "X-Frame-Options (clickjacking)"),
+        ("content-security-policy", "Content-Security-Policy", "Content-Security-Policy"),
+        ("x-content-type-options", "X-Content-Type-Options", "X-Content-Type-Options"),
+        ("permissions-policy",     "Permissions-Policy", "Permissions-Policy"),
+    ]
+    for kw, label_fr, label_en in HEADER_CHECKS:
+        ok = not _failed(kw)
+        checks.append({
+            "category": "En-têtes HTTP",
+            "icon": "📋",
+            "label_fr": label_fr,
+            "label_en": label_en,
+            "passed":   ok,
+            "warning":  False,
+            "detail_fr": "En-tête présent" if ok else "En-tête manquant",
+            "detail_en": "Header present"  if ok else "Header missing",
+        })
+
+    # ── Réputation ────────────────────────────────────────────────────────────
+    rep_ok = not _failed("liste noire", "blacklist", "dnsbl", "spam", "réputation")
+    checks.append({
+        "category": "Réputation",
+        "icon": "🛡",
+        "label_fr": "Listes noires (DNSBL)",
+        "label_en": "Blacklists (DNSBL)",
+        "passed":   rep_ok,
+        "warning":  False,
+        "detail_fr": "Domaine propre" if rep_ok else "Figurant dans une liste noire",
+        "detail_en": "Clean domain"   if rep_ok else "Listed in a blacklist",
+    })
+
+    return checks
 
 
 # ── Helpers couleur ───────────────────────────────────────────────────────────

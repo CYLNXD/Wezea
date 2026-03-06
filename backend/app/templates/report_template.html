@@ -807,6 +807,115 @@ p.lead {
 
 
 /* ════════════════════════════════════════════════════════════════════════════
+   ⑦b BILAN DES VÉRIFICATIONS — Check grid
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Groupe de catégorie */
+.checks-group {
+  margin-bottom: 14pt;
+}
+.checks-group-title {
+  font-size: 8.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1pt;
+  color: var(--navy-mid);
+  padding: 5pt 0;
+  margin-bottom: 4pt;
+  border-bottom: 1pt solid var(--border);
+}
+
+/* Table de checks — 2 colonnes */
+.checks-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.checks-table td {
+  vertical-align: middle;
+  padding: 4pt 6pt;
+  border-bottom: 0.5pt solid #f1f5f9;
+  font-size: 8.5pt;
+}
+.checks-table tr:last-child td { border-bottom: none; }
+.checks-table tr:nth-child(even) td { background: #fafafa; }
+
+.check-icon-cell {
+  width: 18pt;
+  text-align: center;
+  font-size: 10pt;
+}
+.check-label-cell {
+  width: 38%;
+  color: #1e293b;
+  font-weight: 500;
+}
+.check-status-cell {
+  width: 14%;
+  text-align: center;
+}
+.check-detail-cell {
+  color: var(--slate-mid);
+  font-family: var(--font-mono);
+  font-size: 7.5pt;
+  word-break: break-all;
+}
+
+/* Badges de statut dans le bilan */
+.check-pass {
+  display: inline-block;
+  padding: 1.5pt 5pt;
+  border-radius: 3pt;
+  font-size: 7pt;
+  font-weight: 700;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 0.5pt solid #bbf7d0;
+  white-space: nowrap;
+}
+.check-warn {
+  display: inline-block;
+  padding: 1.5pt 5pt;
+  border-radius: 3pt;
+  font-size: 7pt;
+  font-weight: 700;
+  background: #fffbeb;
+  color: #b45309;
+  border: 0.5pt solid #fde68a;
+  white-space: nowrap;
+}
+.check-fail {
+  display: inline-block;
+  padding: 1.5pt 5pt;
+  border-radius: 3pt;
+  font-size: 7pt;
+  font-weight: 700;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 0.5pt solid #fecaca;
+  white-space: nowrap;
+}
+
+/* Stat bar du bilan */
+.checks-stat-bar {
+  overflow: hidden;
+  margin-bottom: 14pt;
+}
+.checks-stat-item {
+  float: left;
+  width: 24%;
+  margin-right: 1.33%;
+  background: var(--bg-light);
+  border: 1pt solid var(--border);
+  border-radius: 5pt;
+  padding: 8pt 10pt;
+  text-align: center;
+  box-sizing: border-box;
+}
+.checks-stat-item:last-child { margin-right: 0; }
+.checks-stat-value { font-size: 18pt; font-weight: 900; line-height: 1; }
+.checks-stat-label { font-size: 7pt; color: var(--slate-mid); text-transform: uppercase; letter-spacing: 0.5pt; margin-top: 2pt; }
+
+/* ════════════════════════════════════════════════════════════════════════════
    ⑧ PAGE DE CTA FINALE
    ════════════════════════════════════════════════════════════════════════════ */
 .cta-page {
@@ -1003,24 +1112,15 @@ p.lead {
     </div>
   </div>
 
-  <!-- Alerte principale -->
+  <!-- Alerte principale selon score -->
   {% if security_score < 40 %}
   <div class="alert-box danger">
     <div class="alert-icon">🚨</div>
     <div>
       <div class="alert-title" style="color: #991b1b;">{% if lang == 'en' %}Infrastructure under immediate threat{% else %}Infrastructure en danger immédiat{% endif %}</div>
       <div class="alert-text">
-        {% if lang == 'en' %}
-        With a score of <strong>{{ security_score }}/100</strong>, the public infrastructure of <strong>{{ domain }}</strong>
-        has critical vulnerabilities exploitable by opportunistic attackers.
-        The risk of a cyberattack in the next 6 months is <strong>very high</strong>.
-        Corrective action within the next 7 days is imperative.
-        {% else %}
-        Avec un score de <strong>{{ security_score }}/100</strong>, l'infrastructure publique de <strong>{{ domain }}</strong>
-        présente des vulnérabilités critiques exploitables par des attaquants opportunistes.
-        Le risque de cyberattaque dans les 6 prochains mois est <strong>très élevé</strong>.
-        Une intervention corrective dans les 7 prochains jours est impérative.
-        {% endif %}
+        {% if lang == 'en' %}With a score of <strong>{{ security_score }}/100</strong>, the public infrastructure of <strong>{{ domain }}</strong> has critical vulnerabilities exploitable by opportunistic attackers. The risk of a cyberattack in the next 6 months is <strong>very high</strong>. Corrective action within the next 7 days is imperative.
+        {% else %}Avec un score de <strong>{{ security_score }}/100</strong>, l'infrastructure publique de <strong>{{ domain }}</strong> présente des vulnérabilités critiques exploitables par des attaquants opportunistes. Le risque de cyberattaque dans les 6 prochains mois est <strong>très élevé</strong>. Une intervention corrective dans les 7 prochains jours est impérative.{% endif %}
       </div>
     </div>
   </div>
@@ -1030,15 +1130,8 @@ p.lead {
     <div>
       <div class="alert-title" style="color: #92400e;">{% if lang == 'en' %}Significant security risks detected{% else %}Risques de sécurité significatifs détectés{% endif %}</div>
       <div class="alert-text">
-        {% if lang == 'en' %}
-        The score of <strong>{{ security_score }}/100</strong> for <strong>{{ domain }}</strong>
-        reveals exploitable weaknesses, particularly in email security and network exposure.
-        These gaps facilitate phishing and intrusions. A correction within 30 days is recommended.
-        {% else %}
-        Le score de <strong>{{ security_score }}/100</strong> de <strong>{{ domain }}</strong>
-        révèle des faiblesses exploitables, notamment au niveau de la messagerie et de l'exposition réseau.
-        Ces lacunes facilitent le phishing et les intrusions. Une correction sous 30 jours est recommandée.
-        {% endif %}
+        {% if lang == 'en' %}The score of <strong>{{ security_score }}/100</strong> for <strong>{{ domain }}</strong> reveals exploitable weaknesses, particularly in email security and network exposure. These gaps facilitate phishing and intrusions. A correction within 30 days is recommended.
+        {% else %}Le score de <strong>{{ security_score }}/100</strong> de <strong>{{ domain }}</strong> révèle des faiblesses exploitables, notamment au niveau de la messagerie et de l'exposition réseau. Ces lacunes facilitent le phishing et les intrusions. Une correction sous 30 jours est recommandée.{% endif %}
       </div>
     </div>
   </div>
@@ -1048,37 +1141,37 @@ p.lead {
     <div>
       <div class="alert-title" style="color: #166534;">{% if lang == 'en' %}Good public security hygiene{% else %}Bonne hygiène de sécurité publique{% endif %}</div>
       <div class="alert-text">
-        {% if lang == 'en' %}
-        The score of <strong>{{ security_score }}/100</strong> for <strong>{{ domain }}</strong>
-        indicates a satisfactory public configuration. Optimizations are still possible
-        to achieve excellence and reduce the residual attack surface.
-        {% else %}
-        Le score de <strong>{{ security_score }}/100</strong> de <strong>{{ domain }}</strong>
-        indique une configuration publique satisfaisante. Des optimisations restent possibles
-        pour atteindre l'excellence et réduire la surface d'attaque résiduelle.
-        {% endif %}
+        {% if lang == 'en' %}The score of <strong>{{ security_score }}/100</strong> for <strong>{{ domain }}</strong> indicates a satisfactory public configuration. Optimizations are still possible to achieve excellence and reduce the residual attack surface.
+        {% else %}Le score de <strong>{{ security_score }}/100</strong> de <strong>{{ domain }}</strong> indique une configuration publique satisfaisante. Des optimisations restent possibles pour atteindre l'excellence et réduire la surface d'attaque résiduelle.{% endif %}
       </div>
     </div>
   </div>
   {% endif %}
 
-  <!-- KPIs -->
-  <div class="summary-grid" style="margin-top: 14pt;">
-    <div class="kpi-card {% if critical_count > 0 %}alert{% endif %}">
-      <div class="kpi-value" style="color: {% if critical_count > 0 %}{{ risk_color }}{% else %}#22c55e{% endif %}">
-        {{ critical_count }}
-      </div>
-      <div class="kpi-label">{% if lang == 'en' %}Critical vuln.{% else %}Vuln. critiques{% endif %}</div>
+  <!-- KPIs — 5 indicateurs -->
+  {% set passed_checks_count = checks_overview | selectattr('passed', 'equalto', true) | list | length %}
+  {% set warn_checks_count   = checks_overview | selectattr('warning', 'equalto', true) | list | length %}
+  {% set fail_checks_count   = checks_overview | rejectattr('passed', 'equalto', true) | rejectattr('warning', 'equalto', true) | list | length %}
+  <div class="summary-grid" style="margin-top: 14pt; overflow: hidden;">
+    <div class="kpi-card {% if critical_count > 0 %}alert{% endif %}" style="width:18%; margin-right: 2.5%;">
+      <div class="kpi-value" style="color: {% if critical_count > 0 %}{{ risk_color }}{% else %}#22c55e{% endif %}">{{ critical_count }}</div>
+      <div class="kpi-label">{% if lang == 'en' %}Critical{% else %}Critiques{% endif %}</div>
     </div>
-    <div class="kpi-card {% if high_count > 0 %}alert{% endif %}">
-      <div class="kpi-value" style="color: {% if high_count > 0 %}#ea580c{% else %}#22c55e{% endif %}">
-        {{ high_count }}
-      </div>
-      <div class="kpi-label">{% if lang == 'en' %}High vuln.{% else %}Vuln. élevées{% endif %}</div>
+    <div class="kpi-card {% if high_count > 0 %}alert{% endif %}" style="width:18%; margin-right: 2.5%;">
+      <div class="kpi-value" style="color: {% if high_count > 0 %}#ea580c{% else %}#22c55e{% endif %}">{{ high_count }}</div>
+      <div class="kpi-label">{% if lang == 'en' %}High{% else %}Élevées{% endif %}</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-value" style="color: {{ score_color }}">{{ security_score }}<span style="font-size: 11pt; font-weight: 500; color: #94a3b8">/100</span></div>
-      <div class="kpi-label">Security Score</div>
+    <div class="kpi-card" style="width:18%; margin-right: 2.5%;">
+      <div class="kpi-value" style="color: #d97706;">{{ medium_count }}</div>
+      <div class="kpi-label">{% if lang == 'en' %}Medium{% else %}Modérées{% endif %}</div>
+    </div>
+    <div class="kpi-card" style="width:18%; margin-right: 2.5%;">
+      <div class="kpi-value" style="color: {{ score_color }}">{{ security_score }}<span style="font-size: 10pt; font-weight:500; color:#94a3b8">/100</span></div>
+      <div class="kpi-label">Score</div>
+    </div>
+    <div class="kpi-card" style="width:18%; margin-right:0;">
+      <div class="kpi-value" style="color: #16a34a;">{{ passed_checks_count }}</div>
+      <div class="kpi-label">{% if lang == 'en' %}Checks OK{% else %}Checks OK{% endif %}</div>
     </div>
     <div style="clear:both;"></div>
   </div>
@@ -1087,8 +1180,7 @@ p.lead {
   <h3 class="sub">{% if lang == 'en' %}Score Positioning{% else %}Positionnement du score{% endif %}</h3>
   <div class="score-bar-wrap">
     <div class="score-bar-track">
-      <div class="score-bar-fill"
-           style="width: {{ security_score }}%; background: {{ score_color }};"></div>
+      <div class="score-bar-fill" style="width: {{ security_score }}%; background: {{ score_color }};"></div>
     </div>
     <div class="score-bar-labels">
       <span style="color: #dc2626; font-weight: 600;">● {% if lang == 'en' %}Critical{% else %}Critique{% endif %} 0–39</span>
@@ -1099,30 +1191,30 @@ p.lead {
     </div>
   </div>
 
-  <!-- Top 3 risques -->
+  <!-- Top risques (si findings) -->
   {% if findings %}
-  <h2 class="section-inner" style="margin-top: 16pt;">{% if lang == 'en' %}Top 3 Priority Risks{% else %}Top 3 des risques prioritaires{% endif %}</h2>
+  <h2 class="section-inner" style="margin-top: 16pt;">{% if lang == 'en' %}Top Priority Risks{% else %}Risques prioritaires{% endif %}</h2>
   <table class="annex-table">
     <thead>
       <tr>
         <th style="width:5%;">#</th>
         <th style="width:20%;">{% if lang == 'en' %}Category{% else %}Catégorie{% endif %}</th>
-        <th style="width:40%;">{% if lang == 'en' %}Vulnerability{% else %}Vulnérabilité{% endif %}</th>
+        <th style="width:38%;">{% if lang == 'en' %}Vulnerability{% else %}Vulnérabilité{% endif %}</th>
         <th style="width:15%;">{% if lang == 'en' %}Severity{% else %}Sévérité{% endif %}</th>
-        <th style="width:10%; text-align:right;">{% if lang == 'en' %}Impact score{% else %}Impact score{% endif %}</th>
+        <th style="width:12%; text-align:right;">Impact</th>
       </tr>
     </thead>
     <tbody>
-      {% for f in findings[:3] %}
+      {% for f in findings %}
+      {% if f.penalty > 0 %}
       <tr>
         <td style="text-align:center; font-weight:700; color: #94a3b8;">{{ loop.index }}</td>
         <td>{{ f.category }}</td>
         <td style="font-family: var(--font); font-size: 9pt; font-weight: 600;">{{ f.title }}</td>
-        <td>
-          <span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span>
-        </td>
+        <td><span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span></td>
         <td style="text-align:right; color: #dc2626; font-weight: 700;">−{{ f.penalty }} pts</td>
       </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
   </table>
@@ -1132,114 +1224,175 @@ p.lead {
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     ② DÉTAIL DES VULNÉRABILITÉS
+     ② BIS — BILAN DES VÉRIFICATIONS
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="section page-break">
 
   <div class="section-header">
     <div class="section-number">2</div>
     <div>
+      <div class="section-title">{% if lang == 'en' %}Security Checks Overview{% else %}Bilan des Vérifications{% endif %}</div>
+      <div class="section-subtitle">
+        {% if lang == 'en' %}All {{ checks_overview | length }} checks — {{ passed_checks_count }} passed · {{ warn_checks_count }} warnings · {{ fail_checks_count }} failed
+        {% else %}{{ checks_overview | length }} vérifications effectuées — {{ passed_checks_count }} réussies · {{ warn_checks_count }} avertissements · {{ fail_checks_count }} échouées{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="checks-stat-bar">
+    <div class="checks-stat-item">
+      <div class="checks-stat-value" style="color: #16a34a;">{{ passed_checks_count }}</div>
+      <div class="checks-stat-label">{% if lang == 'en' %}Passed{% else %}Réussies{% endif %}</div>
+    </div>
+    <div class="checks-stat-item">
+      <div class="checks-stat-value" style="color: #b45309;">{{ warn_checks_count }}</div>
+      <div class="checks-stat-label">{% if lang == 'en' %}Warnings{% else %}Avertissements{% endif %}</div>
+    </div>
+    <div class="checks-stat-item">
+      <div class="checks-stat-value" style="color: #dc2626;">{{ fail_checks_count }}</div>
+      <div class="checks-stat-label">{% if lang == 'en' %}Failed{% else %}Échouées{% endif %}</div>
+    </div>
+    <div class="checks-stat-item">
+      <div class="checks-stat-value" style="color: #475569;">{{ checks_overview | length }}</div>
+      <div class="checks-stat-label">{% if lang == 'en' %}Total{% else %}Total{% endif %}</div>
+    </div>
+    <div style="clear:both;"></div>
+  </div>
+
+  {# Grouper les checks par catégorie #}
+  {% set ns = namespace(current_cat="") %}
+  {% for chk in checks_overview %}
+    {% if chk.category != ns.current_cat %}
+      {% if ns.current_cat != "" %}
+        </tbody></table>
+      {% endif %}
+      {% set ns.current_cat = chk.category %}
+      <div class="checks-group">
+      <div class="checks-group-title">
+        {{ chk.icon }} &nbsp;
+        {% if lang == 'en' %}{{ chk.category | replace('Ports Réseau','Network Ports') | replace('En-têtes HTTP','HTTP Headers') | replace('Réputation','Reputation') }}{% else %}{{ chk.category }}{% endif %}
+      </div>
+      <table class="checks-table">
+        <tbody>
+    {% endif %}
+        <tr>
+          <td class="check-status-cell" style="width:12%;">
+            {% if chk.passed %}
+              <span class="check-pass">✓ {% if lang == 'en' %}OK{% else %}OK{% endif %}</span>
+            {% elif chk.warning %}
+              <span class="check-warn">⚠ {% if lang == 'en' %}WARN{% else %}WARN{% endif %}</span>
+            {% else %}
+              <span class="check-fail">✗ {% if lang == 'en' %}FAIL{% else %}FAIL{% endif %}</span>
+            {% endif %}
+          </td>
+          <td class="check-label-cell" style="width:36%; font-weight: {% if not chk.passed and not chk.warning %}700{% else %}500{% endif %}; color: {% if not chk.passed and not chk.warning %}#dc2626{% elif chk.warning %}#b45309{% else %}#1e293b{% endif %};">
+            {% if lang == 'en' %}{{ chk.label_en }}{% else %}{{ chk.label_fr }}{% endif %}
+          </td>
+          <td class="check-detail-cell">
+            {% if lang == 'en' %}{{ chk.detail_en }}{% else %}{{ chk.detail_fr }}{% endif %}
+          </td>
+        </tr>
+  {% endfor %}
+  {% if ns.current_cat != "" %}
+      </tbody></table>
+      </div>
+  {% endif %}
+
+</div><!-- /bilan checks -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ③ DÉTAIL DES VULNÉRABILITÉS — Toutes catégories
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="section page-break">
+
+  <div class="section-header">
+    <div class="section-number">3</div>
+    <div>
       <div class="section-title">{% if lang == 'en' %}Vulnerability Details{% else %}Détail des Vulnérabilités{% endif %}</div>
       <div class="section-subtitle">{{ findings | length }} finding(s) — {% if lang == 'en' %}sorted by criticality{% else %}classés par ordre de criticité{% endif %}</div>
     </div>
   </div>
 
+  {% macro finding_card(f, ref_prefix, idx) %}
+  <div class="finding-card no-break">
+    <div class="finding-header {{ f.severity | lower }}">
+      <div class="finding-title-block">
+        <div class="finding-title">{{ f.title }}</div>
+        <div class="finding-category">{{ f.category }} · {% if lang == 'en' %}Ref.{% else %}Réf.{% endif %} {{ ref_prefix }}-{{ idx }}</div>
+      </div>
+      <span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span>
+      {% if f.penalty > 0 %}
+      <div class="finding-penalty">−{{ f.penalty }} pts</div>
+      {% endif %}
+    </div>
+    <div class="finding-body">
+      <div class="finding-body-row">
+        <div class="finding-body-cell">
+          <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
+          <div class="finding-plain">{{ f.plain_explanation }}</div>
+        </div>
+        <div class="finding-body-cell">
+          <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
+          <div class="finding-reco">{{ f.recommendation }}</div>
+        </div>
+      </div>
+      {% if f.technical_detail %}
+      <div class="finding-tech">{{ f.technical_detail }}</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endmacro %}
+
   {% if findings %}
 
     {# ── DNS & Mail ──────────────────────────────────────────────────────── #}
     {% if dns_findings %}
-    <h2 class="section-inner keep-with">📧 DNS &amp; {% if lang == 'en' %}Email Security{% else %}Sécurité Email{% endif %}</h2>
-    {% for f in dns_findings %}
-    <div class="finding-card no-break">
-      <div class="finding-header {{ f.severity | lower }}">
-        <div class="finding-title-block">
-          <div class="finding-title">{{ f.title }}</div>
-          <div class="finding-category">{{ f.category }} · {% if lang == 'en' %}Ref.{% else %}Réf.{% endif %} DNS-{{ loop.index }}</div>
-        </div>
-        <span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span>
-        {% if f.penalty > 0 %}
-        <div class="finding-penalty">−{{ f.penalty }} pts</div>
-        {% endif %}
-      </div>
-      <div class="finding-body">
-        <div class="finding-body-row">
-          <div class="finding-body-cell">
-            <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
-            <div class="finding-plain">{{ f.plain_explanation }}</div>
-          </div>
-          <div class="finding-body-cell">
-            <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
-            <div class="finding-reco">{{ f.recommendation }}</div>
-          </div>
-        </div>
-        <div class="finding-tech">{{ f.technical_detail }}</div>
-      </div>
-    </div>
-    {% endfor %}
+    <h2 class="section-inner keep-with">✉ DNS &amp; {% if lang == 'en' %}Email Security{% else %}Sécurité Email{% endif %}</h2>
+    {% for f in dns_findings %}{{ finding_card(f, "DNS", loop.index) }}{% endfor %}
+    {% endif %}
+
+    {# ── Sécurité Email (DKIM, MX…) ─────────────────────────────────────── #}
+    {% if email_findings %}
+    <h2 class="section-inner keep-with">📨 {% if lang == 'en' %}Email Security (DKIM / MX){% else %}Sécurité Email (DKIM / MX){% endif %}</h2>
+    {% for f in email_findings %}{{ finding_card(f, "MAIL", loop.index) }}{% endfor %}
     {% endif %}
 
     {# ── SSL / HTTPS ─────────────────────────────────────────────────────── #}
     {% if ssl_findings %}
     <h2 class="section-inner keep-with">🔒 SSL / HTTPS</h2>
-    {% for f in ssl_findings %}
-    <div class="finding-card no-break">
-      <div class="finding-header {{ f.severity | lower }}">
-        <div class="finding-title-block">
-          <div class="finding-title">{{ f.title }}</div>
-          <div class="finding-category">{{ f.category }} · {% if lang == 'en' %}Ref.{% else %}Réf.{% endif %} SSL-{{ loop.index }}</div>
-        </div>
-        <span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span>
-        {% if f.penalty > 0 %}
-        <div class="finding-penalty">−{{ f.penalty }} pts</div>
-        {% endif %}
-      </div>
-      <div class="finding-body">
-        <div class="finding-body-row">
-          <div class="finding-body-cell">
-            <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
-            <div class="finding-plain">{{ f.plain_explanation }}</div>
-          </div>
-          <div class="finding-body-cell">
-            <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
-            <div class="finding-reco">{{ f.recommendation }}</div>
-          </div>
-        </div>
-        <div class="finding-tech">{{ f.technical_detail }}</div>
-      </div>
-    </div>
-    {% endfor %}
+    {% for f in ssl_findings %}{{ finding_card(f, "SSL", loop.index) }}{% endfor %}
     {% endif %}
 
     {# ── Ports réseau ────────────────────────────────────────────────────── #}
     {% if port_findings %}
     <h2 class="section-inner keep-with">🌐 {% if lang == 'en' %}Network Exposure{% else %}Exposition Réseau{% endif %}</h2>
-    {% for f in port_findings %}
-    <div class="finding-card no-break">
-      <div class="finding-header {{ f.severity | lower }}">
-        <div class="finding-title-block">
-          <div class="finding-title">{{ f.title }}</div>
-          <div class="finding-category">{{ f.category }} · {% if lang == 'en' %}Ref.{% else %}Réf.{% endif %} NET-{{ loop.index }}</div>
-        </div>
-        <span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span>
-        {% if f.penalty > 0 %}
-        <div class="finding-penalty">−{{ f.penalty }} pts</div>
-        {% endif %}
-      </div>
-      <div class="finding-body">
-        <div class="finding-body-row">
-          <div class="finding-body-cell">
-            <div class="finding-section-label">{% if lang == 'en' %}Business Impact{% else %}Impact métier{% endif %}</div>
-            <div class="finding-plain">{{ f.plain_explanation }}</div>
-          </div>
-          <div class="finding-body-cell">
-            <div class="finding-section-label">{% if lang == 'en' %}Corrective Action{% else %}Action corrective{% endif %}</div>
-            <div class="finding-reco">{{ f.recommendation }}</div>
-          </div>
-        </div>
-        <div class="finding-tech">{{ f.technical_detail }}</div>
-      </div>
-    </div>
-    {% endfor %}
+    {% for f in port_findings %}{{ finding_card(f, "NET", loop.index) }}{% endfor %}
+    {% endif %}
+
+    {# ── En-têtes HTTP ───────────────────────────────────────────────────── #}
+    {% if header_findings %}
+    <h2 class="section-inner keep-with">📋 {% if lang == 'en' %}HTTP Headers{% else %}En-têtes HTTP{% endif %}</h2>
+    {% for f in header_findings %}{{ finding_card(f, "HDR", loop.index) }}{% endfor %}
+    {% endif %}
+
+    {# ── Exposition Technologique ────────────────────────────────────────── #}
+    {% if tech_findings %}
+    <h2 class="section-inner keep-with">⚙️ {% if lang == 'en' %}Technology Exposure{% else %}Exposition Technologique{% endif %}</h2>
+    {% for f in tech_findings %}{{ finding_card(f, "TECH", loop.index) }}{% endfor %}
+    {% endif %}
+
+    {# ── Réputation ──────────────────────────────────────────────────────── #}
+    {% if reputation_findings %}
+    <h2 class="section-inner keep-with">🛡 {% if lang == 'en' %}Domain Reputation{% else %}Réputation du Domaine{% endif %}</h2>
+    {% for f in reputation_findings %}{{ finding_card(f, "REP", loop.index) }}{% endfor %}
+    {% endif %}
+
+    {# ── Autres catégories ───────────────────────────────────────────────── #}
+    {% if other_findings %}
+    <h2 class="section-inner keep-with">📌 {% if lang == 'en' %}Other Findings{% else %}Autres constatations{% endif %}</h2>
+    {% for f in other_findings %}{{ finding_card(f, "OTH", loop.index) }}{% endfor %}
     {% endif %}
 
   {% else %}
@@ -1256,12 +1409,12 @@ p.lead {
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     ⑤ PLAN D'ACTION IMMÉDIAT
+     ④ PLAN D'ACTION IMMÉDIAT
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="section page-break">
 
   <div class="section-header">
-    <div class="section-number">3</div>
+    <div class="section-number">4</div>
     <div>
       <div class="section-title">{% if lang == 'en' %}Immediate Action Plan{% else %}Plan d'Action Immédiat{% endif %}</div>
       <div class="section-subtitle">{% if lang == 'en' %}3-phase remediation roadmap{% else %}Feuille de route de remédiation en 3 phases{% endif %}</div>
@@ -1379,12 +1532,12 @@ p.lead {
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     ⑥ ANNEXES TECHNIQUES
+     ⑤ ANNEXES TECHNIQUES
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="section page-break">
 
   <div class="section-header">
-    <div class="section-number">4</div>
+    <div class="section-number">5</div>
     <div>
       <div class="section-title">{% if lang == 'en' %}Technical Annexes{% else %}Annexes Techniques{% endif %}</div>
       <div class="section-subtitle">{% if lang == 'en' %}Raw data for your IT provider{% else %}Données brutes pour votre prestataire IT{% endif %}</div>
@@ -1733,12 +1886,12 @@ p.lead {
 {% endif %}{# /is_premium #}
 
 <!--
-     ⑧ PAGE DE CONTACT / CTA
+     ⑥ PAGE DE CONTACT / CTA
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="section page-break">
 
   <div class="section-header">
-    <div class="section-number">5</div>
+    <div class="section-number">6</div>
     <div>
       <div class="section-title">{% if lang == 'en' %}Next Steps{% else %}Prochaines Étapes{% endif %}</div>
       <div class="section-subtitle">{% if lang == 'en' %}Turn this report into a concrete action plan{% else %}Transformer ce rapport en plan d'action concret{% endif %}</div>
