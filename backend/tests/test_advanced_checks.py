@@ -929,3 +929,176 @@ class TestSubdomainAuditorFetch:
         with patch("urllib.request.urlopen", return_value=self._fake_urlopen(data)):
             result = auditor._fetch_crtsh()
         assert len(result) <= SubdomainAuditor.MAX_SUBDOMAINS
+
+
+# =============================================================================
+# SubdomainAuditor — _resolve_subdomain + _check_cert
+# =============================================================================
+
+class TestSubdomainAuditorResolve:
+    """Tests pour SubdomainAuditor._resolve_subdomain (DNS mocké)."""
+
+    def test_resolves_ip_successfully(self):
+        """DNS répond → retourne l'IP."""
+        from app.advanced_checks import SubdomainAuditor
+        import dns.resolver as _dns
+        auditor = SubdomainAuditor("example.com")
+        mock_answers = MagicMock()
+        mock_answers.__iter__ = MagicMock(return_value=iter([MagicMock(__str__=lambda self: "93.184.216.34")]))
+        with patch.object(_dns.Resolver, "resolve", return_value=mock_answers):
+            ip = auditor._resolve_subdomain("www.example.com")
+        assert ip is not None
+
+    def test_returns_none_on_dns_exception(self):
+        """Exception DNS → retourne None sans crash."""
+        from app.advanced_checks import SubdomainAuditor
+        import dns.resolver as _dns
+        import dns.exception
+        auditor = SubdomainAuditor("example.com")
+        with patch.object(_dns.Resolver, "resolve", side_effect=dns.exception.DNSException()):
+            ip = auditor._resolve_subdomain("nxdomain.example.com")
+        assert ip is None
+
+    def test_returns_none_on_generic_exception(self):
+        """Exception générique → retourne None."""
+        from app.advanced_checks import SubdomainAuditor
+        import dns.resolver as _dns
+        auditor = SubdomainAuditor("example.com")
+        with patch.object(_dns.Resolver, "resolve", side_effect=Exception("timeout OS")):
+            ip = auditor._resolve_subdomain("slow.example.com")
+        assert ip is None
+
+
+class TestSubdomainAuditorCheckCert:
+    """Tests pour SubdomainAuditor._check_cert (socket + ssl mockés)."""
+
+    def _make_ssl_context(self):
+        ctx = MagicMock()
+        sock = MagicMock()
+        sock.__enter__ = MagicMock(return_value=sock)
+        sock.__exit__  = MagicMock(return_value=False)
+        ctx.wrap_socket.return_value = sock
+        return ctx, sock
+
+    def test_valid_cert_returns_dict(self):
+        """Cert valide → dict avec days_left > 0."""
+        from app.advanced_checks import SubdomainAuditor
+        import ssl, socket
+        from datetime import datetime, timezone, timedelta
+
+        future = datetime.now(timezone.utc) + timedelta(days=90)
+        not_after_str = future.strftime("%b %d %H:%M:%S %Y GMT")
+
+        ctx, sock = self._make_ssl_context()
+        sock.getpeercert.return_value = {"notAfter": not_after_str}
+
+        auditor = SubdomainAuditor("example.com")
+        with patch("ssl.create_default_context", return_value=ctx), \
+             patch("socket.create_connection", return_value=MagicMock()):
+            result = auditor._check_cert("www.example.com")
+
+        assert result is not None
+        assert result["days_left"] > 0
+        assert result["expired"] is False
+        assert result["expiring_soon"] is False
+
+    def test_expired_cert_flags_expired(self):
+        """Cert expiré → days_left < 0, expired=True."""
+        from app.advanced_checks import SubdomainAuditor
+        from datetime import datetime, timezone, timedelta
+        import ssl, socket
+
+        past = datetime.now(timezone.utc) - timedelta(days=5)
+        not_after_str = past.strftime("%b %d %H:%M:%S %Y GMT")
+
+        ctx, sock = self._make_ssl_context()
+        sock.getpeercert.return_value = {"notAfter": not_after_str}
+
+        auditor = SubdomainAuditor("example.com")
+        with patch("ssl.create_default_context", return_value=ctx), \
+             patch("socket.create_connection", return_value=MagicMock()):
+            result = auditor._check_cert("old.example.com")
+
+        assert result is not None
+        assert result["expired"] is True
+
+    def test_ssl_cert_verification_error_returns_dict_with_error(self):
+        """SSLCertVerificationError → dict avec expired=True et champ error."""
+        from app.advanced_checks import SubdomainAuditor
+        import ssl, socket
+
+        ctx = MagicMock()
+        ctx.wrap_socket.side_effect = ssl.SSLCertVerificationError("cert invalid")
+
+        auditor = SubdomainAuditor("example.com")
+        with patch("ssl.create_default_context", return_value=ctx), \
+             patch("socket.create_connection", return_value=MagicMock()):
+            result = auditor._check_cert("bad-cert.example.com")
+
+        assert result is not None
+        assert result["expired"] is True
+        assert "error" in result
+
+    def test_connection_error_returns_none(self):
+        """Connexion impossible → retourne None."""
+        from app.advanced_checks import SubdomainAuditor
+        import ssl, socket
+
+        auditor = SubdomainAuditor("example.com")
+        with patch("ssl.create_default_context", return_value=MagicMock()), \
+             patch("socket.create_connection", side_effect=ConnectionRefusedError()):
+            result = auditor._check_cert("no-https.example.com")
+
+        assert result is None
+
+    def test_expiring_soon_cert_flagged(self):
+        """Cert qui expire dans ≤30 jours → expiring_soon=True."""
+        from app.advanced_checks import SubdomainAuditor
+        from datetime import datetime, timezone, timedelta
+        import ssl, socket
+
+        soon = datetime.now(timezone.utc) + timedelta(days=15)
+        not_after_str = soon.strftime("%b %d %H:%M:%S %Y GMT")
+
+        ctx, sock = self._make_ssl_context()
+        sock.getpeercert.return_value = {"notAfter": not_after_str}
+
+        auditor = SubdomainAuditor("example.com")
+        with patch("ssl.create_default_context", return_value=ctx), \
+             patch("socket.create_connection", return_value=MagicMock()):
+            result = auditor._check_cert("expiring.example.com")
+
+        assert result is not None
+        assert result["expiring_soon"] is True
+
+
+# =============================================================================
+# VulnVersionAuditor — audit() timeout + exception paths
+# =============================================================================
+
+class TestVulnVersionAuditorAudit:
+    """Tests pour VulnVersionAuditor.audit() — gestion des timeouts."""
+
+    @pytest.mark.asyncio
+    async def test_audit_returns_empty_on_timeout(self):
+        """Timeout → retourne [] sans crash (patch wait_for au niveau du module)."""
+        from app.advanced_checks import VulnVersionAuditor
+        auditor = VulnVersionAuditor("example.com")
+        # Patch _check_versions_sync pour qu'elle retourne vite (pas de sleep)
+        # et patch wait_for au niveau d'advanced_checks pour lever TimeoutError
+        with patch.object(auditor, "_check_versions_sync", return_value=[]), \
+             patch("app.advanced_checks.asyncio.wait_for",
+                   side_effect=asyncio.TimeoutError()):
+            result = await auditor.audit()
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_audit_returns_empty_on_exception(self):
+        """Exception quelconque → retourne [] sans crash."""
+        from app.advanced_checks import VulnVersionAuditor
+        auditor = VulnVersionAuditor("example.com")
+        with patch.object(auditor, "_check_versions_sync", return_value=[]), \
+             patch("app.advanced_checks.asyncio.wait_for",
+                   side_effect=RuntimeError("réseau KO")):
+            result = await auditor.audit()
+        assert result == []
