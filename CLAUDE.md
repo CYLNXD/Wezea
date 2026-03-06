@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 17)
+> Dernière mise à jour : 2026-03-06 (session 18)
 
 ---
 
@@ -313,6 +313,28 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 18)
+
+### Tests — AuditManager (14) + _async_monitoring (4) + fix test flaky JWT → 652 tests, 80%
+- **18 nouveaux tests**, total **652 tests, 0 échec**, couverture 80%
+
+#### test_scanner.py — TestAuditManagerInit + TestAuditManagerRun (14 tests)
+- Orchstrateur central enfin couvert : `scanner.py` 73% → 85%
+- `TestAuditManagerInit` (6) : plan free (0 premium), starter/pro (2 premium), domain lowercased+stripped, checks_config filtre auditors, sans config = 7 auditeurs
+- `TestAuditManagerRun` (8) : ScanResult avec tous les champs, agrégation findings multi-auditeurs, tri par pénalité, exception dans un auditeur ignorée via `gather(return_exceptions=True)`, détails premium vides pour free / remplis pour starter, score calculé depuis findings
+- **Pattern** : `ExitStack` + `_all_auditor_patches()` pour patcher les 7+2 classes auditeurs — chaque classe patchée retourne un `_mock_auditor(findings, details)`
+- **Bug trouvé** : `Finding` est un `@dataclass` avec 7 champs positionnels (`category, severity, title, technical_detail, plain_explanation, penalty, recommendation`) — toujours utiliser les kwargs
+
+#### test_scheduler.py — TestAsyncMonitoring (4 tests)
+- `_async_monitoring` : `scheduler.py` 64% → 71%
+- Tests : `_scan_and_alert` appelé pour chaque domaine actif, skip si `_should_scan_now=False`, exception sur un domaine n'arrête pas la boucle, domaines `is_active=False` ignorés
+- **Import local** : `SessionLocal` importé dans `_async_monitoring` → patch à `app.database.SessionLocal` (pas `app.scheduler.SessionLocal`)
+- `MagicMock` ajouté aux imports de test_scheduler.py
+
+#### test_auth_utils.py — fix test_tampered_signature (flaky)
+- **Root cause** : dernier char base64url peut être un "filler" (bits nuls de padding) → le changer ne modifie pas les bytes décodés → vérification HMAC réussit quand même
+- **Fix** : modifier un char au milieu de la signature (chars toujours significatifs)
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 17)
 
