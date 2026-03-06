@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 2)
+> Dernière mise à jour : 2026-03-06 (session 3)
 
 ---
 
@@ -294,7 +294,27 @@ ls -lh /home/cyberhealth/backups/
 
 ---
 
-## 🆕 Fonctionnalités récentes (2026-03-06)
+## 🆕 Fonctionnalités récentes (2026-03-06, session 3)
+
+### Auth — Mot de passe oublié / Réinitialisation
+- **Backend** : `POST /auth/forgot-password` + `POST /auth/reset-password`
+  - Migration DB 009 : colonnes `password_reset_token`, `password_reset_expires` sur `users`
+  - Token `secrets.token_urlsafe(32)`, durée 1h, usage unique, timezone-safe (SQLite)
+  - Anti-énumération : retourne toujours 200 (même si l'email est inconnu)
+  - Comptes Google exclus (`!google:` hash → pas de mot de passe local)
+  - Email envoyé via `send_password_reset_email()` dans `brevo_service.py`
+  - Reset URL : `{FRONTEND_URL}/?reset_token={token}`
+- **Frontend** :
+  - `App.tsx` : détecte `?reset_token=xxx` → ouvre LoginPage en mode reset + nettoie l'URL
+  - `LoginPage.tsx` : 4 sous-vues animées (`AnimatePresence`) :
+    - `forgot` : formulaire email → POST /auth/forgot-password
+    - `forgot-sent` : confirmation (mention vérifier les spams)
+    - `reset` : formulaire nouveau mdp + confirmation → POST /auth/reset-password
+    - `reset-done` : succès + bouton "Se connecter"
+  - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
+- **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 2)
 
 ### Rapport PDF — numérotation des sections
 - Sections renumérotées : ①②③④⑤⑥ (Plan d'Action était ③, Annexes ④, CTA ⑤ → décalés +1)
@@ -323,6 +343,7 @@ ls -lh /home/cyberhealth/backups/
 - [ ] Configurer `JWT_SECRET_KEY` stable dans `.env` serveur (`openssl rand -hex 32`)
 - [ ] Installer le cron de backup DB sur le serveur (voir ci-dessus)
 - [ ] Surveiller les premières migrations argon2 dans les logs (rehash au prochain login de chaque user)
+- [ ] Ajouter `FRONTEND_URL=https://wezea.net` dans `.env` serveur (utilisé par les emails de reset mot de passe)
 
 ---
 
