@@ -314,6 +314,16 @@ ls -lh /home/cyberhealth/backups/
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
 
+## 🆕 Fonctionnalités récentes (2026-03-06, session 9)
+
+### Tests — scheduler (test_scheduler.py)
+- 34 nouveaux tests, total **279 tests, 0 échec**
+- Couvre : `_should_scan_now` (toutes fréquences + cas limites) + séquence onboarding complète
+- 7 classes : `TestShouldScanNow`, `TestOnboardingJ1`, `TestOnboardingJ3`, `TestOnboardingJ7`, `TestOnboardingJ14`, `TestOnboardingIsolation`
+- `_should_scan_now` testé avec `SimpleNamespace` (zéro DB) — rapide et isolé
+- Onboarding testé avec users créés en DB à `created_at` contrôlé, brevo_service entièrement mocké
+- Vérifie : fenêtres temporelles exactes (J+1: 20-28h, J+3: 68-76h, J+7: 164-172h, J+14: 332-340h), conditions par plan (free uniquement), condition scan (J+1: 0 scans, J+7: ≥1 scan), users inactifs exclus, scan_count transmis correctement à J+7, non-chevauchement des fenêtres
+
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 8)
 
 ### Tests — webhook_router (test_webhook.py)
