@@ -91,7 +91,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [monitoringLoading, setMonitoringLoading] = useState(false);
   const [monitoringInput, setMonitoringInput] = useState('');
   // Onglets de résultats
-  const [activeTab, setActiveTab] = useState<'summary' | 'findings' | 'advanced'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'findings' | 'advanced' | 'reco'>('summary');
   const [pwCurrent, setPwCurrent]       = useState('');
   const [pwNew, setPwNew]               = useState('');
   const [pwConfirm, setPwConfirm]       = useState('');
@@ -1172,9 +1172,10 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   {/* Barre de navigation */}
                   <div className="flex items-center gap-1 border-b border-slate-800 mb-6">
                     {([
-                      { id: 'summary'  as const, label: lang === 'fr' ? 'Résumé'                       : 'Summary',                   icon: <ListChecks size={13} />, dot: r.findings.some(f => f.severity === 'CRITICAL') },
-                      { id: 'findings' as const, label: lang === 'fr' ? `Vulnérabilités (${nonInfoCount})`   : `Vulnerabilities (${nonInfoCount})`, icon: <AlertTriangle size={13} />, dot: false },
-                      { id: 'advanced' as const, label: lang === 'fr' ? 'Avancé'                       : 'Advanced',                  icon: <Shield size={13} />, dot: false },
+                      { id: 'summary'  as const, label: lang === 'fr' ? 'Résumé'                              : 'Summary',                        icon: <ListChecks size={13} />,    dot: r.findings.some(f => f.severity === 'CRITICAL') },
+                      { id: 'findings' as const, label: lang === 'fr' ? `Vulnérabilités (${nonInfoCount})` : `Vulnerabilities (${nonInfoCount})`, icon: <AlertTriangle size={13} />, dot: false },
+                      { id: 'reco'     as const, label: lang === 'fr' ? 'Recommandations'                  : 'Recommendations',                  icon: <Zap size={13} />,           dot: (r.recommendations?.length ?? 0) > 0 },
+                      { id: 'advanced' as const, label: lang === 'fr' ? 'Avancé'                           : 'Advanced',                         icon: <Shield size={13} />,        dot: false },
                     ]).map(tab => (
                       <button
                         key={tab.id}
@@ -1316,35 +1317,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             </div>
                           );
                         })()}
-
-                        {/* Recommandations prioritaires */}
-                        {r.recommendations && r.recommendations.length > 0 && (
-                          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
-                            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-900/60">
-                              <div className="flex items-center gap-2.5">
-                                <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                                  <Zap size={14} className="text-amber-400" />
-                                </div>
-                                <h3 className="text-white font-bold text-sm">
-                                  {lang === 'fr' ? 'Recommandations prioritaires' : 'Priority recommendations'}
-                                </h3>
-                              </div>
-                              <span className="text-xs font-mono text-slate-500">
-                                {r.recommendations.length} {lang === 'fr' ? 'actions' : 'actions'}
-                              </span>
-                            </div>
-                            <div className="p-4 flex flex-col gap-2">
-                              {r.recommendations.map((rec, i) => (
-                                <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                                  <span className="shrink-0 mt-0.5 w-5 h-5 rounded-full bg-amber-500/15 border border-amber-500/25 text-amber-400 text-[10px] font-bold flex items-center justify-center">
-                                    {i + 1}
-                                  </span>
-                                  <p className="text-slate-300 text-xs leading-relaxed">{rec}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
 
                         {/* CTA contextuel */}
                         {nonInfoCount >= 2 && (
@@ -1508,6 +1480,50 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                         )}
 
 
+                      </motion.div>
+                    )}
+
+                    {/* ── Onglet Recommandations ────────────────────────── */}
+                    {activeTab === 'reco' && (
+                      <motion.div
+                        key="tab-reco"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.18 }}
+                        className="flex flex-col gap-4"
+                      >
+                        {r.recommendations && r.recommendations.length > 0 ? (
+                          <>
+                            <p className="text-slate-500 text-xs px-1">
+                              {lang === 'fr'
+                                ? 'Actions correctives classées par ordre de priorité, issues de l\'analyse complète du domaine.'
+                                : 'Corrective actions ranked by priority, derived from the full domain analysis.'}
+                            </p>
+                            {r.recommendations.map((rec, i) => (
+                              <div key={i} className="flex items-start gap-4 px-4 py-3.5 rounded-xl bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition-colors">
+                                <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold flex items-center justify-center">
+                                  {i + 1}
+                                </span>
+                                <p className="text-slate-200 text-sm leading-relaxed">{rec}</p>
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center gap-3 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
+                            <div className="p-3 rounded-full bg-green-500/10 border border-green-500/20">
+                              <Shield size={24} className="text-green-400" />
+                            </div>
+                            <p className="text-green-400 font-bold text-sm">
+                              {lang === 'fr' ? 'Aucune recommandation — excellent score !' : 'No recommendations — excellent score!'}
+                            </p>
+                            <p className="text-slate-500 text-xs max-w-sm">
+                              {lang === 'fr'
+                                ? 'Le domaine ne présente aucune anomalie nécessitant une action corrective.'
+                                : 'The domain shows no anomalies requiring corrective action.'}
+                            </p>
+                          </div>
+                        )}
                       </motion.div>
                     )}
 
