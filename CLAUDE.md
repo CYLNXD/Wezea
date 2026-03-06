@@ -314,6 +314,19 @@ ls -lh /home/cyberhealth/backups/
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
 
+## 🆕 Fonctionnalités récentes (2026-03-06, session 10)
+
+### Tests — scanner.py (test_scanner.py) + bug fix dns.exception.NXDOMAIN
+- 45 nouveaux tests, total **360 tests, 0 échec**
+- Couvre : `ScoreEngine`, `DNSAuditor` (SPF + DMARC), `SSLAuditor`, `PortAuditor`
+- **Bug corrigé** : `dns.exception.NXDOMAIN` inexistant → `dns.resolver.NXDOMAIN` (scanner.py)
+  - Impact réel : domaines sans enregistrement DMARC retournaient `status:"error"` au lieu de `status:"missing"` + finding HIGH — le finding DMARC manquant n'était donc JAMAIS généré sur NXDOMAIN
+- `ScoreEngine` : 12 cas limites dont boundaries 40/60/80, clampage à 0
+- `DNSAuditorSPF` : +all permissif, ~all valide, -all strict, manquant, erreur DNS
+- `DNSAuditorDMARC` : NXDOMAIN, p=none, p=quarantine, p=reject, erreur générique, TXT sans v=DMARC1
+- `SSLAuditor` : valide, expiré, expire <30j (pénalité 0), TLSv1.1 déprécié, TLSv1.0, auto-signé, connexion refusée, timeout, détails complets
+- `PortAuditor` : RDP/SMB groupés, MySQL, PostgreSQL, FTP, SSH (INFO 0 penalty), HTTP/HTTPS (sans pénalité), hébergement mutualisé (INFO only, 0 penalty), détails tous ports présents
+
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 9)
 
 ### Tests — scheduler (test_scheduler.py)

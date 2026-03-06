@@ -310,7 +310,7 @@ class DNSAuditor(BaseAuditor):
                     ))
                 self._details["dmarc"] = {"status": "ok", "records": dmarc_records, "policy": policy}
 
-        except dns.exception.NXDOMAIN:
+        except dns.resolver.NXDOMAIN:
             self._add_dmarc_missing_finding()
             self._details["dmarc"] = {"status": "missing", "records": []}
         except Exception as exc:
