@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Shield, Clock, Globe, Trash2, ChevronRight } from 'lucide-react';
+import { Shield, Clock, Globe, Trash2, ChevronRight, FileDown, Share2, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import { apiClient } from '../lib/api';
 import PageNavbar from '../components/PageNavbar';
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface ScanSummary {
   id: number;
@@ -16,6 +15,7 @@ interface ScanSummary {
   findings_count: number;
   scan_duration: number;
   created_at: string;
+  public_share: boolean;
 }
 
 function scoreColor(score: number) {
@@ -42,10 +42,13 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
   const { authHeaders } = useAuth();
   const { lang } = useLanguage();
 
-  const [scans,   setScans]   = useState<ScanSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [scans,      setScans]      = useState<ScanSummary[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState('');
+  const [deleting,   setDeleting]   = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState<string | null>(null);
+  const [sharing,    setSharing]    = useState<string | null>(null);
+  const [copied,     setCopied]     = useState<string | null>(null);
 
   useEffect(() => {
     fetchHistory();
@@ -54,14 +57,10 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
   async function fetchHistory() {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/scans/history?limit=50`, {
-        headers: authHeaders(),
-      });
-      if (!res.ok) throw new Error('Erreur de chargement');
-      const data = await res.json();
+      const { data } = await apiClient.get<{ scans: ScanSummary[] }>('/scans/history?limit=50');
       setScans(data.scans);
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message ?? 'Erreur de chargement');
     } finally {
       setLoading(false);
     }
@@ -70,13 +69,57 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
   async function deleteScan(uuid: string) {
     setDeleting(uuid);
     try {
-      await fetch(`${API}/scans/history/${uuid}`, {
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/scans/history/${uuid}`, {
         method:  'DELETE',
         headers: authHeaders(),
       });
       setScans(prev => prev.filter(s => s.scan_uuid !== uuid));
     } finally {
       setDeleting(null);
+    }
+  }
+
+  async function exportPdf(uuid: string, domain: string) {
+    setPdfLoading(uuid);
+    try {
+      const { data, headers } = await apiClient.get(
+        `/scans/history/${uuid}/export?format=pdf&lang=${lang}`,
+        { responseType: 'blob' },
+      );
+      const cd       = (headers['content-disposition'] ?? '') as string;
+      const match    = cd.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : `rapport-${domain}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const url      = URL.createObjectURL(new Blob([data as BlobPart], { type: 'application/pdf' }));
+      const a        = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* silently ignore — user already has the history */
+    } finally {
+      setPdfLoading(null);
+    }
+  }
+
+  async function toggleShare(uuid: string) {
+    setSharing(uuid);
+    try {
+      const { data } = await apiClient.patch<{ scan_uuid: string; public_share: boolean }>(
+        `/scans/history/${uuid}/share`,
+      );
+      setScans(prev => prev.map(s =>
+        s.scan_uuid === uuid ? { ...s, public_share: data.public_share } : s,
+      ));
+      // Si le partage vient d'être activé, copier le lien
+      if (data.public_share) {
+        const link = `${window.location.origin}/r/${uuid}`;
+        await navigator.clipboard.writeText(link).catch(() => {});
+        setCopied(uuid);
+        setTimeout(() => setCopied(null), 2500);
+      }
+    } catch {
+      /* silently ignore */
+    } finally {
+      setSharing(null);
     }
   }
 
@@ -99,8 +142,6 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
       />
       <div className="px-4 py-6 flex-1">
       <div className="max-w-3xl mx-auto">
-
-
 
         {/* Stats bar */}
         {scans.length > 0 && (
@@ -163,6 +204,11 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
                     <div className="flex items-center gap-2">
                       <Globe size={13} className="text-slate-500 shrink-0" />
                       <span className="text-white font-mono text-sm truncate">{scan.domain}</span>
+                      {scan.public_share && (
+                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 font-medium">
+                          {lang === 'fr' ? 'public' : 'public'}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-xs text-slate-500 flex items-center gap-1">
@@ -178,17 +224,57 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+
+                    {/* Export PDF */}
                     <button
-                      onClick={e => { e.stopPropagation(); deleteScan(scan.scan_uuid); }}
+                      onClick={() => exportPdf(scan.scan_uuid, scan.domain)}
+                      disabled={pdfLoading === scan.scan_uuid}
+                      title={lang === 'fr' ? 'Télécharger le rapport PDF' : 'Download PDF report'}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-600 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all"
+                    >
+                      {pdfLoading === scan.scan_uuid
+                        ? <div className="w-3.5 h-3.5 border border-cyan-500/40 border-t-cyan-400 rounded-full animate-spin" />
+                        : <FileDown size={14} />}
+                    </button>
+
+                    {/* Toggle share */}
+                    <button
+                      onClick={() => toggleShare(scan.scan_uuid)}
+                      disabled={sharing === scan.scan_uuid}
+                      title={
+                        scan.public_share
+                          ? (lang === 'fr' ? 'Désactiver le lien public' : 'Disable public link')
+                          : (lang === 'fr' ? 'Activer le lien public (lien copié)' : 'Enable public link (link copied)')
+                      }
+                      className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all ${
+                        scan.public_share
+                          ? 'text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 opacity-100'
+                          : 'text-slate-600 hover:text-cyan-400 hover:bg-cyan-500/10'
+                      }`}
+                    >
+                      {sharing === scan.scan_uuid
+                        ? <div className="w-3.5 h-3.5 border border-cyan-500/40 border-t-cyan-400 rounded-full animate-spin" />
+                        : copied === scan.scan_uuid
+                          ? <Check size={14} className="text-green-400" />
+                          : scan.public_share
+                            ? <X size={14} />
+                            : <Share2 size={14} />}
+                    </button>
+
+                    {/* Delete */}
+                    <button
+                      onClick={() => deleteScan(scan.scan_uuid)}
                       disabled={deleting === scan.scan_uuid}
+                      title={lang === 'fr' ? 'Supprimer ce scan' : 'Delete this scan'}
                       className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
                     >
                       {deleting === scan.scan_uuid
                         ? <div className="w-3.5 h-3.5 border border-slate-500 border-t-transparent rounded-full animate-spin" />
                         : <Trash2 size={14} />}
                     </button>
-                    <ChevronRight size={16} className="text-slate-600 group-hover:text-slate-400 transition" />
+
+                    <ChevronRight size={16} className="text-slate-600 group-hover:text-slate-400 transition ml-1" onClick={() => onLoadScan?.(scan.scan_uuid)} />
                   </div>
                 </motion.div>
               ))}

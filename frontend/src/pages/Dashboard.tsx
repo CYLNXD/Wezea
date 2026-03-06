@@ -1317,6 +1317,35 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                           );
                         })()}
 
+                        {/* Recommandations prioritaires */}
+                        {r.recommendations && r.recommendations.length > 0 && (
+                          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
+                            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-900/60">
+                              <div className="flex items-center gap-2.5">
+                                <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                  <Zap size={14} className="text-amber-400" />
+                                </div>
+                                <h3 className="text-white font-bold text-sm">
+                                  {lang === 'fr' ? 'Recommandations prioritaires' : 'Priority recommendations'}
+                                </h3>
+                              </div>
+                              <span className="text-xs font-mono text-slate-500">
+                                {r.recommendations.length} {lang === 'fr' ? 'actions' : 'actions'}
+                              </span>
+                            </div>
+                            <div className="p-4 flex flex-col gap-2">
+                              {r.recommendations.map((rec, i) => (
+                                <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                                  <span className="shrink-0 mt-0.5 w-5 h-5 rounded-full bg-amber-500/15 border border-amber-500/25 text-amber-400 text-[10px] font-bold flex items-center justify-center">
+                                    {i + 1}
+                                  </span>
+                                  <p className="text-slate-300 text-xs leading-relaxed">{rec}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* CTA contextuel */}
                         {nonInfoCount >= 2 && (
                           <div className="bg-gradient-to-r from-cyan-950/50 to-slate-900 border border-cyan-500/25 rounded-2xl p-4">
