@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, User, Trash2, Save, AlertTriangle, CheckCircle,
+  X, Trash2, Save, AlertTriangle, CheckCircle,
   Lock, Copy, RefreshCw, Eye, EyeOff, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -233,7 +233,7 @@ export function ProfileModal({ open, onClose }: Props) {
 
   if (!open) return null;
 
-  const isPremium = user?.plan === 'starter' || user?.plan === 'pro';
+  const isPro = user?.plan === 'pro';
 
   // ── Tab definitions ───────────────────────────────────────────────────────────
   const tabs: Array<{ id: Tab; label: string }> = [
@@ -279,20 +279,56 @@ export function ProfileModal({ open, onClose }: Props) {
                 style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
               >
                 <div className="flex items-center gap-3">
-                  <div
-                    className="p-2 rounded-xl"
-                    style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.15)' }}
-                  >
-                    <User size={16} className="text-cyan-400" />
+                  {/* Skeuomorphic avatar — initiales + couleur selon plan */}
+                  <div className="relative shrink-0">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black"
+                      style={{
+                        background: user?.plan === 'pro'
+                          ? 'linear-gradient(145deg, rgba(167,139,250,0.35) 0%, rgba(139,92,246,0.15) 100%)'
+                          : user?.plan === 'starter'
+                          ? 'linear-gradient(145deg, rgba(34,211,238,0.3) 0%, rgba(6,182,212,0.12) 100%)'
+                          : 'linear-gradient(145deg, rgba(100,116,139,0.25) 0%, rgba(71,85,105,0.1) 100%)',
+                        border: user?.plan === 'pro'
+                          ? '1px solid rgba(167,139,250,0.45)'
+                          : user?.plan === 'starter'
+                          ? '1px solid rgba(34,211,238,0.4)'
+                          : '1px solid rgba(100,116,139,0.3)',
+                        boxShadow: user?.plan === 'pro'
+                          ? '0 2px 12px rgba(139,92,246,0.25), 0 1px 0 rgba(255,255,255,0.08) inset'
+                          : user?.plan === 'starter'
+                          ? '0 2px 12px rgba(34,211,238,0.2), 0 1px 0 rgba(255,255,255,0.08) inset'
+                          : '0 2px 8px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05) inset',
+                        color: user?.plan === 'pro' ? '#c4b5fd' : user?.plan === 'starter' ? '#67e8f9' : '#94a3b8',
+                      }}
+                    >
+                      {((user?.first_name ?? user?.email ?? '?')[0]).toUpperCase()}
+                    </div>
+                    {/* Badge plan */}
+                    <div
+                      className="absolute -bottom-1 -right-1 text-[8px] font-bold font-mono px-1 rounded leading-tight"
+                      style={
+                        user?.plan === 'pro'
+                          ? { color: '#a78bfa', background: 'rgba(15,10,28,0.95)', border: '1px solid rgba(167,139,250,0.35)' }
+                          : user?.plan === 'starter'
+                          ? { color: '#22d3ee', background: 'rgba(10,18,28,0.95)', border: '1px solid rgba(34,211,238,0.3)' }
+                          : { color: '#64748b', background: 'rgba(10,15,20,0.95)', border: '1px solid rgba(100,116,139,0.25)' }
+                      }
+                    >
+                      {user?.plan === 'pro' ? 'PRO' : user?.plan === 'starter' ? 'STR' : (lang === 'fr' ? 'FREE' : 'FREE')}
+                    </div>
                   </div>
+
                   <div>
                     <h2
-                      className="text-white font-bold text-base"
+                      className="text-white font-bold text-base leading-tight"
                       style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' }}
                     >
-                      {lang === 'fr' ? 'Mon profil' : 'My profile'}
+                      {user?.first_name
+                        ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}`
+                        : (lang === 'fr' ? 'Mon profil' : 'My profile')}
                     </h2>
-                    <p className="text-slate-500 text-xs">{user?.email}</p>
+                    <p className="text-slate-500 text-xs mt-0.5">{user?.email}</p>
                   </div>
                 </div>
                 <button
@@ -527,26 +563,32 @@ export function ProfileModal({ open, onClose }: Props) {
                 {/* ── API Tab ─────────────────────────────────────────────── */}
                 {tab === 'api' && (
                   <div className="flex flex-col gap-4">
-                    {!isPremium ? (
-                      /* Paywall */
+                    {!isPro ? (
+                      /* Paywall — Pro only */
                       <div
                         className="rounded-xl p-5 flex flex-col items-center gap-3 text-center"
-                        style={{ background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.12)' }}
+                        style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.18)' }}
                       >
                         <div
                           className="p-3 rounded-xl"
-                          style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.15)' }}
+                          style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.22)', boxShadow: '0 2px 12px rgba(139,92,246,0.2), 0 1px 0 rgba(255,255,255,0.06) inset' }}
                         >
-                          <KeyRound size={20} className="text-cyan-400" />
+                          <KeyRound size={20} className="text-violet-400" />
                         </div>
                         <p className="text-white font-semibold text-sm">
-                          {lang === 'fr' ? 'Clé API — plan Starter ou Pro' : 'API key — Starter or Pro plan'}
+                          {lang === 'fr' ? 'Clé API — plan Pro' : 'API key — Pro plan'}
                         </p>
                         <p className="text-slate-400 text-xs leading-relaxed">
                           {lang === 'fr'
                             ? 'Accédez à l\'API CyberHealth pour automatiser vos scans et intégrer les rapports dans vos outils.'
                             : 'Access the CyberHealth API to automate scans and integrate reports into your tools.'}
                         </p>
+                        <span
+                          className="text-[10px] font-bold font-mono px-2 py-1 rounded"
+                          style={{ color: '#a78bfa', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(167,139,250,0.25)' }}
+                        >
+                          PRO
+                        </span>
                       </div>
                     ) : (
                       <>
