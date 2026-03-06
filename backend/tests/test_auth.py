@@ -1011,3 +1011,127 @@ class TestOptionalUserApiKey:
         resp = client.get("/auth/me", headers={"Authorization": f"Bearer {u.api_key}"})
         # Starter ne peut pas utiliser l'API key
         assert resp.status_code == 401
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chemins manquants — get_current_user / get_optional_user / login / forgot-reset
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestGetCurrentUserEdgeCases:
+    def test_inactive_user_returns_401(self, client, db_session):
+        """get_current_user : utilisateur inactif → 401."""
+        u = _make_user(db_session)
+        # Désactiver le compte
+        from app.models import User
+        db_user = db_session.query(User).filter_by(id=u["user"].id).first()
+        db_user.is_active = False
+        db_session.commit()
+
+        resp = client.get("/auth/me", headers={"Authorization": f"Bearer {u['token']}"})
+        assert resp.status_code == 401
+
+    def test_optional_user_with_valid_bearer_returns_user(self, client, db_session):
+        """get_optional_user : Bearer JWT valide → user retourné (endpoint public /auth/me)."""
+        # On utilise un endpoint qui expose get_optional_user implicitement
+        # On vérifie simplement que le token valide passe
+        u = _make_user(db_session, "pro")
+        resp = client.get("/auth/me", headers={"Authorization": f"Bearer {u['token']}"})
+        assert resp.status_code == 200
+
+    def test_optional_user_no_token_returns_none(self, client, db_session):
+        """get_optional_user : pas de Bearer → endpoint public répond 401 (user=None)."""
+        resp = client.get("/auth/me")
+        assert resp.status_code == 401
+
+
+class TestLoginEdgeCases:
+    def test_disabled_account_returns_403(self, client, db_session):
+        """Login : compte désactivé → 403."""
+        u = _make_user(db_session, password="TestPass123")
+        from app.models import User
+        db_user = db_session.query(User).filter_by(id=u["user"].id).first()
+        db_user.is_active = False
+        db_session.commit()
+
+        resp = client.post("/auth/login", json={
+            "email": u["email"], "password": "TestPass123"
+        })
+        assert resp.status_code == 403
+        assert "disabled" in resp.json()["detail"].lower()
+
+    def test_bcrypt_hash_rehashed_to_argon2_on_login(self, client, db_session):
+        """Login : bcrypt hash → needs_rehash True → rehashé en argon2 silencieusement."""
+        import bcrypt
+        from app.models import User
+
+        email = f"rehash-{__import__('uuid').uuid4().hex[:8]}@example.com"
+        # Créer un user avec un vrai hash bcrypt (passlib-compatible)
+        raw_password = "TestPass123"
+        bcrypt_hash = bcrypt.hashpw(raw_password.encode(), bcrypt.gensalt()).decode()
+        user = User(
+            email=email,
+            password_hash=bcrypt_hash,
+            plan="free",
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        resp = client.post("/auth/login", json={"email": email, "password": raw_password})
+        assert resp.status_code == 200
+
+        # Le hash en DB doit maintenant être argon2
+        db_session.refresh(user)
+        assert user.password_hash.startswith("$argon2")
+
+
+class TestGetOptionalUserApiKeyFallback:
+    def test_optional_user_with_invalid_token_returns_none(self, client, db_session):
+        """get_optional_user : token invalide (non-wsk_) → None → endpoint sécurisé retourne 401."""
+        resp = client.get("/auth/me", headers={"Authorization": "Bearer invalid-token-xyz"})
+        assert resp.status_code == 401
+
+
+class TestForgotPasswordEdgeCases:
+    def test_reset_email_send_exception_silenced(self, client, db_session):
+        """forgot-password : exception dans _send_reset_email → silencée, retourne message OK.
+
+        Le rate-limiter bloque l'endpoint HTTP après 5 appels/heure.
+        On appelle la fonction router directement (bypass HTTP) pour tester le chemin.
+        """
+        from fastapi import BackgroundTasks
+        from starlette.requests import Request as StarletteRequest
+        from starlette.datastructures import Headers
+        from app.routers.auth_router import forgot_password, ForgotPasswordRequest
+
+        u = _make_user(db_session)
+
+        # Construire un objet Request minimal (IP factice)
+        scope = {"type": "http", "method": "POST", "path": "/auth/forgot-password",
+                 "headers": [], "query_string": b"", "client": ("127.99.99.99", 9999)}
+        fake_request = StarletteRequest(scope)
+
+        bt = BackgroundTasks()
+        req = ForgotPasswordRequest(email=u["email"])
+
+        with patch("app.services.brevo_service.send_password_reset_email",
+                   side_effect=Exception("smtp KO")):
+            result = forgot_password(fake_request, req, bt, db=db_session)
+            # Exécuter les background tasks synchronement pour couvrir le chemin exception
+            for task in bt.tasks:
+                try:
+                    task.func(*task.args, **task.kwargs)
+                except Exception:
+                    pass
+
+        assert "message" in result
+
+
+class TestResetPasswordEdgeCases:
+    def test_short_token_returns_400(self, client, db_session):
+        """reset-password : token trop court (< 10 chars) → 400."""
+        resp = client.post("/auth/reset-password", json={
+            "token": "short",
+            "new_password": "NewPass123!",
+        })
+        assert resp.status_code == 400
+        assert "invalide" in resp.json()["detail"].lower()

@@ -1102,3 +1102,105 @@ class TestVulnVersionAuditorAudit:
                    side_effect=RuntimeError("réseau KO")):
             result = await auditor.audit()
         assert result == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Extra checks — chemins exception/timeout manquants (extra_checks.py)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestHttpHeaderAuditorTimeout:
+    """Couvre extra_checks.py:134-135 — timeout dans HttpHeaderAuditor.audit()."""
+
+    @pytest.mark.asyncio
+    async def test_timeout_in_audit_returns_empty(self):
+        """asyncio.TimeoutError dans wait_for → [] (pas de plantage)."""
+        auditor = HttpHeaderAuditor("example.com")
+        with patch("app.extra_checks.asyncio.wait_for",
+                   side_effect=asyncio.TimeoutError()):
+            result = await auditor.audit()
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_in_audit_returns_empty(self):
+        """Exception générique dans wait_for → [] (pas de plantage)."""
+        auditor = HttpHeaderAuditor("example.com")
+        with patch("app.extra_checks.asyncio.wait_for",
+                   side_effect=RuntimeError("réseau KO")):
+            result = await auditor.audit()
+        assert result == []
+
+
+class TestEmailSecurityAuditorExceptions:
+    """Couvre extra_checks.py:256-257, 284-285 — exceptions dans DKIM/MX."""
+
+    @pytest.mark.asyncio
+    async def test_dkim_timeout_handled(self):
+        """asyncio.TimeoutError sur _check_dkim → silencieux, pas de crash."""
+        from app.extra_checks import EmailSecurityAuditor
+        auditor = EmailSecurityAuditor("example.com")
+
+        async def _fake_wait_for(coro, timeout):
+            if "dkim" in str(coro).lower():
+                raise asyncio.TimeoutError()
+            return await coro
+
+        with patch("app.extra_checks.asyncio.wait_for", side_effect=_fake_wait_for):
+            result = await auditor.audit()
+        # Pas de crash — les findings peuvent être [] ou partiels
+        assert isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_mx_exception_handled(self):
+        """Exception générique sur _check_mx → silencieux, pas de crash."""
+        from app.extra_checks import EmailSecurityAuditor
+        auditor = EmailSecurityAuditor("example.com")
+
+        call_count = [0]
+
+        async def _fake_wait_for(coro, timeout):
+            call_count[0] += 1
+            if call_count[0] == 2:   # 2ème appel = MX
+                raise RuntimeError("DNS failure")
+            return await coro
+
+        with patch("app.extra_checks.asyncio.wait_for", side_effect=_fake_wait_for):
+            result = await auditor.audit()
+        assert isinstance(result, list)
+
+
+class TestTechExposureAuditorTimeout:
+    """Couvre extra_checks.py:318-326 — timeout dans TechExposureAuditor.audit()."""
+
+    @pytest.mark.asyncio
+    async def test_timeout_returns_empty(self):
+        """asyncio.TimeoutError dans TechExposureAuditor.audit() → []."""
+        from app.extra_checks import TechExposureAuditor
+        auditor = TechExposureAuditor("example.com")
+        with patch("app.extra_checks.asyncio.wait_for",
+                   side_effect=asyncio.TimeoutError()):
+            result = await auditor.audit()
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_returns_empty(self):
+        """Exception générique → []."""
+        from app.extra_checks import TechExposureAuditor
+        auditor = TechExposureAuditor("example.com")
+        with patch("app.extra_checks.asyncio.wait_for",
+                   side_effect=Exception("crash")):
+            result = await auditor.audit()
+        assert result == []
+
+
+class TestReputationAuditorTimeout:
+    """Couvre extra_checks.py:523-524 — timeout dans ReputationAuditor.audit()."""
+
+    @pytest.mark.asyncio
+    async def test_timeout_returns_empty(self):
+        """asyncio.TimeoutError dans ReputationAuditor → []."""
+        from app.extra_checks import ReputationAuditor
+        auditor = ReputationAuditor("example.com")
+        with patch("app.extra_checks.asyncio.wait_for",
+                   side_effect=asyncio.TimeoutError()):
+            result = await auditor.audit()
+        assert result == []
