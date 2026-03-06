@@ -314,6 +314,15 @@ ls -lh /home/cyberhealth/backups/
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
 
+## 🆕 Fonctionnalités récentes (2026-03-06, session 7)
+
+### Tests — contact_router + newsletter_router (test_contact_newsletter.py)
+- 27 nouveaux tests, total **213 tests, 0 échec**
+- Couvre : `GET /contact/subjects`, `POST /contact`, `POST /newsletter/subscribe`, `GET /newsletter/confirm/{token}`, `POST /newsletter/unsubscribe`
+- Tous les appels Brevo mockés via `autouse` fixture
+- Bug corrigé au passage : `POST /newsletter/subscribe` retournait 200 au lieu de 202 (`JSONResponse` ignorait le `status_code` du décorateur) → ajout de `status_code=202` sur les 4 `JSONResponse` de l'endpoint
+- Stratégie rate limit : validation Pydantic directe pour le test des sujets (les 422 consomment aussi le compteur SlowAPI)
+
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 6)
 
 ### Tests — admin_router (test_admin.py)

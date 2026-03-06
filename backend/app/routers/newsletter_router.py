@@ -70,7 +70,7 @@ async def subscribe(
     if existing:
         if existing.confirmed and not existing.unsubscribed:
             # Déjà abonné — on ne révèle pas l'info mais on renvoie 202 silencieusement
-            return JSONResponse({"status": "pending"})
+            return JSONResponse({"status": "pending"}, status_code=202)
         if existing.unsubscribed:
             # Ré-abonnement après désabonnement : on réactive
             existing.unsubscribed = False
@@ -83,13 +83,13 @@ async def subscribe(
             asyncio.create_task(
                 brevo_service.send_newsletter_confirmation_email(email, existing.token)
             )
-            return JSONResponse({"status": "pending"})
+            return JSONResponse({"status": "pending"}, status_code=202)
         # Déjà en attente de confirmation — renvoi du même token
         if existing.token:
             asyncio.create_task(
                 brevo_service.send_newsletter_confirmation_email(email, existing.token)
             )
-        return JSONResponse({"status": "pending"})
+        return JSONResponse({"status": "pending"}, status_code=202)
 
     # Nouveau contact
     token = secrets.token_urlsafe(32)
@@ -106,7 +106,7 @@ async def subscribe(
         brevo_service.send_newsletter_confirmation_email(email, token)
     )
 
-    return JSONResponse({"status": "pending"})
+    return JSONResponse({"status": "pending"}, status_code=202)
 
 
 # ── GET /newsletter/confirm/{token} ──────────────────────────────────────────
