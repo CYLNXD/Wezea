@@ -1,5 +1,5 @@
 // ─── AdminPage.tsx — Dashboard admin Wezea ─────────────────────────────────
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import {
   Shield, Users, Trash2, RefreshCw, CheckCircle, XCircle,
@@ -137,6 +137,27 @@ function Sparkline({
   );
 }
 
+// ─── SkuIcon ──────────────────────────────────────────────────────────────────
+
+function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: string; size?: number }) {
+  const r = Math.round(size * 0.28);
+  return (
+    <div
+      className="shrink-0 flex items-center justify-center relative overflow-hidden"
+      style={{
+        width: size, height: size, borderRadius: r,
+        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
+        border: `1px solid ${color}40`,
+        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
+      }}
+    >
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
+      {children}
+    </div>
+  );
+}
+
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
 function KpiCard({
@@ -150,7 +171,7 @@ function KpiCard({
   label: string;
   value: string;
   sub?: string;
-  color: string;
+  color: string;        // hex color, e.g. '#4ade80'
   icon: React.ElementType;
   trend?: 'up' | 'down' | 'neutral';
 }) {
@@ -163,9 +184,9 @@ function KpiCard({
     >
       <div className="flex items-center justify-between">
         <span className="text-slate-500 text-[11px] font-mono uppercase tracking-wider">{label}</span>
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon size={14} />
-        </div>
+        <SkuIcon color={color} size={28}>
+          <Icon size={13} style={{ color }} />
+        </SkuIcon>
       </div>
       <p className="text-2xl font-black font-mono text-white">{value}</p>
       {sub && <p className={`text-[11px] font-mono ${trendClass}`}>{sub}</p>}
@@ -193,7 +214,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
       label: 'MRR',
       value: `${mrr} €`,
       sub: `revenu mensuel récurrent`,
-      color: 'bg-emerald-500/10 text-emerald-400',
+      color: '#4ade80',   // emerald
       icon: DollarSign,
       trend: 'neutral' as const,
     },
@@ -201,7 +222,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
       label: 'Revenu 30j',
       value: `${rev30d} €`,
       sub: `${metrics.conversions_30d} paiement${metrics.conversions_30d > 1 ? 's' : ''} complété${metrics.conversions_30d > 1 ? 's' : ''}`,
-      color: 'bg-cyan-500/10 text-cyan-400',
+      color: '#22d3ee',   // cyan
       icon: TrendingUp,
       trend: metrics.conversions_30d > 0 ? 'up' as const : 'neutral' as const,
     },
@@ -209,7 +230,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
       label: 'Taux de conversion',
       value: `${metrics.conversion_rate}%`,
       sub: `free → payant (total)`,
-      color: 'bg-purple-500/10 text-purple-400',
+      color: '#a78bfa',   // violet/purple
       icon: ArrowUpRight,
       trend: metrics.conversion_rate > 5 ? 'up' as const : 'neutral' as const,
     },
@@ -217,7 +238,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
       label: 'Churns 30j',
       value: String(metrics.churns_30d),
       sub: `résiliations ce mois`,
-      color: metrics.churns_30d > 0 ? 'bg-red-500/10 text-red-400' : 'bg-slate-800 text-slate-500',
+      color: metrics.churns_30d > 0 ? '#f87171' : '#64748b',   // red ou slate
       icon: Zap,
       trend: metrics.churns_30d > 0 ? 'down' as const : 'neutral' as const,
     },
@@ -225,7 +246,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
       label: 'Inscrits 30j',
       value: String(metrics.new_signups_30d),
       sub: `nouveaux comptes`,
-      color: 'bg-yellow-500/10 text-yellow-400',
+      color: '#fbbf24',   // amber/yellow
       icon: UserPlus,
       trend: metrics.new_signups_30d > 0 ? 'up' as const : 'neutral' as const,
     },
@@ -233,7 +254,7 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
       label: 'Actifs 7j',
       value: String(metrics.active_users_7d),
       sub: `users avec ≥1 scan`,
-      color: 'bg-sky-500/10 text-sky-400',
+      color: '#38bdf8',   // sky
       icon: Users,
       trend: 'neutral' as const,
     },
