@@ -830,9 +830,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                   {/* Domain cards */}
                   {domains.length === 0 ? (
                     <div className="flex flex-col items-center gap-4 py-20 text-center">
-                      <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
-                        <Globe size={28} className="text-slate-600" />
-                      </div>
+                      <SkuIcon color="#22d3ee" size={52}><Globe size={24} className="text-cyan-300" /></SkuIcon>
                       <p className="text-slate-300 font-bold text-lg">{lang === 'fr' ? 'Aucun domaine sous surveillance' : 'No domain monitored'}</p>
                       <p className="text-slate-600 text-sm max-w-sm">
                         {lang === 'fr' ? 'Activez le monitoring pour recevoir des alertes automatiques chaque semaine.' : 'Enable monitoring to receive automatic alerts every week.'}
