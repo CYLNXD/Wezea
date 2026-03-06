@@ -10,7 +10,7 @@ Stratégie :
 import uuid as _uuid
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -342,3 +342,102 @@ class TestOnboardingIsolation:
         db_session.commit()
         await _run_onboarding(db_session)
         brevo_mocks["nudge_j1"].assert_not_called()
+
+
+# =============================================================================
+# _async_monitoring — boucle orchestratrice du monitoring par domaine
+# =============================================================================
+
+class TestAsyncMonitoring:
+    """Tests pour scheduler._async_monitoring (boucle de monitoring)."""
+
+    @pytest.mark.asyncio
+    async def test_calls_scan_and_alert_for_each_active_domain(
+        self, db_session
+    ):
+        """_async_monitoring appelle _scan_and_alert pour chaque domaine actif."""
+        from app.models import MonitoredDomain
+        u = _make_user(db_session, plan="starter")
+
+        for i in range(3):
+            db_session.add(MonitoredDomain(
+                user_id=u.id, domain=f"domain{i}.com", is_active=True,
+            ))
+        db_session.commit()
+
+        mock_sna    = AsyncMock()
+        mock_should = MagicMock(return_value=True)   # tous les domaines sont dus
+
+        with patch("app.scheduler._scan_and_alert",  mock_sna), \
+             patch("app.scheduler._should_scan_now", mock_should), \
+             patch("app.database.SessionLocal",      return_value=db_session):
+            from app.scheduler import _async_monitoring
+            await _async_monitoring()
+
+        assert mock_sna.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_skips_domain_when_not_due(self, db_session):
+        """Domaine non-dû (_should_scan_now=False) → _scan_and_alert non appelé."""
+        from app.models import MonitoredDomain
+        u = _make_user(db_session, plan="starter")
+        db_session.add(MonitoredDomain(
+            user_id=u.id, domain="not-due.com", is_active=True,
+        ))
+        db_session.commit()
+
+        mock_sna = AsyncMock()
+        with patch("app.scheduler._scan_and_alert",  mock_sna), \
+             patch("app.scheduler._should_scan_now",  MagicMock(return_value=False)), \
+             patch("app.database.SessionLocal",       return_value=db_session):
+            from app.scheduler import _async_monitoring
+            await _async_monitoring()
+
+        mock_sna.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_exception_in_one_scan_does_not_stop_loop(self, db_session):
+        """Exception sur un domaine → le domaine suivant est quand même scanné."""
+        from app.models import MonitoredDomain
+        u = _make_user(db_session, plan="starter")
+        for i in range(2):
+            db_session.add(MonitoredDomain(
+                user_id=u.id, domain=f"site{i}.com", is_active=True,
+            ))
+        db_session.commit()
+
+        call_count = 0
+
+        async def _mock_sna(m, db):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("réseau KO")
+
+        with patch("app.scheduler._scan_and_alert",  _mock_sna), \
+             patch("app.scheduler._should_scan_now",  MagicMock(return_value=True)), \
+             patch("app.database.SessionLocal",       return_value=db_session):
+            from app.scheduler import _async_monitoring
+            await _async_monitoring()
+
+        # Les deux domaines ont été tentés malgré l'exception sur le premier
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_inactive_domains_are_not_scanned(self, db_session):
+        """Domaines inactifs (is_active=False) non inclus dans la boucle."""
+        from app.models import MonitoredDomain
+        u = _make_user(db_session, plan="starter")
+        db_session.add(MonitoredDomain(
+            user_id=u.id, domain="inactive.com", is_active=False,
+        ))
+        db_session.commit()
+
+        mock_sna = AsyncMock()
+        with patch("app.scheduler._scan_and_alert",  mock_sna), \
+             patch("app.scheduler._should_scan_now",  MagicMock(return_value=True)), \
+             patch("app.database.SessionLocal",       return_value=db_session):
+            from app.scheduler import _async_monitoring
+            await _async_monitoring()
+
+        mock_sna.assert_not_called()

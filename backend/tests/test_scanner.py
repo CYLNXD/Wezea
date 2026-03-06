@@ -487,3 +487,249 @@ class TestPortAuditor:
         from app.scanner import MONITORED_PORTS
         for port in MONITORED_PORTS:
             assert port in auditor._details, f"Port {port} absent de _details"
+
+
+# =============================================================================
+# AuditManager — orchestrateur de scans
+# =============================================================================
+
+from contextlib import ExitStack
+from unittest.mock import AsyncMock
+
+
+def _mock_auditor(findings=None, details=None):
+    """Crée un auditeur mock avec audit() AsyncMock et get_details() stub."""
+    m = MagicMock()
+    m.audit      = AsyncMock(return_value=findings or [])
+    m.get_details = MagicMock(return_value=details or {})
+    return m
+
+
+def _all_auditor_patches(
+    dns_mock=None, ssl_mock=None, port_mock=None,
+    header_mock=None, email_mock=None, tech_mock=None, rep_mock=None,
+    sub_mock=None, vuln_mock=None,
+):
+    """
+    Retourne une liste de patch() pour tous les auditeurs.
+    Chaque auditeur peut être remplacé par un mock personnalisé.
+    """
+    return [
+        patch("app.scanner.DNSAuditor",               return_value=dns_mock    or _mock_auditor()),
+        patch("app.scanner.SSLAuditor",               return_value=ssl_mock    or _mock_auditor()),
+        patch("app.scanner.PortAuditor",              return_value=port_mock   or _mock_auditor()),
+        patch("app.extra_checks.HttpHeaderAuditor",   return_value=header_mock or _mock_auditor()),
+        patch("app.extra_checks.EmailSecurityAuditor",return_value=email_mock  or _mock_auditor()),
+        patch("app.extra_checks.TechExposureAuditor", return_value=tech_mock   or _mock_auditor()),
+        patch("app.extra_checks.ReputationAuditor",   return_value=rep_mock    or _mock_auditor()),
+        patch("app.advanced_checks.SubdomainAuditor", return_value=sub_mock    or _mock_auditor()),
+        patch("app.advanced_checks.VulnVersionAuditor",return_value=vuln_mock  or _mock_auditor()),
+    ]
+
+
+class TestAuditManagerInit:
+    """Tests pour AuditManager.__init__ (sélection des auditeurs)."""
+
+    def test_free_plan_no_premium_auditors(self):
+        """Plan free → 7 auditeurs de base, 0 premium."""
+        from app.scanner import AuditManager
+        with ExitStack() as stack:
+            for p in _all_auditor_patches():
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="free")
+        assert len(manager._auditors)         == 7
+        assert len(manager._premium_auditors) == 0
+        assert manager._subdomain_auditor     is None
+        assert manager._vuln_auditor          is None
+
+    def test_starter_plan_has_premium_auditors(self):
+        """Plan starter → 7 de base + 2 premium (subdomain + vuln)."""
+        from app.scanner import AuditManager
+        with ExitStack() as stack:
+            for p in _all_auditor_patches():
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="starter")
+        assert len(manager._auditors)         == 7
+        assert len(manager._premium_auditors) == 2
+        assert manager._subdomain_auditor     is not None
+        assert manager._vuln_auditor          is not None
+
+    def test_pro_plan_has_premium_auditors(self):
+        """Plan pro → même comportement que starter."""
+        from app.scanner import AuditManager
+        with ExitStack() as stack:
+            for p in _all_auditor_patches():
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="pro")
+        assert len(manager._premium_auditors) == 2
+
+    def test_domain_lowercased_and_stripped(self):
+        """Le domaine est normalisé en minuscules sans espaces."""
+        from app.scanner import AuditManager
+        with ExitStack() as stack:
+            for p in _all_auditor_patches():
+                stack.enter_context(p)
+            manager = AuditManager("  EXAMPLE.COM  ", plan="free")
+        assert manager.domain == "example.com"
+
+    def test_checks_config_excludes_disabled_checks(self):
+        """checks_config={dns: False} → DNSAuditor exclu de _auditors."""
+        from app.scanner import AuditManager
+        dns_cls = MagicMock(return_value=_mock_auditor())
+        with ExitStack() as stack:
+            patches = _all_auditor_patches(dns_mock=_mock_auditor())
+            patches[0] = patch("app.scanner.DNSAuditor", dns_cls)
+            for p in patches:
+                stack.enter_context(p)
+            manager = AuditManager(
+                "example.com", plan="free",
+                checks_config={"dns": False, "ssl": True, "ports": True,
+                               "headers": True, "email": True, "tech": True,
+                               "reputation": True},
+            )
+        # DNS exclu → 6 auditeurs au lieu de 7
+        assert len(manager._auditors) == 6
+        # La classe DNS n'a pas été utilisée dans _auditors
+        dns_cls.assert_called_once()  # instancié mais pas inclus
+
+    def test_no_checks_config_uses_all_auditors(self):
+        """Sans checks_config → les 7 auditeurs sont inclus."""
+        from app.scanner import AuditManager
+        with ExitStack() as stack:
+            for p in _all_auditor_patches():
+                stack.enter_context(p)
+            manager = AuditManager("example.com")
+        assert len(manager._auditors) == 7
+
+
+class TestAuditManagerRun:
+    """Tests pour AuditManager.run() (orchestration + ScanResult)."""
+
+    @pytest.mark.asyncio
+    async def test_run_returns_scan_result_fields(self):
+        """run() retourne un ScanResult avec tous les champs attendus."""
+        from app.scanner import AuditManager, ScanResult
+        with ExitStack() as stack:
+            for p in _all_auditor_patches():
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="free")
+            result  = await manager.run()
+        assert isinstance(result, ScanResult)
+        assert result.domain           == "example.com"
+        assert isinstance(result.security_score, int)
+        assert result.risk_level       in ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+        assert isinstance(result.findings, list)
+        assert isinstance(result.scan_duration_ms, int)
+        assert result.scan_duration_ms >= 0
+
+    @pytest.mark.asyncio
+    async def test_run_aggregates_findings_from_all_auditors(self):
+        """run() fusionne les findings de tous les auditeurs."""
+        from app.scanner import AuditManager, Finding
+        f1 = Finding(category="DNS & Mail", severity="HIGH",   title="DNS issue",  technical_detail="", plain_explanation="", penalty=15, recommendation="Fix DNS")
+        f2 = Finding(category="SSL",        severity="MEDIUM", title="SSL issue",  technical_detail="", plain_explanation="", penalty=10, recommendation="Fix SSL")
+        f3 = Finding(category="Ports",      severity="HIGH",   title="Port issue", technical_detail="", plain_explanation="", penalty=12, recommendation="Fix port")
+        dns_mock  = _mock_auditor(findings=[f1])
+        ssl_mock  = _mock_auditor(findings=[f2])
+        port_mock = _mock_auditor(findings=[f3])
+        with ExitStack() as stack:
+            for p in _all_auditor_patches(
+                dns_mock=dns_mock, ssl_mock=ssl_mock, port_mock=port_mock
+            ):
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="free")
+            result  = await manager.run()
+        assert len(result.findings) == 3
+        titles = [f.title for f in result.findings]
+        assert "DNS issue"  in titles
+        assert "SSL issue"  in titles
+        assert "Port issue" in titles
+
+    @pytest.mark.asyncio
+    async def test_run_findings_sorted_by_penalty_descending(self):
+        """Les findings sont triés par penalty décroissant."""
+        from app.scanner import AuditManager, Finding
+        f_low  = Finding(category="DNS", severity="LOW",    title="Low",  technical_detail="", plain_explanation="", penalty=3,  recommendation="")
+        f_high = Finding(category="SSL", severity="HIGH",   title="High", technical_detail="", plain_explanation="", penalty=15, recommendation="")
+        f_med  = Finding(category="P",   severity="MEDIUM", title="Med",  technical_detail="", plain_explanation="", penalty=8,  recommendation="")
+        with ExitStack() as stack:
+            for p in _all_auditor_patches(
+                dns_mock=_mock_auditor(findings=[f_low]),
+                ssl_mock=_mock_auditor(findings=[f_high]),
+                port_mock=_mock_auditor(findings=[f_med]),
+            ):
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="free")
+            result  = await manager.run()
+        assert result.findings[0].penalty >= result.findings[1].penalty
+        assert result.findings[1].penalty >= result.findings[2].penalty
+
+    @pytest.mark.asyncio
+    async def test_run_exception_in_one_auditor_does_not_stop_others(self):
+        """Si un auditeur lève une exception, les autres continuent."""
+        from app.scanner import AuditManager, Finding
+        bad_auditor = MagicMock()
+        bad_auditor.audit = AsyncMock(side_effect=RuntimeError("réseau KO"))
+        bad_auditor.get_details = MagicMock(return_value={})
+        good_finding = Finding(category="SSL", severity="LOW", title="OK finding", technical_detail="", plain_explanation="", penalty=5, recommendation="")
+        with ExitStack() as stack:
+            for p in _all_auditor_patches(
+                dns_mock=bad_auditor,
+                ssl_mock=_mock_auditor(findings=[good_finding]),
+            ):
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="free")
+            result  = await manager.run()
+        # Exception ignorée par gather(return_exceptions=True) → finding SSL présent
+        assert any(f.title == "OK finding" for f in result.findings)
+
+    @pytest.mark.asyncio
+    async def test_run_no_premium_details_for_free_plan(self):
+        """Plan free → subdomain_details et vuln_details vides."""
+        from app.scanner import AuditManager
+        with ExitStack() as stack:
+            for p in _all_auditor_patches():
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="free")
+            result  = await manager.run()
+        assert result.subdomain_details == {}
+        assert result.vuln_details      == {}
+
+    @pytest.mark.asyncio
+    async def test_run_premium_details_populated_for_starter(self):
+        """Plan starter → subdomain_details et vuln_details remplis."""
+        from app.scanner import AuditManager
+        sub_mock  = _mock_auditor(details={"total_found": 3, "subdomains": ["a", "b", "c"]})
+        vuln_mock = _mock_auditor(details={"detected_stack": ["PHP/7.4"]})
+        with ExitStack() as stack:
+            for p in _all_auditor_patches(sub_mock=sub_mock, vuln_mock=vuln_mock):
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="starter")
+            result  = await manager.run()
+        assert result.subdomain_details == {"total_found": 3, "subdomains": ["a", "b", "c"]}
+        assert result.vuln_details      == {"detected_stack": ["PHP/7.4"]}
+
+    @pytest.mark.asyncio
+    async def test_run_score_computed_from_findings(self):
+        """Le score est calculé à partir des pénalités des findings."""
+        from app.scanner import AuditManager, Finding
+        # Un finding penalty=20 → score = 80
+        f = Finding(category="DNS", severity="HIGH", title="Big issue", technical_detail="", plain_explanation="", penalty=20, recommendation="")
+        with ExitStack() as stack:
+            for p in _all_auditor_patches(dns_mock=_mock_auditor(findings=[f])):
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="free")
+            result  = await manager.run()
+        assert result.security_score == 80
+
+    @pytest.mark.asyncio
+    async def test_run_empty_auditors_perfect_score(self):
+        """Aucun finding → score 100 et risk_level LOW."""
+        from app.scanner import AuditManager
+        with ExitStack() as stack:
+            for p in _all_auditor_patches():
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="free")
+            result  = await manager.run()
+        assert result.security_score == 100
+        assert result.risk_level     == "LOW"
