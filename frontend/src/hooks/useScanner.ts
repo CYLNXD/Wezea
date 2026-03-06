@@ -6,7 +6,7 @@
 //   3. La synchronisation : on attend que LES DEUX soient terminés avant d'afficher
 //
 import { useState, useCallback, useRef } from 'react';
-import { scanDomain, extractApiError, extractRateLimitDetail } from '../lib/api';
+import { scanDomain, extractApiError, extractRateLimitDetail, apiClient } from '../lib/api';
 import type { RateLimitInfo } from '../lib/api';
 import type { ConsoleLog, ScanResult, ScanStatus } from '../types/scanner';
 
@@ -74,8 +74,9 @@ export interface ScannerState {
 }
 
 export interface ScannerActions {
-  startScan: (domain: string, lang?: string) => Promise<void>;
-  reset:     () => void;
+  startScan:       (domain: string, lang?: string) => Promise<void>;
+  loadFromHistory: (scanUuid: string) => Promise<void>;
+  reset:           () => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -226,5 +227,42 @@ export function useScanner(): ScannerState & ScannerActions {
     });
   }, []);
 
-  return { ...state, startScan, reset };
+  // ── Charge un scan existant depuis l'historique (sans simulation) ──────────
+  // Mappings API → ScanResult :
+  //   scan_uuid      → scan_id
+  //   created_at     → scanned_at
+  //   scan_duration  → scan_duration_ms (×1000)
+  const loadFromHistory = useCallback(async (scanUuid: string) => {
+    clearAllTimers();
+    setState(prev => ({ ...prev, status: 'scanning', result: null, error: null, consoleLogs: [], progress: 50 }));
+    try {
+      const { data } = await apiClient.get(`/scans/history/${scanUuid}`);
+      const result: ScanResult = {
+        scan_id:           data.scan_uuid,
+        domain:            data.domain,
+        scanned_at:        data.created_at,
+        security_score:    data.security_score,
+        risk_level:        data.risk_level,
+        findings:          data.findings ?? [],
+        dns_details:       data.dns_details      ?? {},
+        ssl_details:       data.ssl_details      ?? {},
+        port_details:      data.port_details      ?? {},
+        recommendations:   data.recommendations   ?? [],
+        scan_duration_ms:  (data.scan_duration ?? 0) * 1000,
+        subdomain_details: data.subdomain_details ?? {},
+        vuln_details:      data.vuln_details      ?? {},
+        meta:              {},
+      };
+      setState(prev => ({ ...prev, status: 'success', result, progress: 100 }));
+    } catch {
+      setState(prev => ({
+        ...prev,
+        status: 'error',
+        error:  'Impossible de charger ce scan.',
+        progress: 0,
+      }));
+    }
+  }, []);
+
+  return { ...state, startScan, loadFromHistory, reset };
 }

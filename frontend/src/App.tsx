@@ -21,7 +21,8 @@ export default function App() {
   const [page, setPage]               = useState<Page>('dashboard');
   const [legalSection, setLegalSection] = useState<LegalSection>('mentions');
   const [loginMode, setLoginMode]       = useState<'login' | 'register'>('login');
-  const [publicScanUuid, setPublicScanUuid] = useState<string | null>(null);
+  const [publicScanUuid, setPublicScanUuid]   = useState<string | null>(null);
+  const [pendingScanUuid, setPendingScanUuid] = useState<string | null>(null);
 
   // Initialise le cookie d'identification anonyme et restaure le consentement analytics
   useEffect(() => {
@@ -71,6 +72,8 @@ export default function App() {
             onGoClientSpace={()  => setPage('clientspace')}
             onGoContact={()      => setPage('contact')}
             onGoLegal={(s)       => { setLegalSection((s ?? 'mentions') as LegalSection); setPage('legal'); }}
+            initialScanUuid={pendingScanUuid}
+            onScanUuidConsumed={() => setPendingScanUuid(null)}
           />
         )}
         {page === 'login' && (
@@ -79,7 +82,7 @@ export default function App() {
         {page === 'history' && (
           <HistoryPage
             onBack={() => setPage('dashboard')}
-            onLoadScan={() => setPage('dashboard')}
+            onLoadScan={(uuid) => { setPendingScanUuid(uuid); setPage('dashboard'); }}
             onGoAdmin={() => setPage('admin')}
             onGoClientSpace={() => setPage('clientspace')}
             onGoContact={() => setPage('contact')}

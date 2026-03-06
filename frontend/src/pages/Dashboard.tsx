@@ -67,16 +67,20 @@ function CountUp({ to, suffix = '' }: { to: number; suffix?: string }) {
 }
 
 interface Props {
-  onGoLogin?:    () => void;
-  onGoRegister?: () => void;
-  onGoHistory?:     () => void;
-  onGoAdmin?:       () => void;
-  onGoClientSpace?: () => void;
-  onGoContact?:     () => void;
-  onGoLegal?:       (section?: string) => void;
+  onGoLogin?:      () => void;
+  onGoRegister?:   () => void;
+  onGoHistory?:    () => void;
+  onGoAdmin?:      () => void;
+  onGoClientSpace?:() => void;
+  onGoContact?:    () => void;
+  onGoLegal?:      (section?: string) => void;
+  /** UUID d'un scan historique à charger directement (depuis HistoryPage) */
+  initialScanUuid?: string | null;
+  /** Appelé une fois le scan historique chargé — pour réinitialiser le prop côté App */
+  onScanUuidConsumed?: () => void;
 }
 
-export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAdmin, onGoClientSpace, onGoContact, onGoLegal }: Props) {
+export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAdmin, onGoClientSpace, onGoContact, onGoLegal, initialScanUuid, onScanUuidConsumed }: Props) {
   const [domain, setDomain]         = useState('');
   const [modalOpen, setModalOpen]   = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -140,6 +144,15 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   useEffect(() => {
     apiClient.get('/public/stats').then(r => setPublicStats(r.data)).catch(() => {});
   }, []);
+
+  // ── Chargement d'un scan historique (depuis HistoryPage) ───────────────────
+  useEffect(() => {
+    if (!initialScanUuid) return;
+    scanner.loadFromHistory(initialScanUuid);
+    onScanUuidConsumed?.();
+    // Scroller vers les résultats après un court délai
+    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 600);
+  }, [initialScanUuid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Confirmation newsletter (retour depuis le lien email) ──────────────────
   useEffect(() => {
