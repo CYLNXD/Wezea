@@ -142,6 +142,9 @@ def _ensure_plan_from_subscription(subscription_id: str, db: Session) -> None:
         user = _user_from_subscription(subscription_id, db)
         plan = _plan_from_subscription(subscription_id)
         if user and (user.plan != plan or user.subscription_status != "active"):
+            # Sécurité : ne jamais modifier le plan d'un admin via Stripe
+            if user.is_admin:
+                return
             user.plan                = plan
             user.subscription_status = "active"
             db.commit()
@@ -154,6 +157,9 @@ def _downgrade_from_subscription(subscription_id: str, db: Session) -> None:
     try:
         user = _user_from_subscription(subscription_id, db)
         if user:
+            # Sécurité : ne jamais downgrader un admin via Stripe
+            if user.is_admin:
+                return
             user.plan                = "free"
             user.subscription_status = "cancelled"
             db.commit()
@@ -272,9 +278,11 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 pass
 
         if user:
-            user.plan                    = plan
-            user.subscription_status     = "active"
-            user.subscription_expires_at = None
+            # Sécurité : ne jamais modifier le plan d'un admin via Stripe
+            if not user.is_admin:
+                user.plan                    = plan
+                user.subscription_status     = "active"
+                user.subscription_expires_at = None
             # Stocker le customer Stripe pour résistance à la recréation de DB
             if customer_id and not user.stripe_customer_id:
                 user.stripe_customer_id = customer_id
