@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 13)
+> Dernière mise à jour : 2026-03-06 (session 14)
 
 ---
 
@@ -313,6 +313,17 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-06, session 14)
+
+### Tests — report_service.py (test_report_service.py)
+- 68 nouveaux tests, total **518 tests, 0 échec**
+- 5 nouvelles classes : `TestScoreColor`, `TestRiskColor`, `TestRiskLabel`, `TestBuildActionPlan`, `TestBuildContext`
+- `TestScoreColor` (9 tests) : boundaries exactes 70/69/40/39, limites 0 et 100
+- `TestRiskColor` (6 tests) : CRITICAL/HIGH/MEDIUM/LOW + unknown/vide → gris par défaut
+- `TestRiskLabel` (10 tests) : fr (Critique/Élevé/Modéré/Faible) + en (Critical/High/Moderate/Low) + niveau inconnu → retourné tel quel + lang inconnue → fallback fr
+- `TestBuildActionPlan` (12 tests) : phases vides, SPF→urgent, DKIM→important, SSH→optimize, déduplication (2 findings identiques → 1 action), lang=en, multi-phase, plafond 5 en optimize, DMARC→urgent, SSL expiré→urgent
+- `TestBuildContext` (31 tests) : domain/scan_id/score, score_color/risk_color/risk_label calculés, groupes par catégorie, compteurs severity, checks_context, actions, is_premium, format date fr/en + fallback, white-label (enabled/disabled/company/color)
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 13)
 
