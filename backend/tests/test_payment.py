@@ -435,3 +435,213 @@ class TestCancelSubscription:
 
     def test_unauthenticated_returns_401(self, client, db_session):
         assert client.post("/payment/cancel").status_code == 401
+
+
+# =============================================================================
+# Helpers Stripe — _plan_from_subscription + _user_from_subscription
+# =============================================================================
+
+class TestPlanFromSubscription:
+    """Tests pour _plan_from_subscription (logique pure, Stripe mocké)."""
+
+    def _call(self, items=None, raise_exc=False):
+        from app.routers.payment_router import _plan_from_subscription
+        sub_mock = MagicMock()
+        if raise_exc:
+            sub_mock.side_effect = Exception("Stripe KO")
+        else:
+            sub_mock.return_value = {
+                "items": {"data": items or []}
+            }
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve = sub_mock
+            # Reproduit le mapping réel
+            from app.routers.payment_router import _PRICE_TO_PLAN
+            s.Subscription.retrieve.return_value = {"items": {"data": items or []}}
+            return _plan_from_subscription("sub_xxx")
+
+    def test_returns_pro_as_default_when_no_items(self):
+        result = self._call(items=[])
+        assert result == "pro"
+
+    def test_returns_pro_on_stripe_exception(self):
+        from app.routers.payment_router import _plan_from_subscription
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve.side_effect = Exception("KO")
+            result = _plan_from_subscription("sub_xxx")
+        assert result == "pro"
+
+    def test_returns_pro_when_price_unknown(self):
+        from app.routers.payment_router import _plan_from_subscription
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve.return_value = {
+                "items": {"data": [{"price": {"id": "price_unknown_xyz"}}]}
+            }
+            result = _plan_from_subscription("sub_xxx")
+        assert result == "pro"
+
+    def test_resolves_starter_price_id(self):
+        from app.routers.payment_router import _plan_from_subscription, _PRICE_TO_PLAN
+        if not _PRICE_TO_PLAN:
+            pytest.skip("_PRICE_TO_PLAN vide (pas de clés Stripe configurées)")
+        starter_price = next(
+            (k for k, v in _PRICE_TO_PLAN.items() if v == "starter"), None
+        )
+        if not starter_price:
+            pytest.skip("Aucun price_id starter dans _PRICE_TO_PLAN")
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve.return_value = {
+                "items": {"data": [{"price": {"id": starter_price}}]}
+            }
+            result = _plan_from_subscription("sub_xxx")
+        assert result == "starter"
+
+
+class TestUserFromSubscription:
+    """
+    Tests pour _user_from_subscription — 3 niveaux de résolution :
+      1. stripe_customer_id stocké en DB
+      2. email du Stripe Customer
+      3. metadata.user_id (fallback legacy)
+    """
+
+    def _sub_mock(self, customer_id: str | None = "cus_test", uid_meta: str | None = None):
+        """Retourne un dict simul-Stripe Subscription."""
+        return {
+            "customer": customer_id,
+            "metadata": {"user_id": uid_meta} if uid_meta else {},
+        }
+
+    def test_resolves_via_stripe_customer_id_in_db(self, db_session):
+        u = _make_user(
+            db_session, plan="starter",
+            stripe_customer_id="cus_abc123",
+            subscription_status="active",
+        )
+        from app.routers.payment_router import _user_from_subscription
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve.return_value = self._sub_mock(customer_id="cus_abc123")
+            result = _user_from_subscription("sub_xxx", db_session)
+        assert result is not None
+        assert result.id == u["user"].id
+
+    def test_resolves_via_customer_email(self, db_session):
+        """Pas de stripe_customer_id en DB → lookup via Customer.retrieve(email)."""
+        u = _make_user(db_session, plan="starter", subscription_status="active")
+        email = u["user"].email
+        from app.routers.payment_router import _user_from_subscription
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve.return_value = self._sub_mock(customer_id="cus_new")
+            s.Customer.retrieve.return_value = {"email": email}
+            result = _user_from_subscription("sub_xxx", db_session)
+        assert result is not None
+        assert result.email == email
+        # stripe_customer_id mis à jour en cache
+        db_session.refresh(result)
+        assert result.stripe_customer_id == "cus_new"
+
+    def test_resolves_via_metadata_user_id_fallback(self, db_session):
+        """Ni customer_id ni email ne matchent → fallback metadata.user_id."""
+        u = _make_user(db_session, plan="starter", subscription_status="active")
+        uid = str(u["user"].id)
+        from app.routers.payment_router import _user_from_subscription
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve.return_value = self._sub_mock(
+                customer_id="cus_unknown", uid_meta=uid
+            )
+            # Email lookup → email inconnu pour forcer le fallback metadata
+            s.Customer.retrieve.return_value = {"email": "unknown@nowhere.com"}
+            result = _user_from_subscription("sub_xxx", db_session)
+        assert result is not None
+        assert result.id == u["user"].id
+
+    def test_returns_none_when_not_found(self, db_session):
+        """Aucun des 3 chemins ne trouve l'utilisateur → retourne None."""
+        from app.routers.payment_router import _user_from_subscription
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve.return_value = self._sub_mock(
+                customer_id="cus_ghost", uid_meta=None
+            )
+            s.Customer.retrieve.return_value = {"email": "ghost@ghost.com"}
+            result = _user_from_subscription("sub_ghost", db_session)
+        assert result is None
+
+    def test_returns_none_on_stripe_exception(self, db_session):
+        """Exception Stripe → retourne None sans planter."""
+        from app.routers.payment_router import _user_from_subscription
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Subscription.retrieve.side_effect = Exception("KO")
+            result = _user_from_subscription("sub_xxx", db_session)
+        assert result is None
+
+
+# =============================================================================
+# GET /payment/portal — Stripe Billing Portal
+# =============================================================================
+
+class TestCustomerPortal:
+
+    def test_free_user_returns_400(self, client, db_session):
+        u = _make_user(db_session, plan="free")
+        r = client.get("/payment/portal", headers=_auth(u["token"]))
+        assert r.status_code == 400
+
+    def test_active_starter_with_customer_id_returns_portal_url(self, client, db_session):
+        u = _make_user(
+            db_session, plan="starter",
+            subscription_status="active",
+            stripe_customer_id="cus_direct",
+        )
+        with patch("app.routers.payment_router.stripe") as s:
+            s.billing_portal.Session.create.return_value = MagicMock(url="https://billing.stripe.com/portal/xxx")
+            r = client.get("/payment/portal", headers=_auth(u["token"]))
+        assert r.status_code == 200
+        assert "portal_url" in r.json()
+        assert r.json()["portal_url"].startswith("https://")
+
+    def test_no_customer_id_resolves_via_last_payment(self, client, db_session):
+        u = _make_user(db_session, plan="starter", subscription_status="active")
+        _make_payment(db_session, u["user"].id, stripe_session_id="cs_test_abc")
+        with patch("app.routers.payment_router.stripe") as s:
+            s.checkout.Session.retrieve.return_value = {"customer": "cus_from_session"}
+            s.billing_portal.Session.create.return_value = MagicMock(url="https://billing.stripe.com/p")
+            r = client.get("/payment/portal", headers=_auth(u["token"]))
+        assert r.status_code == 200
+        assert "portal_url" in r.json()
+
+    def test_no_customer_anywhere_returns_404(self, client, db_session):
+        u = _make_user(db_session, plan="pro", subscription_status="active")
+        # Aucun payment, pas de stripe_customer_id, Customer.list vide
+        with patch("app.routers.payment_router.stripe") as s:
+            s.Customer.list.return_value = MagicMock(data=[])
+            r = client.get("/payment/portal", headers=_auth(u["token"]))
+        assert r.status_code == 404
+
+    def test_stripe_error_on_portal_create_returns_502(self, client, db_session):
+        u = _make_user(
+            db_session, plan="starter",
+            subscription_status="active",
+            stripe_customer_id="cus_ok",
+        )
+        with patch("app.routers.payment_router.stripe") as s:
+            # Restaurer la vraie classe pour que except stripe.StripeError fonctionne
+            s.StripeError = _stripe.StripeError
+            s.billing_portal.Session.create.side_effect = _stripe.StripeError("portal KO")
+            r = client.get("/payment/portal", headers=_auth(u["token"]))
+        assert r.status_code == 502
+
+    def test_cancelling_user_can_access_portal(self, client, db_session):
+        """Plan actif mais en cours d'annulation → accès autorisé."""
+        u = _make_user(
+            db_session, plan="starter",
+            subscription_status="cancelling",
+            stripe_customer_id="cus_cancelling",
+        )
+        with patch("app.routers.payment_router.stripe") as s:
+            s.billing_portal.Session.create.return_value = MagicMock(url="https://billing.stripe.com/c")
+            r = client.get("/payment/portal", headers=_auth(u["token"]))
+        assert r.status_code == 200
+
+    def test_unauthenticated_returns_401(self, client, db_session):
+        r = client.get("/payment/portal")
+        assert r.status_code == 401
