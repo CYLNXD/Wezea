@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-06 (session 23)
+> Dernière mise à jour : 2026-03-07 (session 24)
 
 ---
 
@@ -171,6 +171,7 @@ function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: s
 - **DB wipée à chaque deploy** : `*.db` non exclus du rsync → ajout `--exclude='*.db'`
 
 ### Backend
+- **Rate limit 429 global** : uvicorn derrière nginx sans `--proxy-headers` → `request.client.host = 127.0.0.1` pour tous → compteur IP partagé entre tous les anonymes → bloqué après 5 scans au total. Fix : `_get_real_ip()` dans `main.py` lit `X-Real-IP` puis `X-Forwarded-For`, + `--proxy-headers --forwarded-allow-ips=127.0.0.1` dans `cyberhealth-api.service`
 - **bcrypt/passlib incompatible** : bcrypt 4.x+ refuse passwords > 72 bytes → `bcrypt==4.0.1`
 - **`is_admin` absent après reload** : `UserResponse` Pydantic n'avait pas le champ → ajouté
 - **Stripe résilience** : après wipe DB, `metadata.user_id` devenait invalide → résolution par `stripe_customer_id` > email > metadata
@@ -178,6 +179,7 @@ function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: s
 - **`None` crash dans `_derive_checks_overview`** : `data.get("dns_details", {})` retourne `None` quand la clé existe mais vaut `None` → ajouté `or {}` : `dns_det = data.get("dns_details", {}) or {}`
 
 ### Frontend
+- **Scan anonyme → page d'accueil au lieu des résultats** : double cause : (1) `AuthContext.fetchMe` appelait `logout()` sur catch → `window.location.href = '/'` en cas de token expiré. (2) Sur erreur 429, `useScanner` attendait 4800ms de simulation inutile + aucun `scrollIntoView` sur status `'error'` → le ScanConsole qui disparaît réduisait la page et remontait l'utilisateur sur le hero. Fix : retrait du redirect dans fetchMe + fast-fail 800ms sur erreur + scroll sur `'error'` comme sur `'success'`
 - **"Créer un compte" ouvrait onglet "Connexion"** : `onGoRegister?.() ?? onGoLogin?.()` — les fonctions void retournent `undefined`, le `??` déclenchait toujours le fallback → remplacé par `if (onGoRegister) { onGoRegister(); } else { onGoLogin?.(); }`
 - **Build TS** : `<select>` dans ContactPage avait deux attributs `style` → fusionnés
 - **"hebdomadaire" → "journalière"** : message de limite quota corrigé
@@ -249,7 +251,12 @@ pytest + pytest-asyncio   # Tests backend (lancés avant chaque déploiement CI)
 ### `public_router.py`
 - `GET /public/scan/{uuid}` → rapport public si `public_share=True` (sans auth)
 - `GET /public/badge/{domain}` → badge SVG dynamique
-- `GET /public/stats` → stats anonymisées landing page
+- `GET /public/stats` → stats anonymisées + `industry_avg` (moyenne réelle si ≥ 50 scans, sinon baseline 70) + `avg_source` ("real" | "baseline")
+
+### `main.py` — `_get_real_ip(request)`
+- Lit `X-Real-IP` (nginx) puis `X-Forwarded-For` avant de tomber sur `request.client.host`
+- **Critique** : sans ça, tous les anonymes partagent le bucket IP `127.0.0.1`
+- Remplace les anciens appels `get_remote_address(request)` dans `/scan` et `/scan/limits`
 
 ---
 
@@ -313,6 +320,65 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-07, session 24)
+
+### Bug fix — Rate limit 429 global (nginx + IP réelle)
+- **Symptôme** : tous les utilisateurs anonymes partageaient le même bucket `ip:127.0.0.1` → le premier utilisateur à scanner épuisait le quota pour tout le monde
+- **Cause** : uvicorn derrière nginx sans `--proxy-headers` → `request.client.host` retournait `127.0.0.1` pour toutes les connexions
+- **Fix backend** (`main.py`) : ajout de `_get_real_ip(request)` — lit `X-Real-IP` puis `X-Forwarded-For`, fallback `request.client.host`
+  ```python
+  def _get_real_ip(request: Request) -> str:
+      real_ip = request.headers.get("X-Real-IP", "").strip()
+      if real_ip:
+          return real_ip
+      forwarded_for = request.headers.get("X-Forwarded-For", "").strip()
+      if forwarded_for:
+          return forwarded_for.split(",")[0].strip()
+      return request.client.host if request.client else "127.0.0.1"
+  ```
+  - Remplace 2 appels `get_remote_address(request)` par `_get_real_ip(request)` dans `/scan` et `/scan/limits`
+- **Fix infra** (`infra/cyberhealth-api.service`) : ajout `--proxy-headers --forwarded-allow-ips=127.0.0.1` à l'ExecStart uvicorn
+- **Fix frontend** (`useScanner.ts`) : fast-fail sur erreur — max 800ms d'attente au lieu de 4800ms quand l'API retourne une erreur immédiatement (ex: 429)
+  ```typescript
+  const waitMs = apiError ? Math.min(remaining, 800) : remaining;
+  ```
+
+### Bug fix — Scan anonyme → retour à la page d'accueil (pas de scroll sur erreur)
+- **Symptôme** : après un scan en erreur, la ScanConsole disparaissait et l'utilisateur se retrouvait sur le hero section
+- **Fix** (`Dashboard.tsx`) : scroll vers `resultsRef` également sur `scanner.status === 'error'` (pas seulement sur `'success'`)
+
+### Feature — Section "Ce qu'un pirate voit" dans le rapport PDF (Section 4)
+- **`report_service.py`** : nouvelle fonction `_hacker_scenarios(findings, lang)` — 8 scénarios d'attaque mappés depuis les findings CRITICAL/HIGH par mots-clés (titre/catégorie)
+  - RDP/SMB → ransomware (exploit_time: "< 2 heures")
+  - Base de données exposée → exfiltration SQL
+  - FTP/Telnet → sniffing man-in-the-middle
+  - SSL/TLS invalide → interception HTTPS
+  - SPF/DMARC manquant → phishing domain spoofing
+  - WordPress → brute-force /wp-admin
+  - Version vulnérable → RCE (CVE associés)
+  - Réputation/blacklist → spam/phishing
+  - Déduplication : SPF+DMARC → 1 carte phishing uniquement
+- **`report_template.html`** :
+  - CSS : `.hacker-card`, `.hacker-card-header`, `.hacker-diagram-*`, `.hacker-time-value`
+  - Section 4 ajoutée (conditionnelle `{% if hacker_scenarios %}`) — cartes sombres, header navy, temps d'exploitation en rouge, schéma ASCII de l'attaque (🔴 Attaquant → 🌐 Internet → 🖥 Cible)
+  - Renumérotation des sections : Plan d'Action 3→5/4, Annexes 4→6/5, CTA 5→7/6
+- **`main.py`** : injection de `industry_avg` dans `audit_data` avant `generate_pdf()` (requête SQL + fallback 70)
+
+### Feature — Widget maturité de sécurité (Dashboard + rapport PDF)
+- **`public_router.py`** : `/public/stats` retourne maintenant `industry_avg` et `avg_source`
+  - `avg_source = "real"` si ≥50 scans en DB (moyenne réelle calculée)
+  - `avg_source = "baseline"` sinon → valeur fixe 70
+  - Constante `INDUSTRY_BASELINE = 70`, `MIN_SCANS_FOR_REAL = 50`
+- **`Dashboard.tsx`** : widget maturité entre le panneau score et les onglets
+  - 2 barres animées : score utilisateur vs moyenne industrie
+  - Message psychologique avec percentile estimé (`gap × 1.5`)
+  - CTA "Obtenir le rapport complet" pour les anonymes sous la moyenne
+  - Couleur violet `#a78bfa`, icône `TrendingUp`
+- **`report_template.html`** (Section 1) : bloc benchmark PDF avec 2 barres horizontales + message danger/ok
+- **`analytics.ts`** : `'maturity_widget'` ajouté à `RegisterCtaSource`
+
+---
 
 ## 🆕 Fonctionnalités récentes (2026-03-06, session 23)
 
