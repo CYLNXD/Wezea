@@ -13,6 +13,7 @@ import {
   BarChart2, Plus, Trash2, RefreshCw, X, Check,
   AlertTriangle, Clock, TrendingUp, TrendingDown, Minus,
   Settings, Mail, Key, CreditCard, Code, Webhook, Copy, ExternalLink,
+  AppWindow, ScanSearch, CheckCircle2, FileText, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient, getWhiteLabel, updateWhiteLabel, uploadWhiteLabelLogo, deleteWhiteLabelLogo } from '../lib/api';
@@ -107,7 +108,7 @@ interface ScanDetail {
   scan_duration:   number;
 }
 
-type Tab = 'overview' | 'monitoring' | 'history' | 'settings' | 'developer';
+type Tab = 'overview' | 'monitoring' | 'apps' | 'history' | 'settings' | 'developer';
 
 interface WebhookItem {
   id:            number;
@@ -117,6 +118,31 @@ interface WebhookItem {
   created_at:    string;
   last_fired_at: string | null;
   last_status:   number | null;
+}
+
+interface VerifiedApp {
+  id: number;
+  name: string;
+  url: string;
+  domain: string;
+  verification_method: 'dns' | 'file';
+  verification_token: string;
+  is_verified: boolean;
+  verified_at: string | null;
+  last_scan_at: string | null;
+  last_score: number | null;
+  last_risk_level: string | null;
+  created_at: string;
+}
+
+interface AppScanFinding {
+  category: string;
+  severity: string;
+  title?: string;
+  technical_detail?: string;
+  plain_explanation?: string;
+  recommendation?: string;
+  penalty?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -335,6 +361,20 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   const [apiKeyCopied, setApiKeyCopied]       = useState(false);
   const [apiKeyMsg, setApiKeyMsg]             = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
+  // Applications tab state
+  const [apps, setApps]                         = useState<VerifiedApp[]>([]);
+  const [appNewName, setAppNewName]             = useState('');
+  const [appNewUrl, setAppNewUrl]               = useState('');
+  const [appNewMethod, setAppNewMethod]         = useState<'dns' | 'file'>('dns');
+  const [appAddLoading, setAppAddLoading]       = useState(false);
+  const [appAddError, setAppAddError]           = useState('');
+  const [appVerifyLoading, setAppVerifyLoading] = useState<number | null>(null);
+  const [appVerifyMsg, setAppVerifyMsg]         = useState<Record<number, { ok: boolean; msg: string }>>({});
+  const [appScanLoading, setAppScanLoading]     = useState<number | null>(null);
+  const [appScanResults, setAppScanResults]     = useState<Record<number, AppScanFinding[]>>({});
+  const [appExpandedId, setAppExpandedId]       = useState<number | null>(null);
+  const [appVerifyInfo, setAppVerifyInfo]       = useState<Record<number, boolean>>({});
+
   const [pricingModalOpen, setPricingModalOpen] = useState(false);
   const isPremium = user?.plan === 'starter' || user?.plan === 'pro';
   const planLimit = user?.plan === 'starter' ? 1 : null; // null = illimité (pro)
@@ -375,6 +415,64 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
       .catch(() => {})
       .finally(() => setWbLoading(false));
   }, [user]);
+
+  // ── Applications actions ───────────────────────────────────────────────────
+
+  const handleAddApp = async () => {
+    const name = appNewName.trim();
+    const url  = appNewUrl.trim();
+    if (!name || !url) return;
+    setAppAddLoading(true);
+    setAppAddError('');
+    try {
+      await apiClient.post('/apps', { name, url, verification_method: appNewMethod });
+      setAppNewName('');
+      setAppNewUrl('');
+      await fetchApps();
+    } catch (e: any) {
+      setAppAddError(e?.response?.data?.detail ?? (lang === 'fr' ? 'Erreur lors de l\'ajout.' : 'Error adding application.'));
+    } finally {
+      setAppAddLoading(false);
+    }
+  };
+
+  const handleDeleteApp = async (appId: number) => {
+    try {
+      await apiClient.delete(`/apps/${appId}`);
+      await fetchApps();
+      setAppScanResults(prev => { const n = { ...prev }; delete n[appId]; return n; });
+    } catch { /* silencieux */ }
+  };
+
+  const handleVerifyApp = async (appId: number) => {
+    setAppVerifyLoading(appId);
+    setAppVerifyMsg(prev => { const n = { ...prev }; delete n[appId]; return n; });
+    try {
+      const { data } = await apiClient.post(`/apps/${appId}/verify`);
+      setAppVerifyMsg(prev => ({ ...prev, [appId]: { ok: data.verified, msg: data.message } }));
+      if (data.verified) await fetchApps();
+    } catch {
+      setAppVerifyMsg(prev => ({ ...prev, [appId]: { ok: false, msg: lang === 'fr' ? 'Erreur de vérification.' : 'Verification error.' } }));
+    } finally {
+      setAppVerifyLoading(null);
+    }
+  };
+
+  const handleScanApp = async (appId: number) => {
+    setAppScanLoading(appId);
+    try {
+      const { data } = await apiClient.post(`/apps/${appId}/scan`);
+      setAppScanResults(prev => ({ ...prev, [appId]: data.findings ?? [] }));
+      setAppExpandedId(appId);
+      await fetchApps();
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail ?? (lang === 'fr' ? 'Erreur pendant le scan.' : 'Scan error.');
+      setAppScanResults(prev => ({ ...prev, [appId]: [] }));
+      alert(msg);
+    } finally {
+      setAppScanLoading(null);
+    }
+  };
 
   // ── Monitoring actions ─────────────────────────────────────────────────────
 
@@ -702,17 +800,27 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   };
 
   // Load webhooks when switching to developer tab
+  const fetchApps = useCallback(async () => {
+    if (!isPremium) return;
+    try {
+      const { data } = await apiClient.get('/apps');
+      setApps(data);
+    } catch { /* silencieux */ }
+  }, [isPremium]);
+
   useEffect(() => {
     if (tab === 'developer') fetchWebhooks();
-  }, [tab, fetchWebhooks]);
+    if (tab === 'apps') fetchApps();
+  }, [tab, fetchWebhooks, fetchApps]);
 
   const ALLOWED_EVENTS = ['scan.completed', 'alert.triggered', 'score.dropped'];
 
   const tabs: { id: Tab; label: string; icon: JSX.Element }[] = [
     { id: 'overview',   label: lang === 'fr' ? 'Vue d\'ensemble' : 'Overview', icon: <BarChart2 size={14} /> },
-    { id: 'monitoring', label: lang === 'fr' ? 'Monitoring' : 'Monitoring',       icon: <Globe size={14} /> },
+    { id: 'monitoring', label: lang === 'fr' ? 'Monitoring' : 'Monitoring',    icon: <Globe size={14} /> },
+    { id: 'apps',       label: lang === 'fr' ? 'Applications' : 'Applications', icon: <AppWindow size={14} /> },
     { id: 'history',    label: lang === 'fr' ? 'Historique' : 'History',       icon: <RefreshCw size={14} /> },
-    { id: 'settings',   label: lang === 'fr' ? 'Paramètres' : 'Settings',           icon: <Settings size={14} /> },
+    { id: 'settings',   label: lang === 'fr' ? 'Paramètres' : 'Settings',      icon: <Settings size={14} /> },
     ...(user?.plan && user.plan === 'pro' ? [{
       id: 'developer' as const,
       label: lang === 'fr' ? 'Développeur' : 'Developer',
@@ -902,6 +1010,280 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                       })}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════
+                  TAB — APPLICATIONS (Application Scanning)
+              ══════════════════════════════════════════════════════════════ */}
+              {tab === 'apps' && (
+                <div className="flex flex-col gap-5">
+
+                  {/* ── Add application ──────────────────────────────────── */}
+                  <div className="sku-card rounded-xl p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <SkuIcon color="#a78bfa" size={36}>
+                        <AppWindow size={16} className="text-violet-300" />
+                      </SkuIcon>
+                      <div>
+                        <p className="text-white font-bold text-sm">
+                          {lang === 'fr' ? 'Ajouter une application' : 'Add an application'}
+                        </p>
+                        <p className="text-slate-500 text-xs">
+                          {lang === 'fr'
+                            ? 'Scannez vos applications web custom pour détecter les vulnérabilités'
+                            : 'Scan your custom web apps to detect vulnerabilities'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      <div className="flex gap-2 flex-wrap">
+                        <input
+                          type="text"
+                          placeholder={lang === 'fr' ? 'Nom (ex: Mon App)' : 'Name (e.g. My App)'}
+                          value={appNewName}
+                          onChange={e => setAppNewName(e.target.value)}
+                          className="flex-1 min-w-[160px] sku-inset rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-violet-500 transition placeholder:text-slate-600"
+                        />
+                        <input
+                          type="text"
+                          placeholder="https://monapp.exemple.com"
+                          value={appNewUrl}
+                          onChange={e => { setAppNewUrl(e.target.value); setAppAddError(''); }}
+                          onKeyDown={e => e.key === 'Enter' && handleAddApp()}
+                          className="flex-1 min-w-[220px] sku-inset rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-violet-500 transition placeholder:text-slate-600"
+                        />
+                      </div>
+                      {/* Méthode de vérification */}
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <span className="text-slate-500 text-xs">{lang === 'fr' ? 'Vérification :' : 'Ownership check:'}</span>
+                        {(['dns', 'file'] as const).map(m => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setAppNewMethod(m)}
+                            className={`text-xs font-mono px-3 py-1 rounded-md border transition-all ${
+                              appNewMethod === m
+                                ? 'bg-violet-500/15 text-violet-300 border-violet-500/30'
+                                : 'bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600'
+                            }`}
+                          >
+                            {m === 'dns' ? '📡 DNS TXT' : '📄 Fichier .well-known'}
+                          </button>
+                        ))}
+                        <button
+                          onClick={handleAddApp}
+                          disabled={appAddLoading || !appNewName.trim() || !appNewUrl.trim()}
+                          className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500/30 transition text-sm font-semibold disabled:opacity-40"
+                        >
+                          {appAddLoading
+                            ? <div className="w-3.5 h-3.5 border-2 border-violet-400/30 border-t-violet-400 rounded-full animate-spin" />
+                            : <Plus size={14} />
+                          }
+                          {lang === 'fr' ? 'Ajouter' : 'Add'}
+                        </button>
+                      </div>
+                      {appAddError && <p className="text-red-400 text-xs">{appAddError}</p>}
+                    </div>
+                  </div>
+
+                  {/* ── Liste des applications ────────────────────────────── */}
+                  {apps.length === 0 ? (
+                    <div className="sku-card rounded-xl p-10 text-center">
+                      <AppWindow size={32} className="text-slate-700 mx-auto mb-3" />
+                      <p className="text-slate-500 text-sm">
+                        {lang === 'fr'
+                          ? 'Aucune application enregistrée. Ajoutez votre première application web pour commencer le scan.'
+                          : 'No application registered. Add your first web app to start scanning.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      {apps.map(app => {
+                        const isExpanded = appExpandedId === app.id;
+                        const scanResult = appScanResults[app.id];
+                        const verifyMsg  = appVerifyMsg[app.id];
+                        const showVerifyInfo = appVerifyInfo[app.id];
+
+                        return (
+                          <div key={app.id} className="sku-card rounded-xl overflow-hidden">
+                            {/* ── Header row ─────────────────────────────── */}
+                            <div className="flex items-center gap-3 p-4">
+                              <SkuIcon color={app.is_verified ? '#4ade80' : '#fbbf24'} size={36}>
+                                {app.is_verified
+                                  ? <CheckCircle2 size={16} className="text-green-300" />
+                                  : <AlertTriangle size={16} className="text-amber-300" />
+                                }
+                              </SkuIcon>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-white font-semibold text-sm">{app.name}</p>
+                                  {app.is_verified
+                                    ? <span className="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">✓ VÉRIFIÉ</span>
+                                    : <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">EN ATTENTE</span>
+                                  }
+                                </div>
+                                <p className="text-slate-500 text-xs font-mono truncate">{app.url}</p>
+                              </div>
+                              {/* Score badge */}
+                              {app.last_score !== null && (
+                                <div className={`text-center shrink-0 ${scoreColor(app.last_score)}`}>
+                                  <p className="text-2xl font-black font-mono">{app.last_score}</p>
+                                  <p className="text-[10px] text-slate-600">/100</p>
+                                </div>
+                              )}
+                              {/* Actions */}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {/* Vérifier */}
+                                {!app.is_verified && (
+                                  <button
+                                    title={lang === 'fr' ? 'Vérifier l\'ownership' : 'Verify ownership'}
+                                    onClick={() => handleVerifyApp(app.id)}
+                                    disabled={appVerifyLoading === app.id}
+                                    className="p-2 rounded-lg text-amber-400 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/20 transition disabled:opacity-40"
+                                  >
+                                    {appVerifyLoading === app.id
+                                      ? <div className="w-3.5 h-3.5 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+                                      : <CheckCircle2 size={14} />
+                                    }
+                                  </button>
+                                )}
+                                {/* Info vérification */}
+                                {!app.is_verified && (
+                                  <button
+                                    title={lang === 'fr' ? 'Instructions de vérification' : 'Verification instructions'}
+                                    onClick={() => setAppVerifyInfo(prev => ({ ...prev, [app.id]: !prev[app.id] }))}
+                                    className="p-2 rounded-lg text-slate-400 hover:bg-slate-700 border border-transparent hover:border-slate-600 transition"
+                                  >
+                                    <FileText size={14} />
+                                  </button>
+                                )}
+                                {/* Lancer scan */}
+                                {app.is_verified && (
+                                  <button
+                                    title={lang === 'fr' ? 'Lancer un scan' : 'Run scan'}
+                                    onClick={() => handleScanApp(app.id)}
+                                    disabled={appScanLoading === app.id}
+                                    className="p-2 rounded-lg text-violet-400 hover:bg-violet-500/10 border border-transparent hover:border-violet-500/20 transition disabled:opacity-40"
+                                  >
+                                    {appScanLoading === app.id
+                                      ? <div className="w-3.5 h-3.5 border-2 border-violet-400/30 border-t-violet-400 rounded-full animate-spin" />
+                                      : <ScanSearch size={14} />
+                                    }
+                                  </button>
+                                )}
+                                {/* Toggle findings */}
+                                {scanResult && (
+                                  <button
+                                    onClick={() => setAppExpandedId(isExpanded ? null : app.id)}
+                                    className="p-2 rounded-lg text-slate-400 hover:bg-slate-700 border border-transparent hover:border-slate-600 transition"
+                                  >
+                                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                  </button>
+                                )}
+                                {/* Supprimer */}
+                                <button
+                                  title={lang === 'fr' ? 'Supprimer' : 'Delete'}
+                                  onClick={() => handleDeleteApp(app.id)}
+                                  className="p-2 rounded-lg text-slate-600 hover:bg-red-500/10 hover:text-red-400 border border-transparent hover:border-red-500/20 transition"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* ── Instructions de vérification ────────────── */}
+                            {showVerifyInfo && (
+                              <div className="mx-4 mb-4 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                                <p className="text-amber-300 text-xs font-semibold mb-2 flex items-center gap-1.5">
+                                  <FileText size={12} />
+                                  {lang === 'fr'
+                                    ? `Vérification par ${app.verification_method === 'dns' ? 'DNS TXT' : 'fichier .well-known'}`
+                                    : `Verify via ${app.verification_method === 'dns' ? 'DNS TXT' : '.well-known file'}`}
+                                </p>
+                                {app.verification_method === 'dns' ? (
+                                  <div className="flex flex-col gap-1.5 text-xs font-mono">
+                                    <p className="text-slate-400">{lang === 'fr' ? 'Ajoutez cet enregistrement DNS :' : 'Add this DNS record:'}</p>
+                                    <div className="bg-slate-900 rounded-lg p-3 flex flex-col gap-1">
+                                      <span><span className="text-slate-600">Type :</span> <span className="text-cyan-300">TXT</span></span>
+                                      <span><span className="text-slate-600">Nom  :</span> <span className="text-cyan-300">_cyberhealth-verify.{app.domain}</span></span>
+                                      <span><span className="text-slate-600">Valeur :</span> <span className="text-green-300">cyberhealth-verify={app.verification_token}</span></span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col gap-1.5 text-xs font-mono">
+                                    <p className="text-slate-400">{lang === 'fr' ? 'Créez ce fichier sur votre serveur :' : 'Create this file on your server:'}</p>
+                                    <div className="bg-slate-900 rounded-lg p-3 flex flex-col gap-1">
+                                      <span><span className="text-slate-600">Chemin :</span> <span className="text-cyan-300">/.well-known/cyberhealth-verify.txt</span></span>
+                                      <span><span className="text-slate-600">Contenu :</span> <span className="text-green-300">cyberhealth-verify={app.verification_token}</span></span>
+                                    </div>
+                                  </div>
+                                )}
+                                {verifyMsg && (
+                                  <p className={`mt-2 text-xs font-medium ${verifyMsg.ok ? 'text-green-400' : 'text-red-400'}`}>
+                                    {verifyMsg.ok ? '✓ ' : '✗ '}{verifyMsg.msg}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* ── Verify message (even without expanded info) ── */}
+                            {verifyMsg && !showVerifyInfo && (
+                              <div className="mx-4 mb-4">
+                                <p className={`text-xs font-medium ${verifyMsg.ok ? 'text-green-400' : 'text-amber-400'}`}>
+                                  {verifyMsg.ok ? '✓ ' : '⚠ '}{verifyMsg.msg}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* ── Findings ─────────────────────────────────── */}
+                            {isExpanded && scanResult && (
+                              <div className="border-t border-slate-800 px-4 py-4 flex flex-col gap-2">
+                                <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">
+                                  {scanResult.length === 0
+                                    ? (lang === 'fr' ? 'Aucune vulnérabilité détectée' : 'No vulnerability detected')
+                                    : `${scanResult.length} finding${scanResult.length > 1 ? 's' : ''}`
+                                  }
+                                </p>
+                                {scanResult.map((f, i) => {
+                                  const sevColors: Record<string, string> = {
+                                    CRITICAL: 'border-l-red-500 bg-red-500/5',
+                                    HIGH:     'border-l-orange-500 bg-orange-500/5',
+                                    MEDIUM:   'border-l-yellow-500 bg-yellow-500/5',
+                                    LOW:      'border-l-blue-500 bg-blue-500/5',
+                                    INFO:     'border-l-slate-500 bg-slate-800/30',
+                                  };
+                                  const sevText: Record<string, string> = {
+                                    CRITICAL: 'text-red-400', HIGH: 'text-orange-400',
+                                    MEDIUM: 'text-yellow-400', LOW: 'text-blue-400', INFO: 'text-slate-400',
+                                  };
+                                  return (
+                                    <div key={i} className={`border-l-2 rounded-r-lg p-3 ${sevColors[f.severity] ?? sevColors.INFO}`}>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <p className="text-white text-sm font-semibold leading-snug">{f.title}</p>
+                                        <span className={`text-xs font-bold font-mono shrink-0 ${sevText[f.severity] ?? sevText.INFO}`}>
+                                          {f.severity}
+                                          {(f.penalty ?? 0) > 0 && <span className="text-slate-500 font-normal ml-1">−{f.penalty}pt</span>}
+                                        </span>
+                                      </div>
+                                      {f.plain_explanation && (
+                                        <p className="text-slate-400 text-xs mt-1 leading-relaxed">{f.plain_explanation}</p>
+                                      )}
+                                      {f.recommendation && (
+                                        <p className="text-cyan-400/70 text-xs mt-1.5 font-mono">{f.recommendation}</p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                 </div>
               )}
 

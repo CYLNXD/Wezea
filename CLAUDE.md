@@ -20,6 +20,7 @@ cyberhealth-scanner/
 │   │   ├── database.py
 │   │   ├── auth.py            # JWT + argon2/bcrypt dual-context
 │   │   ├── extra_checks.py    # Checks supplémentaires (doit être dans git !)
+│   │   ├── app_checks.py      # AppAuditor — Application Scanning (8 catégories, lecture seule)
 │   │   └── routers/
 │   │       ├── auth_router.py
 │   │       ├── payment_router.py
@@ -27,7 +28,8 @@ cyberhealth-scanner/
 │   │       ├── monitoring_router.py
 │   │       ├── webhook_router.py
 │   │       ├── public_router.py
-│   │       └── admin_router.py
+│   │       ├── admin_router.py
+│   │       └── app_router.py        # Application Scanning CRUD + verify + scan
 │   └── tests/         # Tests pytest (conftest, test_auth, test_scan_validation, test_rate_limit)
 ├── scripts/
 │   └── backup_db.sh   # Script de sauvegarde SQLite avec rotation 30j
@@ -320,6 +322,61 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-07, session 25)
+
+### Feature — Application Scanning (nouveau service)
+
+#### Architecture
+- **`app/app_checks.py`** (nouveau) — `AppAuditor(BaseAuditor)` : 8 catégories de checks passifs sur applications web
+  - Fichiers sensibles exposés : `.env`, `.git/HEAD`, dumps SQL, `.htpasswd`, backups (CRITICAL/HIGH)
+  - Panneaux admin : phpMyAdmin, Adminer, `/admin`, `/administrator` (CRITICAL/HIGH)
+  - Endpoints API : Swagger, OpenAPI, Spring Actuator, phpinfo (MEDIUM/HIGH)
+  - CORS wildcard `*` → HIGH p=10
+  - Cookies sans flags `Secure` / `HttpOnly` → MEDIUM p=5 chacun
+  - Listing de répertoires → MEDIUM p=8
+  - Mode debug / stack traces → HIGH p=12
+  - `robots.txt` révélant des chemins sensibles → LOW p=3
+  - Zéro test d'injection actif (lecture seule)
+
+- **`app/models.py`** — nouveau modèle `VerifiedApp`
+  - Colonnes : `name`, `url`, `domain`, `verification_method` (dns|file), `verification_token`, `is_verified`, `verified_at`, `last_scan_at`, `last_score`, `last_risk_level`, `last_findings_json`, `last_details_json`
+  - Contrainte unique `(user_id, url)` — index `ix_user_app_url`
+
+- **`app/database.py`** — migration `010_verified_apps` (table gérée par ORM)
+
+- **`app/routers/app_router.py`** (nouveau) — `APIRouter(prefix="/apps")`
+  - `POST   /apps`                      → enregistrer une app (Starter+)
+  - `GET    /apps`                      → lister les apps de l'user
+  - `DELETE /apps/{id}`                 → supprimer une app
+  - `GET    /apps/{id}/verify-info`     → instructions de vérification (DNS ou fichier)
+  - `POST   /apps/{id}/verify`          → déclencher la vérification d'ownership
+  - `POST   /apps/{id}/scan`            → lancer un scan applicatif (rate limit 3/hour)
+  - `GET    /apps/{id}/results`         → derniers résultats
+  - Validation URL anti-SSRF (FQDN regex + plages IP privées bloquées)
+  - Limites plan : Starter=3 apps, Pro=illimité
+
+- **`app/main.py`** — enregistrement de `app_router`
+
+- **`frontend/src/pages/ClientSpace.tsx`** — nouvel onglet "Applications"
+  - Formulaire d'ajout : nom, URL, choix méthode de vérification (DNS TXT / fichier .well-known)
+  - Liste des apps avec badge VÉRIFIÉ / EN ATTENTE
+  - Instructions de vérification inline (expandable)
+  - Bouton "Vérifier" → appel `/apps/{id}/verify`
+  - Bouton "Scanner" → appel `/apps/{id}/scan` + affichage findings expandable
+  - Score badge + findings avec couleurs par sévérité
+
+#### Vérification d'ownership
+- **DNS TXT** : `_cyberhealth-verify.{domain}` → valeur `cyberhealth-verify={token}`
+- **Fichier** : `{url}/.well-known/cyberhealth-verify.txt` → contenu `cyberhealth-verify={token}`
+- Token : `secrets.token_urlsafe(24)` — unique par app
+- Résilience : fallback HTTP si HTTPS échoue pour la vérification fichier
+
+#### Tests
+- `tests/test_database.py::test_apply_migrations_records_all_versions` : mis à jour pour `010_verified_apps`
+- **910 tests, 0 échec** ✅
+
+---
 
 ## 🆕 Fonctionnalités récentes (2026-03-07, session 24)
 

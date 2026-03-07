@@ -123,6 +123,11 @@ def _apply_migrations():
             _add_column_if_missing(conn, "users", "password_reset_expires", "DATETIME")
             _mark_applied("009_password_reset")
 
+        # ── 010 : Application Scanning — table verified_apps ─────────────────
+        if not _applied("010_verified_apps"):
+            # La table est gérée par SQLAlchemy ORM (Base.metadata.create_all)
+            _mark_applied("010_verified_apps")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente

@@ -185,6 +185,49 @@ class LoginAttempt(Base):
     )
 
 
+class VerifiedApp(Base):
+    """
+    Applications web enregistrées pour l'Application Scanning.
+    L'ownership est vérifiée par DNS TXT ou fichier .well-known.
+    Réservé aux plans Starter et Pro.
+    """
+    __tablename__ = "verified_apps"
+
+    id                   = Column(Integer, primary_key=True, index=True)
+    user_id              = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name                 = Column(String(100), nullable=False)            # Nom affiché
+    url                  = Column(String(512), nullable=False)            # URL de base (ex: https://myapp.example.com)
+    domain               = Column(String(253), nullable=False)            # Host extrait de l'URL
+    # ── Vérification d'ownership ───────────────────────────────────────────
+    verification_method  = Column(String(10), nullable=False, default="dns")  # "dns" | "file"
+    verification_token   = Column(String(64), nullable=False)             # Token unique généré
+    is_verified          = Column(Boolean, default=False)
+    verified_at          = Column(DateTime(timezone=True), nullable=True)
+    # ── Dernier scan ──────────────────────────────────────────────────────
+    last_scan_at         = Column(DateTime(timezone=True), nullable=True)
+    last_score           = Column(Integer, nullable=True)
+    last_risk_level      = Column(String(20), nullable=True)
+    last_findings_json   = Column(Text, nullable=True)    # JSON findings
+    last_details_json    = Column(Text, nullable=True)    # JSON details
+    created_at           = Column(DateTime(timezone=True), default=utcnow)
+
+    user = relationship("User", backref="verified_apps")
+
+    __table_args__ = (
+        Index("ix_user_app_url", "user_id", "url", unique=True),
+    )
+
+    def get_last_findings(self) -> list:
+        if self.last_findings_json:
+            return json.loads(self.last_findings_json)
+        return []
+
+    def get_last_details(self) -> dict:
+        if self.last_details_json:
+            return json.loads(self.last_details_json)
+        return {}
+
+
 class ContactMessage(Base):
     """Stocke les demandes de support des utilisateurs."""
     __tablename__ = "contact_messages"
