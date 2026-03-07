@@ -396,9 +396,7 @@ async def scan_app(
         raise HTTPException(status_code=500, detail=f"Erreur pendant le scan : {exc}") from exc
 
     # Calcul du score
-    engine = ScoreEngine(findings)
-    score = engine.compute_score()
-    risk_level = engine.risk_level(score)
+    score, risk_level = ScoreEngine.compute(findings)
 
     # Sauvegarder en DB
     findings_dicts = [f.to_dict() for f in findings]
