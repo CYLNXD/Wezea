@@ -366,7 +366,201 @@ def _build_context(
         "subdomain_findings": [f for f in findings if f.get("category") == "Sous-domaines & Certificats"],
         "vuln_findings":      [f for f in findings if f.get("category") == "Versions Vulnérables"],
         "is_premium":         bool(data.get("subdomain_details") or data.get("vuln_details")),
+        # Section "What a hacker sees" — scénarios d'attaque CRITICAL/HIGH
+        "hacker_scenarios":  _hacker_scenarios(findings, lang),
     }
+
+
+def _hacker_scenarios(findings: list[dict], lang: str = "fr") -> list[dict]:
+    """
+    Génère les scénarios d'attaque pour la section "Ce qu'un pirate voit".
+    Filtre les findings CRITICAL et HIGH, et pour chacun retourne un dict avec :
+      - title, category, severity (du finding original)
+      - attacker_action  : ce que l'attaquant fait concrètement
+      - exploit_time     : temps estimé pour exploiter
+      - impact           : conséquence concrète pour l'entreprise
+      - diagram_target   : cible affichée dans le schéma d'attaque
+    """
+    fr = lang != "en"
+
+    # Table de correspondance : clé (sous-chaîne du titre) → scénario bilingue
+    SCENARIOS = [
+        {
+            "keys": ["rdp", "smb", "3389", "445"],
+            "action_fr":   "Lance un outil de brute-force automatisé sur le port RDP/SMB. "
+                           "En quelques minutes, il teste des milliers de combinaisons "
+                           "identifiant/mot de passe. Une fois connecté, il déploie un ransomware "
+                           "qui chiffre tous vos fichiers et demande une rançon en bitcoin.",
+            "action_en":   "Runs an automated brute-force tool against the RDP/SMB port. "
+                           "Within minutes, it tests thousands of username/password combinations. "
+                           "Once connected, it deploys ransomware that encrypts all your files "
+                           "and demands a bitcoin ransom.",
+            "time_fr":     "< 1 heure",
+            "time_en":     "< 1 hour",
+            "impact_fr":   "Tous vos fichiers chiffrés. Rançon moyenne : 50 000 €.",
+            "impact_en":   "All files encrypted. Average ransom demand: $50,000.",
+            "target_fr":   "Serveur Windows",
+            "target_en":   "Windows Server",
+        },
+        {
+            "keys": ["mysql", "3306", "postgresql", "5432", "base de données", "database"],
+            "action_fr":   "Détecte le port de base de données ouvert et tente une connexion "
+                           "avec des identifiants par défaut (root/root, admin/admin…). "
+                           "En cas de succès, il exporte l'intégralité de votre base de données : "
+                           "clients, mots de passe, données financières.",
+            "action_en":   "Detects the exposed database port and attempts a connection "
+                           "using default credentials (root/root, admin/admin…). "
+                           "If successful, exports your entire database: "
+                           "customers, passwords, financial data.",
+            "time_fr":     "< 10 minutes",
+            "time_en":     "< 10 minutes",
+            "impact_fr":   "Vol total de la base de données. RGPD : amendes jusqu'à 4 % du CA.",
+            "impact_en":   "Full database exfiltration. GDPR fines up to 4% of annual revenue.",
+            "target_fr":   "Base de données",
+            "target_en":   "Database server",
+        },
+        {
+            "keys": ["ftp", "telnet", "21", "23", "texte clair", "plaintext", "cleartext"],
+            "action_fr":   "Se place entre votre réseau et votre serveur (attaque man-in-the-middle). "
+                           "FTP et Telnet transmettent vos identifiants en clair sur le réseau : "
+                           "l'attaquant les capture en temps réel avec un simple outil de sniffing.",
+            "action_en":   "Positions itself between your network and server (man-in-the-middle attack). "
+                           "FTP and Telnet transmit credentials in plaintext: "
+                           "the attacker captures them in real time with a basic sniffing tool.",
+            "time_fr":     "Immédiat",
+            "time_en":     "Immediate",
+            "impact_fr":   "Identifiants volés, accès total au serveur.",
+            "impact_en":   "Stolen credentials, full server access.",
+            "target_fr":   "Serveur FTP / Telnet",
+            "target_en":   "FTP / Telnet server",
+        },
+        {
+            "keys": ["ssl", "certificat", "certificate", "expiré", "expired", "invalide", "invalid", "tls 1.0", "tls 1.1", "tls1.0", "tls1.1"],
+            "action_fr":   "Intercepte le trafic entre votre site et vos visiteurs grâce à une "
+                           "attaque SSL-stripping ou BEAST/POODLE. Sans certificat valide, "
+                           "le navigateur n'alerte plus. L'attaquant lit en clair tous "
+                           "les formulaires remplis : mots de passe, numéros de carte, données personnelles.",
+            "action_en":   "Intercepts traffic between your site and visitors using "
+                           "SSL-stripping or BEAST/POODLE attacks. Without a valid certificate, "
+                           "browsers show no warning. The attacker reads all submitted forms "
+                           "in plaintext: passwords, card numbers, personal data.",
+            "time_fr":     "< 5 minutes sur le même réseau",
+            "time_en":     "< 5 minutes on the same network",
+            "impact_fr":   "Données de tous vos visiteurs interceptées.",
+            "impact_en":   "All visitor data intercepted.",
+            "target_fr":   "Site web / visiteurs",
+            "target_en":   "Website / visitors",
+        },
+        {
+            "keys": ["spf", "dmarc"],
+            "action_fr":   "Envoie des emails en se faisant passer pour votre domaine "
+                           "(ex : facture@votre-entreprise.fr). Sans SPF/DMARC, "
+                           "les serveurs de messagerie acceptent ces emails sans vérification. "
+                           "Vos clients, partenaires et employés reçoivent des emails "
+                           "frauduleux qui semblent venir de vous.",
+            "action_en":   "Sends emails impersonating your domain "
+                           "(e.g. invoice@your-company.com). Without SPF/DMARC, "
+                           "mail servers accept these emails without verification. "
+                           "Your clients, partners, and employees receive fraudulent emails "
+                           "that appear to come from you.",
+            "time_fr":     "Immédiat — aucun outil requis",
+            "time_en":     "Immediate — no tools required",
+            "impact_fr":   "Phishing, fraude au virement, atteinte à la réputation.",
+            "impact_en":   "Phishing, wire transfer fraud, brand reputation damage.",
+            "target_fr":   "Messagerie de votre domaine",
+            "target_en":   "Your email domain",
+        },
+        {
+            "keys": ["wordpress", "wp-admin", "wp admin", "drupal", "cms"],
+            "action_fr":   "Identifie le CMS et tente un brute-force sur la page d'administration. "
+                           "Des outils comme WPScan testent automatiquement des milliers de "
+                           "mots de passe. Une fois connecté, il installe un webshell "
+                           "pour prendre le contrôle total du serveur.",
+            "action_en":   "Identifies the CMS and brute-forces the admin login page. "
+                           "Tools like WPScan automatically test thousands of passwords. "
+                           "Once logged in, installs a webshell for full server control.",
+            "time_fr":     "1 à 4 heures",
+            "time_en":     "1 to 4 hours",
+            "impact_fr":   "Site défacé, malware injecté, données volées.",
+            "impact_en":   "Defaced site, malware injected, data stolen.",
+            "target_fr":   "Interface d'administration",
+            "target_en":   "Admin interface",
+        },
+        {
+            "keys": ["apache", "nginx", "iis", "php", "version vulnérable", "vulnerable version", "cve"],
+            "action_fr":   "Lit la version du serveur dans les en-têtes HTTP et recherche les "
+                           "exploits publics correspondants (CVE). Pour Apache 2.4.49, "
+                           "par exemple, une simple requête HTTP suffit pour lire "
+                           "n'importe quel fichier du serveur, y compris /etc/passwd.",
+            "action_en":   "Reads the server version from HTTP headers and looks up "
+                           "public exploits (CVE). For Apache 2.4.49 for instance, "
+                           "a single HTTP request is enough to read any file on the server, "
+                           "including /etc/passwd.",
+            "time_fr":     "< 5 minutes avec un exploit public",
+            "time_en":     "< 5 minutes with a public exploit",
+            "impact_fr":   "Exécution de code à distance, accès root au serveur.",
+            "impact_en":   "Remote code execution, root access to server.",
+            "target_fr":   "Serveur web",
+            "target_en":   "Web server",
+        },
+        {
+            "keys": ["réputation", "reputation", "blacklist", "dnsbl", "liste noire"],
+            "action_fr":   "Votre domaine figure déjà sur des listes noires utilisées par "
+                           "les serveurs de messagerie du monde entier. Vos emails légitimes "
+                           "sont classés comme spam ou rejetés silencieusement avant "
+                           "même d'arriver à destination.",
+            "action_en":   "Your domain is already on blacklists used by mail servers worldwide. "
+                           "Your legitimate emails are classified as spam or silently rejected "
+                           "before even reaching their destination.",
+            "time_fr":     "En cours — impact immédiat",
+            "time_en":     "Ongoing — immediate impact",
+            "impact_fr":   "Emails commerciaux et factures jamais reçus par vos clients.",
+            "impact_en":   "Business emails and invoices never received by your clients.",
+            "target_fr":   "Délivrabilité email",
+            "target_en":   "Email deliverability",
+        },
+    ]
+
+    result = []
+    seen_keys: set[str] = set()
+
+    for f in findings:
+        if f.get("severity") not in ("CRITICAL", "HIGH"):
+            continue
+
+        title_lower = f.get("title", "").lower()
+        cat_lower   = f.get("category", "").lower()
+        search_str  = f"{title_lower} {cat_lower}"
+
+        matched = None
+        for scenario in SCENARIOS:
+            for key in scenario["keys"]:
+                if key in search_str:
+                    # Déduplique par scénario (ex : SPF + DMARC = 1 seule carte)
+                    scenario_id = scenario["keys"][0]
+                    if scenario_id in seen_keys:
+                        matched = None
+                    else:
+                        seen_keys.add(scenario_id)
+                        matched = scenario
+                    break
+            if matched is not None or (matched is None and any(k in search_str for k in scenario["keys"])):
+                break
+
+        if matched is None:
+            continue
+
+        result.append({
+            "title":          f.get("title", ""),
+            "category":       f.get("category", ""),
+            "severity":       f.get("severity", ""),
+            "attacker_action": matched["action_fr"] if fr else matched["action_en"],
+            "exploit_time":    matched["time_fr"]   if fr else matched["time_en"],
+            "impact":          matched["impact_fr"] if fr else matched["impact_en"],
+            "diagram_target":  matched["target_fr"] if fr else matched["target_en"],
+        })
+
+    return result
 
 
 def _build_action_plan(findings: list[dict], lang: str = "fr") -> dict[str, list[str]]:

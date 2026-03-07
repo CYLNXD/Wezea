@@ -703,6 +703,122 @@ p.lead {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
+   ④ WHAT A HACKER SEES — Cartes de scénarios d'attaque
+   ════════════════════════════════════════════════════════════════════════════ */
+.hacker-card {
+  border-radius: 6pt;
+  overflow: hidden;
+  border: 1.5pt solid #1e293b;
+  box-shadow: 0 2pt 10pt rgba(15, 23, 42, 0.18);
+}
+
+.hacker-card-header {
+  background: #0f172a;
+  padding: 10pt 14pt;
+  color: white;
+}
+
+.hacker-eye-label {
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1pt;
+  color: #f87171;
+  margin-bottom: 3pt;
+}
+
+.hacker-finding-title {
+  font-size: 10.5pt;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin-bottom: 2pt;
+}
+
+.hacker-category {
+  font-family: var(--font-mono);
+  font-size: 7.5pt;
+  color: #94a3b8;
+}
+
+.hacker-time-label {
+  font-size: 7pt;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.6pt;
+  margin-bottom: 3pt;
+}
+
+.hacker-time-value {
+  font-family: var(--font-mono);
+  font-size: 14pt;
+  font-weight: 700;
+  color: #f87171;
+}
+
+.hacker-card-body {
+  background: #f8fafc;
+  padding: 12pt 14pt;
+}
+
+.hacker-section-label {
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8pt;
+  color: #64748b;
+  margin-bottom: 4pt;
+}
+
+.hacker-action-text {
+  font-size: 9pt;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.hacker-impact-box {
+  background: #fff1f2;
+  border: 1pt solid #fca5a5;
+  border-radius: 4pt;
+  padding: 6pt 8pt;
+  font-size: 9pt;
+  font-weight: 600;
+  color: #991b1b;
+}
+
+/* Diagramme d'attaque */
+.hacker-diagram {
+  display: inline-block;
+  text-align: center;
+}
+
+.hacker-diagram-node {
+  border-radius: 6pt;
+  padding: 6pt 10pt;
+  margin: 0 auto;
+  width: 90pt;
+  text-align: center;
+}
+
+.attacker-node  { background: #fef2f2; border: 1pt solid #fca5a5; }
+.internet-node  { background: #eff6ff; border: 1pt solid #93c5fd; }
+.target-node    { background: #fef9c3; border: 1pt solid #fcd34d; }
+
+.hacker-diagram-icon  { font-size: 14pt; margin-bottom: 2pt; }
+.hacker-diagram-label {
+  font-size: 7.5pt;
+  font-weight: 600;
+  color: #374151;
+  word-break: break-word;
+}
+
+.hacker-diagram-arrow {
+  font-size: 14pt;
+  color: #ef4444;
+  line-height: 1.2;
+  margin: 2pt 0;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
    ⑥ PLAN D'ACTION — 3 phases
    ════════════════════════════════════════════════════════════════════════════ */
 .action-phases {
@@ -1410,13 +1526,101 @@ p.lead {
 </div><!-- /findings -->
 
 
+{% if hacker_scenarios %}
 <!-- ══════════════════════════════════════════════════════════════════════════
-     ④ PLAN D'ACTION IMMÉDIAT
+     ④ CE QU'UN PIRATE VOIT — What a Hacker Sees
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="section page-break">
 
   <div class="section-header">
     <div class="section-number">4</div>
+    <div>
+      <div class="section-title">{% if lang == 'en' %}What a Hacker Sees{% else %}Ce qu'un Pirate Voit{% endif %}</div>
+      <div class="section-subtitle">{% if lang == 'en' %}Attack scenarios on your infrastructure, in plain language{% else %}Scénarios d'attaque sur votre infrastructure, en langage clair{% endif %}</div>
+    </div>
+  </div>
+
+  <p class="lead" style="margin-bottom: 16pt;">
+    {% if lang == 'en' %}
+    Your vulnerabilities don't just exist on paper — they are real entry points that hackers
+    actively scan for. Here is what an attacker sees when they target your domain,
+    and how quickly they can act.
+    {% else %}
+    Vos vulnérabilités ne sont pas que théoriques — ce sont des portes d'entrée que les pirates
+    scannent activement en permanence. Voici ce qu'un attaquant voit lorsqu'il cible votre domaine,
+    et avec quelle rapidité il peut agir.
+    {% endif %}
+  </p>
+
+  {% for s in hacker_scenarios %}
+  <div class="hacker-card no-break" style="margin-bottom: 14pt;">
+
+    <!-- En-tête sombre -->
+    <div class="hacker-card-header">
+      <div style="display: table; width: 100%; table-layout: fixed;">
+        <div style="display: table-cell; vertical-align: middle;">
+          <div class="hacker-eye-label">{% if lang == 'en' %}👁 ATTACKER'S VIEW{% else %}👁 VU PAR UN ATTAQUANT{% endif %}</div>
+          <div class="hacker-finding-title">{{ s.title }}</div>
+          <div class="hacker-category">{{ s.category }}</div>
+        </div>
+        <div style="display: table-cell; vertical-align: middle; text-align: right; width: 130pt;">
+          <div class="hacker-time-label">{% if lang == 'en' %}Estimated exploit time{% else %}Temps pour exploiter{% endif %}</div>
+          <div class="hacker-time-value">{{ s.exploit_time }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Corps : scénario + diagramme -->
+    <div class="hacker-card-body">
+      <div style="display: table; width: 100%; table-layout: fixed;">
+
+        <!-- Colonne gauche : narration -->
+        <div style="display: table-cell; vertical-align: top; width: 62%; padding-right: 14pt;">
+          <div class="hacker-section-label">{% if lang == 'en' %}What the attacker does{% else %}Ce que fait l'attaquant{% endif %}</div>
+          <div class="hacker-action-text">{{ s.attacker_action }}</div>
+          <div style="margin-top: 10pt;">
+            <div class="hacker-section-label">{% if lang == 'en' %}Business impact{% else %}Impact pour votre entreprise{% endif %}</div>
+            <div class="hacker-impact-box">⚠ {{ s.impact }}</div>
+          </div>
+        </div>
+
+        <!-- Colonne droite : diagramme d'attaque -->
+        <div style="display: table-cell; vertical-align: middle; text-align: center; width: 38%;">
+          <div class="hacker-diagram">
+            <div class="hacker-diagram-node attacker-node">
+              <div class="hacker-diagram-icon">🔴</div>
+              <div class="hacker-diagram-label">{% if lang == 'en' %}Attacker{% else %}Attaquant{% endif %}</div>
+            </div>
+            <div class="hacker-diagram-arrow">▼</div>
+            <div class="hacker-diagram-node internet-node">
+              <div class="hacker-diagram-icon">🌐</div>
+              <div class="hacker-diagram-label">Internet</div>
+            </div>
+            <div class="hacker-diagram-arrow">▼</div>
+            <div class="hacker-diagram-node target-node">
+              <div class="hacker-diagram-icon">🖥</div>
+              <div class="hacker-diagram-label">{{ s.diagram_target }}</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+  {% endfor %}
+
+</div><!-- /hacker-sees -->
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ⑤ PLAN D'ACTION IMMÉDIAT
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="section page-break">
+
+  <div class="section-header">
+    <div class="section-number">{% if hacker_scenarios %}5{% else %}4{% endif %}</div>
     <div>
       <div class="section-title">{% if lang == 'en' %}Immediate Action Plan{% else %}Plan d'Action Immédiat{% endif %}</div>
       <div class="section-subtitle">{% if lang == 'en' %}3-phase remediation roadmap{% else %}Feuille de route de remédiation en 3 phases{% endif %}</div>
@@ -1534,12 +1738,12 @@ p.lead {
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     ⑤ ANNEXES TECHNIQUES
+     ⑤/⑥ ANNEXES TECHNIQUES
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="section page-break">
 
   <div class="section-header">
-    <div class="section-number">5</div>
+    <div class="section-number">{% if hacker_scenarios %}6{% else %}5{% endif %}</div>
     <div>
       <div class="section-title">{% if lang == 'en' %}Technical Annexes{% else %}Annexes Techniques{% endif %}</div>
       <div class="section-subtitle">{% if lang == 'en' %}Raw data for your IT provider{% else %}Données brutes pour votre prestataire IT{% endif %}</div>
@@ -1893,7 +2097,7 @@ p.lead {
 <div class="section page-break">
 
   <div class="section-header">
-    <div class="section-number">6</div>
+    <div class="section-number">{% if hacker_scenarios %}7{% else %}6{% endif %}</div>
     <div>
       <div class="section-title">{% if lang == 'en' %}Next Steps{% else %}Prochaines Étapes{% endif %}</div>
       <div class="section-subtitle">{% if lang == 'en' %}Turn this report into a concrete action plan{% else %}Transformer ce rapport en plan d'action concret{% endif %}</div>
