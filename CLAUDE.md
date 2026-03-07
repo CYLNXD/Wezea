@@ -887,6 +887,16 @@ STRIPE_DEV_PRICE_ID=price_1T8MpWKOrtMvErGv0iXhORaP
 - [ ] Surveiller les premières migrations argon2 dans les logs (rehash au prochain login de chaque user)
 - [ ] Ajouter `FRONTEND_URL=https://wezea.net` dans `.env` serveur (utilisé par les emails de reset mot de passe)
 
+## 💡 Features en attente de trafic suffisant
+
+### Feature Partenaires (à revoir quand ~centaines de scans/semaine)
+- **Concept** : les professionnels IT/cybersécurité s'inscrivent comme partenaires (49€/mois standard, 99€/mois premium). Après chaque scan, l'utilisateur voit une liste d'experts dans sa région pouvant résoudre les vulnérabilités détectées.
+- **Matching** : spécialités partenaire ↔ catégories de findings du scan (SSL, DNS, Ports, etc.)
+- **Géolocalisation** : demander la ville au moment du clic "Voir les experts" (pas d'IP geolocation)
+- **MVP suggéré** : annuaire statique `/partenaires` + formulaire d'intérêt avant de coder le matching
+- **Modèle `Partner`** : `company_name`, `contact_email`, `region`, `city`, `specialties` (JSON), `description`, `website`, `logo_url`, `plan` (standard|premium), `is_verified`, `impressions_count`, `stripe_customer_id`
+- **Pourquoi attendre** : sans trafic, les partenaires ne voient pas de leads → désabonnement ; les utilisateurs ne voient pas d'experts → feature invisible
+
 ---
 
 ## 🔄 Procédure de reprise de session
