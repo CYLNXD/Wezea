@@ -56,8 +56,8 @@ _PRIVATE_CIDRS = [
     ipaddress.ip_network("::1/128"),
 ]
 
-# Limites par plan (None = illimité)
-APP_LIMITS: dict[str, int | None] = {"starter": 3, "pro": None}
+# Limites par plan (None = illimité) — Application Scanning réservé au plan Dev
+APP_LIMITS: dict[str, int | None] = {"dev": None}
 
 
 def _parse_and_validate_url(raw: str) -> tuple[str, str]:
@@ -100,10 +100,10 @@ def _parse_and_validate_url(raw: str) -> tuple[str, str]:
 def _require_plan(user: User) -> None:
     if user.is_admin:
         return
-    if user.plan not in ("starter", "pro"):
+    if user.plan not in ("dev",):
         raise HTTPException(
             status_code=403,
-            detail="L'Application Scanning est disponible à partir du plan Starter."
+            detail="L'Application Scanning est disponible avec le plan Dev (29,90 €/mois)."
         )
 
 

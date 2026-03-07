@@ -19,6 +19,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 PLAN_PRICES: dict[str, int] = {
     "starter": 990,
     "pro":     1990,
+    "dev":     2990,
 }
 
 
@@ -88,8 +89,8 @@ def update_user(
         raise HTTPException(status_code=400, detail="Vous ne pouvez pas modifier votre propre compte ici")
 
     if req.plan is not None:
-        if req.plan not in ("free", "starter", "pro"):
-            raise HTTPException(status_code=400, detail="Plan invalide (free / starter / pro)")
+        if req.plan not in ("free", "starter", "pro", "dev"):
+            raise HTTPException(status_code=400, detail="Plan invalide (free / starter / pro / dev)")
         user.plan = req.plan
         if req.plan == "free":
             user.subscription_status = None
@@ -175,7 +176,7 @@ def admin_metrics(
 
     # ── Plan breakdown ────────────────────────────────────────────────────────
     plan_breakdown: dict[str, int] = {}
-    for p in ("free", "starter", "pro"):
+    for p in ("free", "starter", "pro", "dev"):
         plan_breakdown[p] = db.query(func.count(User.id)).filter(User.plan == p).scalar() or 0
 
     # ── Revenue last 30d ──────────────────────────────────────────────────────

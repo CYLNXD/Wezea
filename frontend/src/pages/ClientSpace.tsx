@@ -376,8 +376,8 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   const [appVerifyInfo, setAppVerifyInfo]       = useState<Record<number, boolean>>({});
 
   const [pricingModalOpen, setPricingModalOpen] = useState(false);
-  const isPremium = user?.plan === 'starter' || user?.plan === 'pro';
-  const planLimit = user?.plan === 'starter' ? 1 : null; // null = illimité (pro)
+  const isPremium = user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'dev';
+  const planLimit = user?.plan === 'starter' ? 1 : null; // null = illimité (pro/dev)
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -801,12 +801,12 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
 
   // Load webhooks when switching to developer tab
   const fetchApps = useCallback(async () => {
-    if (!isPremium) return;
+    if (user?.plan !== 'dev' && !user?.is_admin) return;
     try {
       const { data } = await apiClient.get('/apps');
       setApps(data);
     } catch { /* silencieux */ }
-  }, [isPremium]);
+  }, [user?.plan, user?.is_admin]);
 
   useEffect(() => {
     if (tab === 'developer') fetchWebhooks();
@@ -818,10 +818,14 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   const tabs: { id: Tab; label: string; icon: JSX.Element }[] = [
     { id: 'overview',   label: lang === 'fr' ? 'Vue d\'ensemble' : 'Overview', icon: <BarChart2 size={14} /> },
     { id: 'monitoring', label: lang === 'fr' ? 'Monitoring' : 'Monitoring',    icon: <Globe size={14} /> },
-    { id: 'apps',       label: lang === 'fr' ? 'Applications' : 'Applications', icon: <AppWindow size={14} /> },
+    ...(user?.plan && (user.plan === 'dev') || user?.is_admin ? [{
+      id: 'apps' as const,
+      label: lang === 'fr' ? 'Applications' : 'Applications',
+      icon: <AppWindow size={14} />,
+    }] : []),
     { id: 'history',    label: lang === 'fr' ? 'Historique' : 'History',       icon: <RefreshCw size={14} /> },
     { id: 'settings',   label: lang === 'fr' ? 'Paramètres' : 'Settings',      icon: <Settings size={14} /> },
-    ...(user?.plan && user.plan === 'pro' ? [{
+    ...(user?.plan && (user.plan === 'pro' || user.plan === 'dev') ? [{
       id: 'developer' as const,
       label: lang === 'fr' ? 'Développeur' : 'Developer',
       icon: <Code size={14} />,
@@ -2155,7 +2159,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                     {([
                       { id: 'profile'     as const, label: lang === 'fr' ? 'Profil & Sécurité' : 'Profile & Security', icon: <Key size={13} /> },
                       { id: 'billing'     as const, label: lang === 'fr' ? 'Facturation' : 'Billing',                  icon: <CreditCard size={13} /> },
-                      ...(user?.plan && user.plan === 'pro' ? [{
+                      ...(user?.plan && (user.plan === 'pro' || user.plan === 'dev') ? [{
                         id: 'whitelabel' as const,
                         label: lang === 'fr' ? 'Marque blanche' : 'White-label',
                         icon: <Shield size={13} />,
@@ -2298,7 +2302,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                         <div className="flex items-center justify-between flex-wrap gap-4">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-xl font-black tracking-wide ${user?.plan === 'pro' ? 'text-purple-400' : user?.plan === 'starter' ? 'text-cyan-400' : 'text-slate-400'}`}>
+                              <span className={`text-xl font-black tracking-wide ${user?.plan === 'dev' ? 'text-violet-400' : user?.plan === 'pro' ? 'text-purple-400' : user?.plan === 'starter' ? 'text-cyan-400' : 'text-slate-400'}`}>
                                 {user?.plan?.toUpperCase() ?? 'FREE'}
                               </span>
                               {isPremium && (
@@ -2308,10 +2312,12 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                               )}
                             </div>
                             <p className="text-slate-500 text-xs">
-                              {user?.plan === 'pro'
-                                ? (lang === 'fr' ? '19,90 € / mois · 10 domaines surveillés' : '€19.90 / month · 10 monitored domains')
+                              {user?.plan === 'dev'
+                                ? (lang === 'fr' ? '29,90 € / mois · API + Application Scanning' : '€29.90 / month · API + Application Scanning')
+                                : user?.plan === 'pro'
+                                ? (lang === 'fr' ? '19,90 € / mois · monitoring illimité' : '€19.90 / month · unlimited monitoring')
                                 : user?.plan === 'starter'
-                                ? (lang === 'fr' ? '9,90 € / mois · 3 domaines surveillés' : '€9.90 / month · 3 monitored domains')
+                                ? (lang === 'fr' ? '9,90 € / mois · 1 domaine surveillé' : '€9.90 / month · 1 monitored domain')
                                 : (lang === 'fr' ? 'Plan gratuit · 1 scan / jour' : 'Free plan · 1 scan / day')}
                             </p>
                           </div>
@@ -2331,7 +2337,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                         <div className="border-t border-slate-800 my-5" />
 
                         {/* Plan comparison */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div className={`rounded-xl border p-4 ${!isPremium ? 'border-cyan-500/30 bg-cyan-500/5' : 'border-slate-800'}`}>
                             <p className="text-slate-300 font-bold text-sm mb-1">Free</p>
                             <p className="text-slate-600 text-xs mb-3">{lang === 'fr' ? '0 € / mois' : '€0 / month'}</p>
@@ -2344,7 +2350,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                             <p className="text-cyan-400 font-bold text-sm mb-1">Starter</p>
                             <p className="text-slate-600 text-xs mb-3">{lang === 'fr' ? '9,90 € / mois' : '€9.90 / month'}</p>
                             <ul className="text-slate-500 text-xs space-y-1">
-                              <li>· {lang === 'fr' ? '3 domaines surveillés' : '3 monitored domains'}</li>
+                              <li>· {lang === 'fr' ? '1 domaine surveillé' : '1 monitored domain'}</li>
                               <li>· {lang === 'fr' ? 'Checks avancés' : 'Advanced checks'}</li>
                               <li>· {lang === 'fr' ? 'Rapports PDF' : 'PDF reports'}</li>
                             </ul>
@@ -2353,9 +2359,16 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                             <p className="text-purple-400 font-bold text-sm mb-1">Pro</p>
                             <p className="text-slate-600 text-xs mb-3">{lang === 'fr' ? '19,90 € / mois' : '€19.90 / month'}</p>
                             <ul className="text-slate-500 text-xs space-y-1">
-                              <li>· {lang === 'fr' ? '10 domaines surveillés' : '10 monitored domains'}</li>
-                              <li>· {lang === 'fr' ? 'Toutes les features' : 'All features'}</li>
-                              <li>· {lang === 'fr' ? 'Support prioritaire' : 'Priority support'}</li>
+                              <li>· {lang === 'fr' ? 'Monitoring illimité' : 'Unlimited monitoring'}</li>
+                              <li>· {lang === 'fr' ? 'Webhooks & marque blanche' : 'Webhooks & white-label'}</li>
+                            </ul>
+                          </div>
+                          <div className={`rounded-xl border p-4 ${user?.plan === 'dev' ? 'border-violet-500/30 bg-violet-500/5' : 'border-slate-800'}`}>
+                            <p className="text-violet-400 font-bold text-sm mb-1">Dev</p>
+                            <p className="text-slate-600 text-xs mb-3">{lang === 'fr' ? '29,90 € / mois' : '€29.90 / month'}</p>
+                            <ul className="text-slate-500 text-xs space-y-1">
+                              <li>· {lang === 'fr' ? 'Accès API (wsk_)' : 'API access (wsk_)'}</li>
+                              <li>· {lang === 'fr' ? 'Application Scanning' : 'Application Scanning'}</li>
                             </ul>
                           </div>
                         </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, Zap, Shield, BarChart2, Key, Loader2 } from 'lucide-react';
+import { X, Check, Zap, Shield, BarChart2, Key, Loader2, Code2, AppWindow } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { captureUpgradePlanClicked } from '../lib/analytics';
@@ -24,10 +24,16 @@ const STARTER_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  { icon: Zap,       fr: 'Tout le plan Starter',                       en: 'Everything in Starter' },
-  { icon: Shield,    fr: 'Checks CVE / versions avancés',              en: 'Advanced CVE / version checks' },
-  { icon: Shield,    fr: 'Rapports en marque blanche',                 en: 'White-label reports' },
-  { icon: Key,       fr: 'Accès API (bientôt)',                        en: 'API access (coming soon)' },
+  { icon: Zap,       fr: 'Tout le plan Starter',                  en: 'Everything in Starter' },
+  { icon: Shield,    fr: 'Checks CVE / versions avancés',         en: 'Advanced CVE / version checks' },
+  { icon: Shield,    fr: 'Rapports en marque blanche',            en: 'White-label reports' },
+  { icon: Code2,     fr: 'Webhooks sortants (Zapier, Slack…)',    en: 'Outbound webhooks (Zapier, Slack…)' },
+];
+
+const DEV_FEATURES = [
+  { icon: Zap,       fr: 'Tout le plan Pro',                                    en: 'Everything in Pro' },
+  { icon: Key,       fr: 'Accès API (clé wsk_)',                                en: 'API access (wsk_ key)' },
+  { icon: AppWindow, fr: 'Application Scanning (audit de vos apps web)',        en: 'Application Scanning (audit your web apps)' },
 ];
 
 export default function PricingModal({ open, onClose }: Props) {
@@ -51,9 +57,10 @@ export default function PricingModal({ open, onClose }: Props) {
   }, [open]);
 
   const plan      = user?.plan ?? 'free';
-  const isPaid    = plan === 'starter' || plan === 'pro';
+  const isPaid    = plan !== 'free';
   const isStarter = plan === 'starter';
   const isPro     = plan === 'pro';
+  const isDev     = plan === 'dev';
 
   const handlePortal = async () => {
     setPortalError('');
@@ -70,7 +77,7 @@ export default function PricingModal({ open, onClose }: Props) {
   };
 
   // ── Boutons ───────────────────────────────────────────────────────────────────
-  const handleUpgrade = async (plan: 'starter' | 'pro') => {
+  const handleUpgrade = async (plan: 'starter' | 'pro' | 'dev') => {
     if (!user) return;
     setCheckoutError('');
     setLoadingPlan(plan);
@@ -88,7 +95,7 @@ export default function PricingModal({ open, onClose }: Props) {
     }
   };
 
-  const UpgradeBtn = ({ plan }: { plan: 'starter' | 'pro' }) => (
+  const UpgradeBtn = ({ plan }: { plan: 'starter' | 'pro' | 'dev' }) => (
     <button
       onClick={() => handleUpgrade(plan)}
       disabled={!!loadingPlan}
@@ -124,7 +131,7 @@ export default function PricingModal({ open, onClose }: Props) {
 
           {/* Panel */}
           <motion.div
-            className="relative z-10 w-full max-w-4xl sku-panel rounded-2xl overflow-hidden"
+            className="relative z-10 w-full max-w-5xl sku-panel rounded-2xl overflow-hidden"
             initial={{ scale: 0.95, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.95, y: 20 }}
@@ -159,7 +166,7 @@ export default function PricingModal({ open, onClose }: Props) {
             )}
 
             {/* Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6">
 
               {/* ── FREE ── */}
               <div className="sku-card rounded-xl p-5 flex flex-col">
@@ -248,7 +255,7 @@ export default function PricingModal({ open, onClose }: Props) {
                   <span className="text-slate-400 text-sm ml-1">/{lang === 'fr' ? 'mois' : 'month'}</span>
                 </div>
                 <p className="text-xs text-slate-500 mb-4">
-                  {lang === 'fr' ? 'Pour les intégrateurs & devs' : 'For integrators & devs'}
+                  {lang === 'fr' ? 'Pour les intégrateurs & agences' : 'For integrators & agencies'}
                 </p>
 
                 <ul className="space-y-2.5 mb-6 flex-1">
@@ -268,6 +275,52 @@ export default function PricingModal({ open, onClose }: Props) {
                       <button
                         onClick={onClose}
                         className="w-full flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 rounded-xl py-2.5 text-sm font-semibold text-slate-900 transition-colors"
+                      >
+                        <Zap size={15} />
+                        {lang === 'fr' ? 'Créer un compte' : 'Create an account'}
+                      </button>
+                    )
+                }
+              </div>
+
+              {/* ── DEV ── */}
+              <div className="relative sku-panel rounded-xl p-5 overflow-hidden flex flex-col" style={{ border: '2px solid rgba(167,139,250,0.35)', boxShadow: 'var(--shadow-panel), 0 0 30px rgba(167,139,250,0.06)' }}>
+                <div className="absolute inset-0 bg-violet-500/5 pointer-events-none" />
+
+                <div className="flex items-center justify-between mb-4 relative">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-violet-400">Dev</span>
+                    <span className="text-xs bg-violet-500/20 text-violet-400 border border-violet-500/30 px-2 py-0.5 rounded-full font-medium">
+                      {lang === 'fr' ? 'Pour les devs' : 'For developers'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mb-1 relative">
+                  <span className="text-3xl font-bold text-white">29,90€</span>
+                  <span className="text-slate-400 text-sm ml-1">/{lang === 'fr' ? 'mois' : 'month'}</span>
+                </div>
+                <p className="text-xs text-slate-500 mb-4">
+                  {lang === 'fr' ? 'API + scan de vos propres apps' : 'API + scan your own apps'}
+                </p>
+
+                <ul className="space-y-2.5 mb-6 flex-1">
+                  {DEV_FEATURES.map((f, i) => (
+                    <li key={i} className="flex items-center gap-2.5 text-sm text-slate-200">
+                      <f.icon size={14} className="text-violet-400 shrink-0" />
+                      {lang === 'fr' ? f.fr : f.en}
+                    </li>
+                  ))}
+                </ul>
+
+                {isDev
+                  ? <ActiveBadge />
+                  : user
+                    ? <UpgradeBtn plan="dev" />
+                    : (
+                      <button
+                        onClick={onClose}
+                        className="w-full flex items-center justify-center gap-2 bg-violet-500 hover:bg-violet-400 rounded-xl py-2.5 text-sm font-semibold text-white transition-colors"
                       >
                         <Zap size={15} />
                         {lang === 'fr' ? 'Créer un compte' : 'Create an account'}

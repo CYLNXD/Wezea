@@ -452,8 +452,8 @@ class TestScanLimits:
         assert data["type"] in ("free", "unlimited")  # dépend de la config
 
     def test_wsk_pro_key_in_scan_limits(self, client, db_session):
-        """Bearer wsk_ Pro → current_user via API key (lines 489-492 scan/limits)."""
-        u, _ = _make_user_in_db(db_session, plan="pro")
+        """Bearer wsk_ Dev → current_user via API key (lines 489-492 scan/limits)."""
+        u, _ = _make_user_in_db(db_session, plan="dev")
 
         with _patch_session_local(db_session):
             resp = client.get("/scan/limits",
@@ -531,8 +531,8 @@ class TestScanEndpoint:
         assert scan.domain == "example.com"
 
     def test_wsk_pro_key_scan(self, client, db_session):
-        """Bearer wsk_ Pro → current_user via API key dans /scan (lines 572-576)."""
-        u, _ = _make_user_in_db(db_session, plan="pro")
+        """Bearer wsk_ Dev → current_user via API key dans /scan (lines 572-576)."""
+        u, _ = _make_user_in_db(db_session, plan="dev")
         mock_result = self._mock_scan_result()
 
         mock_manager = AsyncMock()

@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-07 (session 24)
+> Dernière mise à jour : 2026-03-07 (session 26)
 
 ---
 
@@ -322,6 +322,46 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-07, session 26)
+
+### Feature — Plan DEV (29,90 €/mois)
+
+#### Architecture plan DEV
+- **Hiérarchie** : `free (0€) → starter (9,90€) → pro (19,90€) → dev (29,90€)`
+- **Plan DEV = tout Pro + API key + Application Scanning**
+- API key (`wsk_`) déplacée de Pro → Dev exclusivement
+- Application Scanning réservé à Dev exclusivement
+
+#### Backend — Fichiers modifiés
+- **`payment_router.py`** : `STRIPE_DEV_PRICE_ID = "price_1T8MpWKOrtMvErGv0iXhORaP"`, `_PLAN_AMOUNTS["dev"] = 2990`, `_PRICE_TO_PLAN[STRIPE_DEV_PRICE_ID] = "dev"`, `_price_id_for_plan("dev")`, rank downgrade `{"free":0,"starter":1,"pro":2,"dev":3}`, `is_paid` inclut "dev", portail/cancel incluent "dev"
+- **`auth_router.py`** : API key auth (`get_current_user` + `get_optional_user`) : `("pro",)` → `("dev",)` ; White-label (`wb_enabled`, `wb_logo`) : `("pro",)` → `("pro","dev")`
+- **`main.py`** : 2 occurrences API key wsk_ dans `/scan/limits` et `/scan` : `("pro",)` → `("dev",)` ; White-label PDF : `("pro",)` → `("pro","dev")`
+- **`monitoring_router.py`** : `DOMAIN_LIMITS["dev"] = None` (illimité)
+- **`webhook_router.py`** : `_require_pro` : `("pro",)` → `("pro","dev")`
+- **`admin_router.py`** : `PLAN_PRICES["dev"] = 2990`, plan breakdown inclut "dev", validation plans inclut "dev"
+- **`models.py`** : `scan_limit_per_day["dev"] = None`
+- **`app_router.py`** : `APP_LIMITS = {"dev": None}`, `_require_plan` → "dev" uniquement
+
+#### Frontend — Fichiers modifiés
+- **`AuthContext.tsx`** : `plan` type inclut `'dev'`, `upgradeToPlan` accepte `'dev'`
+- **`PricingModal.tsx`** : 4ème carte DEV violet (29,90€), `max-w-5xl`, grid 4 colonnes, `isPaid = plan !== 'free'`, `isDev`, `DEV_FEATURES` (tout Pro + API key + Application Scanning)
+- **`ClientSpace.tsx`** : `isPremium` inclut 'dev', Developer tab visible pour pro+dev, White-label tab visible pour pro+dev, apps tab uniquement pour dev, `fetchApps` guard dev-only, plan colors (dev=violet), billing description dev, plan comparison grid 4 colonnes avec carte Dev
+- **`analytics.ts`** : `captureUpgradePlanClicked(plan: 'starter' | 'pro' | 'dev')`
+
+#### Tests
+- `test_auth.py` : `_make_pro_with_api_key` → plan "dev", `test_api_key_pro_user_authenticated` → plan "dev", `test_wsk_pro_key_returns_user` → plan "dev"
+- `test_main_helpers.py` : `test_wsk_pro_key_in_scan_limits` et `test_wsk_pro_key_scan` → plan "dev"
+- `test_payment.py` : `_PLAN_AMOUNTS["dev"] == 2990` ajouté
+- **910 tests, 0 échec** ✅
+
+#### Variable d'env Stripe à définir sur le serveur
+```bash
+STRIPE_DEV_PRICE_ID=price_1T8MpWKOrtMvErGv0iXhORaP
+```
+(Déjà codée en dur comme fallback dans `payment_router.py`)
+
+---
 
 ## 🆕 Fonctionnalités récentes (2026-03-07, session 25)
 

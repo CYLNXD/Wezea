@@ -76,7 +76,7 @@ def _validate_monitored_domain(raw: str) -> str:
     return v
 
 # Limites par plan (None = illimité)
-DOMAIN_LIMITS: dict[str, int | None] = {"starter": 1, "pro": None}
+DOMAIN_LIMITS: dict[str, int | None] = {"starter": 1, "pro": None, "dev": None}
 
 
 class AddDomainRequest(BaseModel):
@@ -113,7 +113,7 @@ class DomainResponse(BaseModel):
 
 
 def _require_premium(user: User) -> None:
-    if user.plan not in ("starter", "pro"):
+    if user.plan not in ("starter", "pro", "dev"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={

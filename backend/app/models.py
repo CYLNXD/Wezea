@@ -57,7 +57,7 @@ class User(Base):
     @property
     def scan_limit_per_day(self) -> int | None:
         """None = unlimited."""
-        limits = {"free": 5, "starter": None, "pro": None}
+        limits = {"free": 5, "starter": None, "pro": None, "dev": None}
         return limits.get(self.plan, 5)
 
 

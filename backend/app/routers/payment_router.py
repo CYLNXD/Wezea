@@ -2,15 +2,16 @@
 Payment Router — Stripe Subscriptions
 =======================================
 Endpoints :
-    POST /payment/create-checkout  → Crée une Stripe Checkout Session (starter ou pro)
+    POST /payment/create-checkout  → Crée une Stripe Checkout Session (starter / pro / dev)
     POST /payment/webhook          → Reçoit les événements Stripe
     GET  /payment/status           → Statut abonnement de l'utilisateur connecté
     GET  /payment/portal           → Génère un lien Stripe Customer Portal
     POST /payment/cancel           → Annule l'abonnement (fin de période)
 
 Plans :
-    starter  → 9,90 €/mois  — scans illimités, PDF avancé, monitoring (sans API)
-    pro      → 19,90 €/mois — tout le Starter + accès API
+    starter  →  9,90 €/mois  — scans illimités, PDF avancé, monitoring
+    pro      → 19,90 €/mois  — tout Starter + monitoring illimité + white-label + webhooks
+    dev      → 29,90 €/mois  — tout Pro + API key + Application Scanning
 """
 
 import os
@@ -37,6 +38,7 @@ router = APIRouter(prefix="/payment", tags=["payment"])
 stripe.api_key             = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_STARTER_PRICE_ID    = os.getenv("STRIPE_STARTER_PRICE_ID", "price_1T6vho3g9OojnV1te1YOoW2P")
 STRIPE_PRO_PRICE_ID        = os.getenv("STRIPE_PRO_PRICE_ID",     "price_1T6sZ93g9OojnV1txjJJPtys")
+STRIPE_DEV_PRICE_ID        = os.getenv("STRIPE_DEV_PRICE_ID",     "price_1T8MpWKOrtMvErGv0iXhORaP")
 STRIPE_WEBHOOK_SECRET      = os.getenv("STRIPE_WEBHOOK_SECRET",   "")
 
 if not STRIPE_WEBHOOK_SECRET:
@@ -56,23 +58,29 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://wezea.net")
 _PRICE_TO_PLAN: dict[str, str] = {
     STRIPE_STARTER_PRICE_ID: "starter",
     STRIPE_PRO_PRICE_ID:     "pro",
+    STRIPE_DEV_PRICE_ID:     "dev",
 }
 _PLAN_AMOUNTS: dict[str, int] = {
     "starter": 990,
     "pro":     1990,
+    "dev":     2990,
 }
 
 
 # ─── Schémas ──────────────────────────────────────────────────────────────────
 
 class CheckoutRequest(BaseModel):
-    plan: str = "starter"   # "starter" | "pro"
+    plan: str = "starter"   # "starter" | "pro" | "dev"
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _price_id_for_plan(plan: str) -> str:
-    return STRIPE_STARTER_PRICE_ID if plan == "starter" else STRIPE_PRO_PRICE_ID
+    if plan == "starter":
+        return STRIPE_STARTER_PRICE_ID
+    if plan == "dev":
+        return STRIPE_DEV_PRICE_ID
+    return STRIPE_PRO_PRICE_ID
 
 
 def _plan_from_subscription(subscription_id: str) -> str:
@@ -184,13 +192,17 @@ async def create_checkout(
     if not stripe.api_key:
         raise HTTPException(status_code=503, detail="Paiement temporairement indisponible.")
 
-    plan = body.plan if body.plan in ("starter", "pro") else "starter"
+    plan = body.plan if body.plan in ("starter", "pro", "dev") else "starter"
 
-    # Déjà abonné au même plan ou supérieur
+    # Hiérarchie des plans pour empêcher un downgrade via checkout
+    _plan_rank = {"free": 0, "starter": 1, "pro": 2, "dev": 3}
+    current_rank = _plan_rank.get(current_user.plan or "free", 0)
+    target_rank  = _plan_rank.get(plan, 1)
+
     if current_user.plan == plan and current_user.subscription_status == "active":
         raise HTTPException(status_code=400, detail=f"Vous êtes déjà abonné au plan {plan.capitalize()}.")
-    if current_user.plan == "pro" and plan == "starter" and current_user.subscription_status == "active":
-        raise HTTPException(status_code=400, detail="Vous avez déjà un plan supérieur (Pro).")
+    if current_rank > target_rank and current_user.subscription_status == "active":
+        raise HTTPException(status_code=400, detail=f"Vous avez déjà un plan supérieur ({current_user.plan.capitalize()}).")
 
     price_id = _price_id_for_plan(plan)
 
@@ -338,9 +350,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 )
 async def subscription_status(current_user: User = Depends(get_current_user)):
     plan      = current_user.plan or "free"
-    is_paid   = plan in ("starter", "pro")
+    is_paid   = plan in ("starter", "pro", "dev")
     is_active = is_paid and current_user.subscription_status == "active"
-    prices    = {"free": 0.0, "starter": 9.90, "pro": 19.90}
+    prices    = {"free": 0.0, "starter": 9.90, "pro": 19.90, "dev": 29.90}
 
     return {
         "plan":                    plan,
@@ -364,7 +376,7 @@ async def customer_portal(
     current_user: User    = Depends(get_current_user),
     db:           Session = Depends(get_db),
 ):
-    if current_user.plan not in ("starter", "pro") or current_user.subscription_status not in ("active", "cancelling"):
+    if current_user.plan not in ("starter", "pro", "dev") or current_user.subscription_status not in ("active", "cancelling"):
         raise HTTPException(status_code=400, detail="Aucun abonnement actif.")
 
     last_payment = (
@@ -426,7 +438,7 @@ async def cancel_subscription(
     current_user: User    = Depends(get_current_user),
     db:           Session = Depends(get_db),
 ):
-    if current_user.plan not in ("starter", "pro") or current_user.subscription_status not in ("active", "cancelling"):
+    if current_user.plan not in ("starter", "pro", "dev") or current_user.subscription_status not in ("active", "cancelling"):
         raise HTTPException(status_code=400, detail="Aucun abonnement actif à annuler.")
 
     last_payment = (

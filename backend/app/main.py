@@ -515,7 +515,7 @@ async def get_scan_limits(request: Request) -> dict:
                 current_user = db.query(User).filter(User.id == int(payload["sub"])).first()
             elif token.startswith("wsk_"):
                 candidate = db.query(User).filter(User.api_key == token).first()
-                if candidate and candidate.is_active and candidate.plan in ("pro",):
+                if candidate and candidate.is_active and candidate.plan in ("dev",):
                     current_user = candidate
 
         if current_user:
@@ -597,9 +597,9 @@ async def run_scan(
             if payload:
                 current_user = db.query(User).filter(User.id == int(payload["sub"])).first()
             elif token.startswith("wsk_"):
-                # Clé API → plan Pro uniquement
+                # Clé API → plan Dev uniquement
                 candidate = db.query(User).filter(User.api_key == token).first()
-                if candidate and candidate.is_active and candidate.plan in ("pro",):
+                if candidate and candidate.is_active and candidate.plan in ("dev",):
                     current_user = candidate
 
         # ── Rate limiting ─────────────────────────────────────────────────────
@@ -939,7 +939,7 @@ async def generate_pdf_report(
 
     # ── White-label : récupérer le branding Pro de l'utilisateur ─────────────
     white_label = None
-    if current_user and current_user.plan in ("pro",) and current_user.wb_enabled:
+    if current_user and current_user.plan in ("pro", "dev") and current_user.wb_enabled:
         white_label = {
             "enabled":       True,
             "company_name":  current_user.wb_company_name,

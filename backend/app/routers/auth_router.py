@@ -146,11 +146,11 @@ def get_current_user(
             raise HTTPException(status_code=401, detail="User not found")
         return user
 
-    # Fallback : API key (format wsk_<base64url>, plan Pro uniquement)
+    # Fallback : API key (format wsk_<base64url>, plan Dev uniquement)
     # Note : token_urlsafe(32) génère ~43 chars base64url — pas 64 hex, pas isalnum()
     if token.startswith("wsk_"):
         user = db.query(User).filter(User.api_key == token).first()
-        if user and user.is_active and user.plan in ("pro",):
+        if user and user.is_active and user.plan in ("dev",):
             return user
 
     raise HTTPException(status_code=401, detail="Invalid or expired token")
@@ -170,10 +170,10 @@ def get_optional_user(
     if payload:
         return db.query(User).filter(User.id == int(payload["sub"])).first()
 
-    # Fallback API key (wsk_ prefix, plan Pro)
+    # Fallback API key (wsk_ prefix, plan Dev)
     if token.startswith("wsk_"):
         user = db.query(User).filter(User.api_key == token).first()
-        if user and user.is_active and user.plan in ("pro",):
+        if user and user.is_active and user.plan in ("dev",):
             return user
 
     return None
@@ -629,8 +629,8 @@ def get_white_label(
     current_user: User = Depends(get_current_user),
 ):
     """Retourne les settings de marque blanche (sans le blob base64 complet)."""
-    if current_user.plan not in ("pro",):
-        raise HTTPException(status_code=403, detail="White-label réservé au plan Pro.")
+    if current_user.plan not in ("pro", "dev"):
+        raise HTTPException(status_code=403, detail="White-label réservé aux plans Pro et Dev.")
     return {
         "enabled":       bool(current_user.wb_enabled),
         "company_name":  current_user.wb_company_name,
@@ -648,8 +648,8 @@ def update_white_label(
     db: Session = Depends(get_db),
 ):
     """Met à jour les paramètres de marque blanche."""
-    if current_user.plan not in ("pro",):
-        raise HTTPException(status_code=403, detail="White-label réservé au plan Pro.")
+    if current_user.plan not in ("pro", "dev"):
+        raise HTTPException(status_code=403, detail="White-label réservé aux plans Pro et Dev.")
 
     if req.enabled is not None:
         current_user.wb_enabled = req.enabled
@@ -683,8 +683,8 @@ async def upload_white_label_logo(
     db: Session = Depends(get_db),
 ):
     """Upload et stocke le logo en base64 (PNG / JPG / SVG / WebP, max 200 Ko)."""
-    if current_user.plan not in ("pro",):
-        raise HTTPException(status_code=403, detail="White-label réservé au plan Pro.")
+    if current_user.plan not in ("pro", "dev"):
+        raise HTTPException(status_code=403, detail="White-label réservé aux plans Pro et Dev.")
 
     content_type = (file.content_type or "").lower()
 
@@ -723,8 +723,8 @@ def delete_white_label_logo(
     db: Session = Depends(get_db),
 ):
     """Supprime le logo de marque blanche."""
-    if current_user.plan not in ("pro",):
-        raise HTTPException(status_code=403, detail="White-label réservé au plan Pro.")
+    if current_user.plan not in ("pro", "dev"):
+        raise HTTPException(status_code=403, detail="White-label réservé aux plans Pro et Dev.")
     current_user.wb_logo_b64 = None
     db.commit()
     return {"status": "ok", "has_logo": False}

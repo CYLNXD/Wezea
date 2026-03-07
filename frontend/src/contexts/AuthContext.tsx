@@ -9,7 +9,7 @@ export const paymentApi = authApi;
 export interface AuthUser {
   id: number;
   email: string;
-  plan: 'free' | 'starter' | 'pro' | 'team';
+  plan: 'free' | 'starter' | 'pro' | 'dev' | 'team';
   api_key: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -28,7 +28,7 @@ interface AuthContextType {
   authHeaders:  () => Record<string, string>;
   updateProfile: (first_name: string | null, last_name: string | null) => Promise<void>;
   deleteAccount: (password: string) => Promise<void>;
-  upgradeToPlan: (plan: 'starter' | 'pro') => Promise<string>;  // retourne checkout_url Stripe
+  upgradeToPlan: (plan: 'starter' | 'pro' | 'dev') => Promise<string>;  // retourne checkout_url Stripe
   getPortalUrl:  () => Promise<string>;                          // retourne portal_url Stripe
   refreshUser:   () => Promise<void>;
 }
@@ -127,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     analyticsIdentify(u.id, u.email, u.plan);
   }
 
-  async function upgradeToPlan(plan: 'starter' | 'pro'): Promise<string> {
+  async function upgradeToPlan(plan: 'starter' | 'pro' | 'dev'): Promise<string> {
     if (!token) throw new Error('Non connecté');
     const { data } = await authApi.post('/payment/create-checkout', { plan }, {
       headers: { Authorization: `Bearer ${token}` },

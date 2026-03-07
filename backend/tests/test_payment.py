@@ -200,6 +200,7 @@ class TestCreateCheckout:
         from app.routers.payment_router import _PLAN_AMOUNTS
         assert _PLAN_AMOUNTS["starter"] == 990   # 9,90 €
         assert _PLAN_AMOUNTS["pro"]     == 1990  # 19,90 €
+        assert _PLAN_AMOUNTS["dev"]     == 2990  # 29,90 €
 
     def test_stripe_error_handler_exists(self):
         """Vérifie que le handler 502 est bien en place (analyse de code, pas HTTP)."""
@@ -833,7 +834,7 @@ class TestWebhookEdgeCases:
 
         db_session.refresh(u["user"])
         # Plan mis à jour via fallback email
-        assert u["user"].plan in ("starter", "pro", "free")
+        assert u["user"].plan in ("starter", "pro", "dev", "free")
 
     def test_checkout_completed_customer_retrieve_exception_silenced(self, client, db_session):
         """Customer.retrieve lève une exception → silencieuse, webhook retourne 200."""

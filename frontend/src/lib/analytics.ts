@@ -170,7 +170,7 @@ export function capturePricingModalOpened(source: PricingSource): void {
  * Clic sur "Choisir ce plan" dans la modale de tarifs.
  * Déclenché avant la redirection Stripe.
  */
-export function captureUpgradePlanClicked(plan: 'starter' | 'pro'): void {
+export function captureUpgradePlanClicked(plan: 'starter' | 'pro' | 'dev'): void {
   ph('upgrade_plan_clicked', { plan });
 }
 

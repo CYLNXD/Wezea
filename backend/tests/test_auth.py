@@ -297,17 +297,17 @@ def test_reset_password_short_password(client, db_user, db_session):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _make_pro_with_api_key(db_session) -> dict:
-    """Crée un utilisateur Pro en DB avec une clé API valide."""
+    """Crée un utilisateur Dev en DB avec une clé API valide."""
     import uuid as _uuid
     from app.models import User
     from app.auth import hash_password, generate_api_key, create_access_token
 
-    email = f"pro-apikey-{_uuid.uuid4().hex[:8]}@example.com"
+    email = f"dev-apikey-{_uuid.uuid4().hex[:8]}@example.com"
     api_key = generate_api_key()
     user = User(
         email=email,
         password_hash=hash_password("TestPass123"),
-        plan="pro",
+        plan="dev",
         api_key=api_key,
     )
     db_session.add(user)
@@ -375,7 +375,7 @@ def test_api_key_regenerate_changes_key(client, db_session):
     """Régénérer la clé API produit une nouvelle clé wsk_ différente."""
     creds = _make_pro_with_api_key(db_session)
     from app.auth import create_access_token
-    token = create_access_token(creds["user"].id, creds["email"], "pro")
+    token = create_access_token(creds["user"].id, creds["email"], "dev")
 
     resp = client.post(
         "/auth/api-key/regenerate",
@@ -975,13 +975,13 @@ class TestOptionalUserApiKey:
     """Tests pour le fallback API key dans get_optional_user."""
 
     def test_api_key_pro_user_authenticated(self, client, db_session):
-        """Clé API wsk_ valide pour un Pro → authentifié via l'endpoint /auth/me."""
+        """Clé API wsk_ valide pour un Dev → authentifié via l'endpoint /auth/me."""
         from app.models import User
         from app.auth import generate_api_key
         u = User(
             email="prouser@example.com",
             password_hash="!google:stub",
-            plan="pro",
+            plan="dev",
             api_key=generate_api_key(),
             is_active=True,
         )
@@ -1168,7 +1168,7 @@ class TestGetOptionalUserWithBearer:
         assert result.id == u.id
 
     def test_wsk_pro_key_returns_user(self, db_session):
-        """Bearer wsk_ Pro → get_optional_user retourne le user (lines 174-177)."""
+        """Bearer wsk_ Dev → get_optional_user retourne le user (lines 174-177)."""
         from app.auth import hash_password, generate_api_key
         from app.models import User
         from app.routers.auth_router import get_optional_user
@@ -1176,7 +1176,7 @@ class TestGetOptionalUserWithBearer:
         u = User(
             email="optional-wsk@example.com",
             password_hash=hash_password("Pass123"),
-            plan="pro", api_key=generate_api_key(), is_active=True,
+            plan="dev", api_key=generate_api_key(), is_active=True,
         )
         db_session.add(u)
         db_session.commit()
