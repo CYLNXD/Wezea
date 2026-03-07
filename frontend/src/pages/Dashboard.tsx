@@ -232,7 +232,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   }, [scanner.result, pdfLoading, user?.plan, lang]);
 
   // ── Monitoring ──────────────────────────────────────────────────────────────
-  const isPremium = user?.plan === 'starter' || user?.plan === 'pro';
+  const isPremium = user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'dev';
 
   const fetchMonitoredDomains = useCallback(async () => {
     if (!isPremium) return;
@@ -524,13 +524,15 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   <div
                     className="w-[26px] h-[26px] rounded-md flex items-center justify-center text-[11px] font-black shrink-0"
                     style={{
-                      background: user.plan === 'pro'
-                        ? 'linear-gradient(135deg,rgba(167,139,250,.3),rgba(167,139,250,.1))'
+                      background: user.plan === 'dev'
+                        ? 'linear-gradient(135deg,rgba(167,139,250,.3),rgba(139,92,246,.1))'
+                        : user.plan === 'pro'
+                        ? 'linear-gradient(135deg,rgba(34,211,238,.25),rgba(34,211,238,.1))'
                         : 'linear-gradient(135deg,rgba(34,211,238,.25),rgba(34,211,238,.1))',
-                      border: user.plan === 'pro'
+                      border: user.plan === 'dev'
                         ? '1px solid rgba(167,139,250,.4)'
                         : '1px solid rgba(34,211,238,.35)',
-                      color: user.plan === 'pro' ? '#c4b5fd' : '#67e8f9',
+                      color: user.plan === 'dev' ? '#c4b5fd' : '#67e8f9',
                     }}
                   >
                     {(user.first_name ?? user.email)[0].toUpperCase()}
@@ -542,14 +544,16 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     <span
                       className="text-[9px] font-bold font-mono px-1.5 py-0.5 rounded shrink-0"
                       style={
-                        user.plan === 'pro'
+                        user.plan === 'dev'
                           ? { color: '#a78bfa', background: 'rgba(167,139,250,.12)', border: '1px solid rgba(167,139,250,.25)' }
+                          : user.plan === 'pro'
+                          ? { color: '#22d3ee', background: 'rgba(34,211,238,.1)', border: '1px solid rgba(34,211,238,.25)' }
                           : user.plan === 'starter'
                           ? { color: '#22d3ee', background: 'rgba(34,211,238,.1)', border: '1px solid rgba(34,211,238,.25)' }
                           : { color: '#64748b', background: 'rgba(100,116,139,.1)', border: '1px solid rgba(100,116,139,.2)' }
                       }
                     >
-                      {user.plan === 'pro' ? 'PRO' : user.plan === 'starter' ? 'STARTER' : (lang === 'fr' ? 'GRATUIT' : 'FREE')}
+                      {user.plan === 'dev' ? 'DEV' : user.plan === 'pro' ? 'PRO' : user.plan === 'starter' ? 'STARTER' : (lang === 'fr' ? 'GRATUIT' : 'FREE')}
                     </span>
                   </div>
                   <svg width="10" height="10" fill="none" stroke="#475569" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="ml-0.5"><polyline points="6 9 12 15 18 9"/></svg>
@@ -1652,7 +1656,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                         className="flex flex-col gap-6"
                       >
                         {/* Analyses avancées */}
-                        {(user?.plan === 'starter' || user?.plan === 'pro') ? (
+                        {(user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'dev') ? (
                           <div className="flex flex-col gap-4">
                             <div className="flex items-center gap-2">
                               <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
