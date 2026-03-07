@@ -942,9 +942,9 @@ class AuditManager:
         else:
             self._auditors = [a for (_, a) in all_base]
 
-        # Auditeurs premium (Starter et Pro uniquement)
+        # Auditeurs premium (Starter, Pro et Dev)
         self._premium_auditors: list[BaseAuditor] = []
-        if plan in ("starter", "pro"):
+        if plan in ("starter", "pro", "dev"):
             from app.advanced_checks import SubdomainAuditor, VulnVersionAuditor
             self._subdomain_auditor = SubdomainAuditor(self.domain, lang)
             self._vuln_auditor      = VulnVersionAuditor(self.domain, lang)
@@ -984,9 +984,9 @@ class AuditManager:
         # Détails premium
         subdomain_details: dict = {}
         vuln_details: dict = {}
-        if self.plan in ("starter", "pro") and self._subdomain_auditor:
+        if self.plan in ("starter", "pro", "dev") and self._subdomain_auditor:
             subdomain_details = self._subdomain_auditor.get_details()
-        if self.plan in ("starter", "pro") and self._vuln_auditor:
+        if self.plan in ("starter", "pro", "dev") and self._vuln_auditor:
             vuln_details = self._vuln_auditor.get_details()
 
         return ScanResult(

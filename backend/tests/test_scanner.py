@@ -563,6 +563,17 @@ class TestAuditManagerInit:
             manager = AuditManager("example.com", plan="pro")
         assert len(manager._premium_auditors) == 2
 
+    def test_dev_plan_has_premium_auditors(self):
+        """Plan dev = tout Pro → doit aussi avoir SubdomainAuditor + VulnVersionAuditor."""
+        from app.scanner import AuditManager
+        with ExitStack() as stack:
+            for p in _all_auditor_patches():
+                stack.enter_context(p)
+            manager = AuditManager("example.com", plan="dev")
+        assert len(manager._premium_auditors) == 2
+        assert manager._subdomain_auditor is not None
+        assert manager._vuln_auditor is not None
+
     def test_domain_lowercased_and_stripped(self):
         """Le domaine est normalisé en minuscules sans espaces."""
         from app.scanner import AuditManager

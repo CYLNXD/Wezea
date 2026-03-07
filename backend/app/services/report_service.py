@@ -304,9 +304,9 @@ def _build_context(
             )
             base_strings["copyright"] = f"© {{year}} {wb_company} · All rights reserved · CONFIDENTIAL"
 
-    dns_det  = dict(data.get("dns_details", {}))
-    ssl_det  = dict(data.get("ssl_details", {}))
-    port_det = dict(data.get("port_details", {}))
+    dns_det  = dict(data.get("dns_details",  {}) or {})
+    ssl_det  = dict(data.get("ssl_details",  {}) or {})
+    port_det = dict(data.get("port_details", {}) or {})
 
     return {
         # Identifiants
