@@ -43,7 +43,7 @@ export default function PageNavbar({
   const menuRef = useRef<HTMLDivElement>(null);
 
   const displayName = user?.first_name ?? user?.email?.split('@')[0] ?? '';
-  const isPremium   = user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'team';
+  const isPremium   = user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'dev' || user?.plan === 'team';
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -165,13 +165,17 @@ export default function PageNavbar({
                   <div
                     className="w-[24px] h-[24px] rounded-md flex items-center justify-center text-[11px] font-black shrink-0"
                     style={{
-                      background: user.plan === 'pro'
-                        ? 'linear-gradient(135deg,rgba(167,139,250,.3),rgba(167,139,250,.1))'
+                      background: user.plan === 'dev'
+                        ? 'linear-gradient(135deg,rgba(167,139,250,.3),rgba(139,92,246,.1))'
+                        : user.plan === 'pro'
+                        ? 'linear-gradient(135deg,rgba(34,211,238,.25),rgba(34,211,238,.1))'
                         : 'linear-gradient(135deg,rgba(34,211,238,.25),rgba(34,211,238,.1))',
-                      border: user.plan === 'pro'
+                      border: user.plan === 'dev'
                         ? '1px solid rgba(167,139,250,.4)'
+                        : user.plan === 'pro'
+                        ? '1px solid rgba(34,211,238,.35)'
                         : '1px solid rgba(34,211,238,.35)',
-                      color: user.plan === 'pro' ? '#c4b5fd' : '#67e8f9',
+                      color: user.plan === 'dev' ? '#c4b5fd' : user.plan === 'pro' ? '#67e8f9' : '#67e8f9',
                     }}
                   >
                     {(user.first_name ?? user.email)[0].toUpperCase()}
@@ -198,14 +202,16 @@ export default function PageNavbar({
                       <span
                         className="text-[9px] font-bold font-mono px-1.5 py-0.5 rounded mt-1 inline-block"
                         style={
-                          user.plan === 'pro'
+                          user.plan === 'dev'
                             ? { color: '#a78bfa', background: 'rgba(167,139,250,.12)', border: '1px solid rgba(167,139,250,.25)' }
+                            : user.plan === 'pro'
+                            ? { color: '#22d3ee', background: 'rgba(34,211,238,.1)', border: '1px solid rgba(34,211,238,.25)' }
                             : user.plan === 'starter'
                             ? { color: '#22d3ee', background: 'rgba(34,211,238,.1)', border: '1px solid rgba(34,211,238,.25)' }
                             : { color: '#64748b', background: 'rgba(100,116,139,.1)', border: '1px solid rgba(100,116,139,.2)' }
                         }
                       >
-                        {user.plan === 'pro' ? 'PRO' : user.plan === 'starter' ? 'STARTER' : (lang === 'fr' ? 'GRATUIT' : 'FREE')}
+                        {user.plan === 'dev' ? 'DEV' : user.plan === 'pro' ? 'PRO' : user.plan === 'starter' ? 'STARTER' : (lang === 'fr' ? 'GRATUIT' : 'FREE')}
                       </span>
                     </div>
 

@@ -327,22 +327,28 @@ export function ProfileModal({ open, onClose }: Props) {
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black"
                       style={{
-                        background: user?.plan === 'pro'
+                        background: user?.plan === 'dev'
                           ? 'linear-gradient(145deg,rgba(167,139,250,0.35) 0%,rgba(139,92,246,0.15) 100%)'
+                          : user?.plan === 'pro'
+                          ? 'linear-gradient(145deg,rgba(34,211,238,0.3) 0%,rgba(6,182,212,0.12) 100%)'
                           : user?.plan === 'starter'
                           ? 'linear-gradient(145deg,rgba(34,211,238,0.3) 0%,rgba(6,182,212,0.12) 100%)'
                           : 'linear-gradient(145deg,rgba(100,116,139,0.25) 0%,rgba(71,85,105,0.1) 100%)',
-                        border: user?.plan === 'pro'
+                        border: user?.plan === 'dev'
                           ? '1px solid rgba(167,139,250,0.45)'
+                          : user?.plan === 'pro'
+                          ? '1px solid rgba(34,211,238,0.4)'
                           : user?.plan === 'starter'
                           ? '1px solid rgba(34,211,238,0.4)'
                           : '1px solid rgba(100,116,139,0.3)',
-                        boxShadow: user?.plan === 'pro'
+                        boxShadow: user?.plan === 'dev'
                           ? '0 2px 12px rgba(139,92,246,0.25), 0 1px 0 rgba(255,255,255,0.08) inset'
+                          : user?.plan === 'pro'
+                          ? '0 2px 12px rgba(34,211,238,0.2), 0 1px 0 rgba(255,255,255,0.08) inset'
                           : user?.plan === 'starter'
                           ? '0 2px 12px rgba(34,211,238,0.2), 0 1px 0 rgba(255,255,255,0.08) inset'
                           : '0 2px 8px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05) inset',
-                        color: user?.plan === 'pro' ? '#c4b5fd' : user?.plan === 'starter' ? '#67e8f9' : '#94a3b8',
+                        color: user?.plan === 'dev' ? '#c4b5fd' : user?.plan === 'pro' ? '#67e8f9' : user?.plan === 'starter' ? '#67e8f9' : '#94a3b8',
                       }}
                     >
                       {((user?.first_name ?? user?.email ?? '?')[0]).toUpperCase()}
@@ -351,14 +357,16 @@ export function ProfileModal({ open, onClose }: Props) {
                     <div
                       className="absolute -bottom-1 -right-1 text-[8px] font-bold font-mono px-1 rounded leading-tight"
                       style={
-                        user?.plan === 'pro'
+                        user?.plan === 'dev'
                           ? { color: '#a78bfa', background: 'rgba(15,10,28,0.95)', border: '1px solid rgba(167,139,250,0.35)' }
+                          : user?.plan === 'pro'
+                          ? { color: '#22d3ee', background: 'rgba(10,18,28,0.95)', border: '1px solid rgba(34,211,238,0.3)' }
                           : user?.plan === 'starter'
                           ? { color: '#22d3ee', background: 'rgba(10,18,28,0.95)', border: '1px solid rgba(34,211,238,0.3)' }
                           : { color: '#64748b', background: 'rgba(10,15,20,0.95)', border: '1px solid rgba(100,116,139,0.25)' }
                       }
                     >
-                      {user?.plan === 'pro' ? 'PRO' : user?.plan === 'starter' ? 'STR' : 'FREE'}
+                      {user?.plan === 'dev' ? 'DEV' : user?.plan === 'pro' ? 'PRO' : user?.plan === 'starter' ? 'STR' : 'FREE'}
                     </div>
                   </div>
 

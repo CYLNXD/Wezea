@@ -57,6 +57,7 @@ const PLAN_COLORS: Record<string, string> = {
   free:    'text-slate-400 bg-slate-800 border-slate-700',
   starter: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
   pro:     'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
+  dev:     'text-violet-400 bg-violet-500/10 border-violet-500/30',
   team:    'text-purple-400 bg-purple-500/10 border-purple-500/30',
 };
 
@@ -64,6 +65,7 @@ const PLAN_BAR_COLORS: Record<string, string> = {
   free:    'bg-slate-600',
   starter: 'bg-emerald-500',
   pro:     'bg-cyan-500',
+  dev:     'bg-violet-500',
   team:    'bg-purple-500',
 };
 
@@ -279,10 +281,10 @@ function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats 
             <h3 className="text-white text-sm font-bold">Répartition des plans</h3>
           </div>
           <div className="space-y-3">
-            {(['free', 'starter', 'pro', 'team'] as const).map(plan => {
+            {(['free', 'starter', 'pro', 'dev', 'team'] as const).map(plan => {
               const count = metrics.plan_breakdown[plan] ?? 0;
               const pct   = Math.round((count / totalPlanUsers) * 100);
-              const labels: Record<string, string> = { free: 'Free', starter: 'Starter', pro: 'Pro', team: 'Team' };
+              const labels: Record<string, string> = { free: 'Free', starter: 'Starter', pro: 'Pro', dev: 'Dev', team: 'Team' };
               const barColor = PLAN_BAR_COLORS[plan] ?? 'bg-slate-600';
               return (
                 <div key={plan}>
@@ -463,6 +465,7 @@ function UsersTab({
                     <option value="free"    className="bg-slate-900 text-slate-400">Free</option>
                     <option value="starter" className="bg-slate-900 text-emerald-400">Starter</option>
                     <option value="pro"     className="bg-slate-900 text-cyan-400">Pro</option>
+                    <option value="dev"     className="bg-slate-900 text-violet-400">Dev</option>
                   </select>
                 </td>
 
