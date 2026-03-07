@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-07 (session 26)
+> Dernière mise à jour : 2026-03-07 (session 27)
 
 ---
 
@@ -179,6 +179,8 @@ function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: s
 - **Stripe résilience** : après wipe DB, `metadata.user_id` devenait invalide → résolution par `stripe_customer_id` > email > metadata
 - **login_failures dict non partagé entre workers** : remplacé par table `login_attempts` en DB (2026-03-06)
 - **`None` crash dans `_derive_checks_overview`** : `data.get("dns_details", {})` retourne `None` quand la clé existe mais vaut `None` → ajouté `or {}` : `dns_det = data.get("dns_details", {}) or {}`
+- **`None` crash dans `_build_context` (report_service.py ligne 307)** : `dict(data.get("dns_details", {}))` idem — clé existante mais valeur `None` → `TypeError: 'NoneType' object is not iterable` → ajouté `or {}` pour dns_det, ssl_det, port_det
+- **Plan `dev` sans auditors premium** : `scanner.py` avait `plan in ("starter", "pro")` pour instancier SubdomainAuditor et VulnVersionAuditor — `dev` exclu → les utilisateurs Dev n'avaient aucun résultat de sous-domaines ou versions vulnérables. Fix : `("starter", "pro", "dev")` aux 2 endroits concernés.
 
 ### Frontend
 - **Scan anonyme → page d'accueil au lieu des résultats** : double cause : (1) `AuthContext.fetchMe` appelait `logout()` sur catch → `window.location.href = '/'` en cas de token expiré. (2) Sur erreur 429, `useScanner` attendait 4800ms de simulation inutile + aucun `scrollIntoView` sur status `'error'` → le ScanConsole qui disparaît réduisait la page et remontait l'utilisateur sur le hero. Fix : retrait du redirect dans fetchMe + fast-fail 800ms sur erreur + scroll sur `'error'` comme sur `'success'`
@@ -322,6 +324,29 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Fonctionnalités récentes (2026-03-07, session 27)
+
+### Bug fixes — pipeline de scan principal
+
+#### `scanner.py` — Plan `dev` sans auditors premium
+- **Symptôme** : les utilisateurs Dev (29,90€) n'obtenaient pas les résultats SubdomainAuditor ni VulnVersionAuditor dans leurs scans
+- **Cause** : deux conditions `plan in ("starter", "pro")` excluaient `"dev"` lors de l'instanciation des auditors premium
+- **Fix** : `("starter", "pro", "dev")` aux lignes 947, 987 et 989
+- **Test ajouté** : `test_dev_plan_has_premium_auditors` dans `TestAuditManagerInit`
+
+#### `report_service.py` — `dict(None)` crash ligne 307
+- **Symptôme** : génération PDF crash avec `TypeError: 'NoneType' object is not iterable` quand `dns_details`, `ssl_details` ou `port_details` existent en DB mais valent `None`
+- **Cause** : `dict(data.get("dns_details", {}))` — le fallback `{}` ne s'applique que si la clé est absente ; si la clé est présente avec valeur `None`, `dict(None)` crash
+- **Fix** : ajout `or {}` : `dict(data.get("dns_details", {}) or {})` pour dns_det, ssl_det, port_det (même pattern déjà appliqué à la ligne 643)
+
+#### Vérification consistance des catégories
+- Toutes les catégories des auditors standard (`scanner.py`, `extra_checks.py`, `advanced_checks.py`) sont dans `known_cats` de `report_service.py` ✅
+- Les catégories de `app_checks.py` (Application Scanning) sont volontairement absentes car ce module est indépendant du pipeline PDF ✅
+
+**1003 tests, 0 échec** ✅
+
+---
 
 ## 🆕 Fonctionnalités récentes (2026-03-07, session 26)
 
