@@ -368,6 +368,8 @@ def _build_context(
         "is_premium":         bool(data.get("subdomain_details") or data.get("vuln_details")),
         # Section "What a hacker sees" — scénarios d'attaque CRITICAL/HIGH
         "hacker_scenarios":  _hacker_scenarios(findings, lang),
+        # Benchmark maturité — score moyen des entreprises (injecté par main.py)
+        "industry_avg":      int(data.get("industry_avg", 58)),
     }
 
 

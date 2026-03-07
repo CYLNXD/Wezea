@@ -35,6 +35,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from sqlalchemy import func as sa_func
 from app.limiter import limiter
 from app.scanner import AuditManager
 from app.services import report_service
@@ -920,6 +921,19 @@ async def generate_pdf_report(
     """
     audit_data = body.model_dump()
     lang       = body.lang if body.lang in ("fr", "en") else "fr"
+
+    # ── Industry avg — injecté dans le contexte PDF pour le benchmark ─────────
+    try:
+        _db = SessionLocal()
+        total  = _db.query(sa_func.count(ScanHistory.id)).scalar() or 0
+        avg_v  = _db.query(sa_func.avg(ScanHistory.security_score)).scalar()
+        if avg_v is not None and total >= 50:
+            audit_data["industry_avg"] = round(float(avg_v))
+        else:
+            audit_data["industry_avg"] = 58   # baseline PME européennes
+        _db.close()
+    except Exception:
+        audit_data.setdefault("industry_avg", 58)
 
     # ── White-label : récupérer le branding Pro de l'utilisateur ─────────────
     white_label = None

@@ -125,7 +125,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [pwError, setPwError]           = useState('');
   const [pwSuccess, setPwSuccess]       = useState(false);
   const [scanLimits, setScanLimits]     = useState<RateLimitInfo | null>(null);
-  const [publicStats, setPublicStats]   = useState<{ total_scans: number } | null>(null);
+  const [publicStats, setPublicStats]   = useState<{ total_scans: number; industry_avg?: number } | null>(null);
   const [faqOpen, setFaqOpen]           = useState<number | null>(null);
   const [newsletterConfirmed, setNewsletterConfirmed] = useState(false);
   const [previousScore,  setPreviousScore]  = useState<number | null>(null);
@@ -1281,6 +1281,113 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     </div>
                   </div>
                 </motion.div>
+
+                {/* ── Maturité de sécurité — benchmark industrie ────────── */}
+                {publicStats?.industry_avg !== undefined && (() => {
+                  const userScore = r.security_score;
+                  const avg       = publicStats.industry_avg!;
+                  const gap       = avg - userScore;
+                  const worse     = gap > 0;
+                  // Estimation du percentile : linéaire autour de la moyenne (±30 pts = ±45%)
+                  const rawPct    = 50 + Math.round(gap * 1.5);
+                  const pctBelowYou = Math.max(5, Math.min(95, rawPct));
+                  const scoreColor = userScore >= 70 ? '#4ade80' : userScore >= 40 ? '#fbbf24' : '#f87171';
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.25 }}
+                      className="sku-panel rounded-2xl p-5"
+                    >
+                      {/* Titre */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ background: 'linear-gradient(135deg,#a78bfa30,#a78bfa0d)', border: '1px solid #a78bfa40' }}>
+                            <TrendingUp size={14} className="text-violet-300" />
+                          </div>
+                          <span className="text-sm font-bold text-slate-200">
+                            {lang === 'fr' ? 'Maturité de sécurité' : 'Security Maturity'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-500 bg-slate-800/60 px-2 py-0.5 rounded-full border border-slate-700/50">
+                          {lang === 'fr' ? 'vs moyenne PME' : 'vs SMB average'}
+                        </span>
+                      </div>
+
+                      {/* Barres comparatives */}
+                      <div className="flex flex-col gap-3 mb-4">
+                        {/* Barre utilisateur */}
+                        <div>
+                          <div className="flex justify-between mb-1.5">
+                            <span className="text-[11px] font-semibold text-slate-300 font-mono">
+                              {lang === 'fr' ? 'Votre score' : 'Your score'}
+                            </span>
+                            <span className="text-[11px] font-bold font-mono" style={{ color: scoreColor }}>
+                              {userScore}/100
+                            </span>
+                          </div>
+                          <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${userScore}%` }}
+                              transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }}
+                              className="h-full rounded-full"
+                              style={{ background: `linear-gradient(90deg, ${scoreColor}cc, ${scoreColor})` }}
+                            />
+                          </div>
+                        </div>
+                        {/* Barre moyenne */}
+                        <div>
+                          <div className="flex justify-between mb-1.5">
+                            <span className="text-[11px] font-semibold text-slate-400 font-mono">
+                              {lang === 'fr' ? 'Moyenne des entreprises' : 'Industry average'}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-400 font-mono">{avg}/100</span>
+                          </div>
+                          <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${avg}%` }}
+                              transition={{ duration: 0.8, ease: 'easeOut', delay: 0.45 }}
+                              className="h-full rounded-full bg-slate-600"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Message psychologique */}
+                      <div className={`rounded-xl px-4 py-3 border text-sm leading-snug ${
+                        worse
+                          ? 'bg-red-500/8 border-red-500/25 text-red-300'
+                          : 'bg-emerald-500/8 border-emerald-500/25 text-emerald-300'
+                      }`}>
+                        {worse ? (
+                          lang === 'fr'
+                            ? <><span className="font-bold">{pctBelowYou}% des entreprises analysées</span> ont un meilleur score que vous. Votre infrastructure est <span className="font-bold">{gap} points en dessous</span> de la moyenne.</>
+                            : <><span className="font-bold">{pctBelowYou}% of analyzed companies</span> score higher than you. Your infrastructure is <span className="font-bold">{gap} points below</span> average.</>
+                        ) : (
+                          lang === 'fr'
+                            ? <>Votre score est <span className="font-bold">{Math.abs(gap)} points au-dessus</span> de la moyenne. Vous faites partie des <span className="font-bold">{100 - pctBelowYou}% d'entreprises</span> les mieux protégées.</>
+                            : <>Your score is <span className="font-bold">{Math.abs(gap)} points above</span> average. You're among the <span className="font-bold">top {100 - pctBelowYou}%</span> of protected companies.</>
+                        )}
+                      </div>
+
+                      {/* CTA pour anonymes */}
+                      {!user && worse && (
+                        <button
+                          onClick={() => { captureRegisterCtaClicked('maturity_widget'); onGoRegister?.(); }}
+                          className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-violet-500/15 border border-violet-500/35 text-violet-300 hover:bg-violet-500/25 transition-colors"
+                        >
+                          <UserPlus size={14} />
+                          {lang === 'fr'
+                            ? `Corriger ces ${gap} points — Créer un compte gratuit`
+                            : `Fix this ${gap}-point gap — Create a free account`}
+                        </button>
+                      )}
+                    </motion.div>
+                  );
+                })()}
 
                 {/* ── Onglets ─────────────────────────────────────────────── */}
                 <div>

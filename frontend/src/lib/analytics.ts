@@ -142,7 +142,8 @@ export type RegisterCtaSource =
   | 'scan_limit'        // quota atteint
   | 'pdf_gate'          // téléchargement PDF bloqué
   | 'hero'              // zone hero
-  | 'results_banner';   // bannière après scan
+  | 'results_banner'    // bannière après scan
+  | 'maturity_widget';  // widget benchmark maturité
 
 export function captureRegisterCtaClicked(source: RegisterCtaSource): void {
   ph('register_cta_clicked', { source });

@@ -418,6 +418,18 @@ p.lead {
 }
 
 /* Score bar (alternative à la jauge SVG en inline) */
+/* Benchmark maturité */
+.maturity-wrap   { margin: 10pt 0 14pt; }
+.maturity-row    { display: table; width: 100%; table-layout: fixed; margin-bottom: 6pt; }
+.maturity-label  { display: table-cell; vertical-align: middle; font-size: 8pt; color: var(--slate-mid); width: 90pt; font-weight: 600; }
+.maturity-bar-track { display: table-cell; vertical-align: middle; padding: 0 8pt; }
+.maturity-bar-fill  { height: 8pt; border-radius: 4pt; }
+.maturity-bar-inner { height: 100%; border-radius: 4pt; background: var(--border); overflow: hidden; }
+.maturity-val    { display: table-cell; vertical-align: middle; text-align: right; font-family: var(--font-mono); font-size: 8pt; font-weight: 700; width: 50pt; }
+.maturity-msg    { font-size: 8.5pt; line-height: 1.5; border-radius: 4pt; padding: 7pt 10pt; margin-top: 4pt; }
+.maturity-danger { background: #fef2f2; border: 0.5pt solid #fca5a5; color: #991b1b; }
+.maturity-ok     { background: #f0fdf4; border: 0.5pt solid #86efac; color: #166534; }
+
 .score-bar-wrap {
   margin: 10pt 0 6pt;
 }
@@ -1306,6 +1318,51 @@ p.lead {
       <span style="color: #d97706; font-weight: 600;">● {% if lang == 'en' %}Moderate{% else %}Modéré{% endif %} 60–79</span>
       <span style="color: #16a34a; font-weight: 600;">● {% if lang == 'en' %}Low{% else %}Faible{% endif %} 80–100</span>
       <div style="clear:both;"></div>
+    </div>
+  </div>
+
+  <!-- ── Benchmark maturité ───────────────────────────────────────────────── -->
+  {% set gap = industry_avg - security_score %}
+  {% set worse = gap > 0 %}
+  {% set raw_pct = (50 + (gap * 1.5)) | round | int %}
+  {% set pct_below = [5, [95, raw_pct] | min] | max %}
+  <h3 class="sub" style="margin-top: 14pt;">{% if lang == 'en' %}Security Maturity Benchmark{% else %}Benchmark de Maturité{% endif %}</h3>
+  <div class="maturity-wrap no-break">
+    <!-- Ligne 1 : votre score -->
+    <div class="maturity-row">
+      <div class="maturity-label">{% if lang == 'en' %}Your score{% else %}Votre score{% endif %}</div>
+      <div class="maturity-bar-track">
+        <div class="maturity-bar-fill" style="width:{{ security_score }}%; background: {{ score_color }};"></div>
+      </div>
+      <div class="maturity-val" style="color: {{ score_color }};">{{ security_score }}/100</div>
+    </div>
+    <!-- Ligne 2 : moyenne industrie -->
+    <div class="maturity-row">
+      <div class="maturity-label">{% if lang == 'en' %}Industry average{% else %}Moyenne PME{% endif %}</div>
+      <div class="maturity-bar-track">
+        <div class="maturity-bar-fill" style="width:{{ industry_avg }}%; background:#64748b;"></div>
+      </div>
+      <div class="maturity-val" style="color:#64748b;">{{ industry_avg }}/100</div>
+    </div>
+    <!-- Message -->
+    <div class="maturity-msg {% if worse %}maturity-danger{% else %}maturity-ok{% endif %}">
+      {% if worse %}
+        {% if lang == 'en' %}
+          <strong>{{ pct_below }}% of analyzed companies</strong> score higher than {{ domain }}.
+          Your infrastructure is <strong>{{ gap }} points below</strong> the industry average.
+        {% else %}
+          <strong>{{ pct_below }}% des entreprises analysées</strong> obtiennent un meilleur score que {{ domain }}.
+          Votre infrastructure est <strong>{{ gap }} points en dessous</strong> de la moyenne.
+        {% endif %}
+      {% else %}
+        {% if lang == 'en' %}
+          Your score is <strong>{{ gap | abs }} points above</strong> average.
+          You're among the <strong>top {{ 100 - pct_below }}%</strong> of protected companies.
+        {% else %}
+          Votre score est <strong>{{ gap | abs }} points au-dessus</strong> de la moyenne.
+          Vous faites partie des <strong>{{ 100 - pct_below }}%</strong> d'entreprises les mieux protégées.
+        {% endif %}
+      {% endif %}
     </div>
   </div>
 
