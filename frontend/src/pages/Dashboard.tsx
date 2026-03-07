@@ -2385,7 +2385,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     : 'Start for free. Upgrade to a paid plan when you\'re ready.'}
                 </p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 {/* FREE */}
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col">
                   <p className="text-sm font-medium text-slate-400 mb-1">Free</p>
@@ -2461,7 +2461,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                       { fr: 'Tout le plan Starter', en: 'Everything in Starter' },
                       { fr: 'Monitoring illimité (domaines)', en: 'Unlimited monitoring (domains)' },
                       { fr: 'Rapports en marque blanche', en: 'White-label reports' },
-                      { fr: 'Webhooks & clé API', en: 'Webhooks & API key' },
+                      { fr: 'Webhooks sortants', en: 'Outbound webhooks' },
                       { fr: 'Badge SVG dynamique', en: 'Dynamic SVG badge' },
                       { fr: 'Export JSON / CSV', en: 'JSON / CSV export' },
                     ].map((f, i) => (
@@ -2478,38 +2478,72 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     {lang === 'fr' ? 'Choisir Pro' : 'Choose Pro'}
                   </button>
                 </div>
+
+                {/* DEV */}
+                <div className="relative rounded-2xl border-2 border-violet-500/40 bg-violet-500/5 p-6 flex flex-col overflow-hidden">
+                  <p className="text-sm font-semibold text-violet-400 mb-1">Dev</p>
+                  <div className="mb-1">
+                    <span className="text-3xl font-black text-white">29,90€</span>
+                    <span className="text-slate-400 text-sm ml-1">/{lang === 'fr' ? 'mois' : 'month'}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4">{lang === 'fr' ? 'API + scan de vos apps' : 'API + scan your apps'}</p>
+                  <ul className="space-y-2.5 flex-1 mb-6">
+                    {[
+                      { fr: 'Tout le plan Pro', en: 'Everything in Pro' },
+                      { fr: 'Accès API (clé wsk_)', en: 'API access (wsk_ key)' },
+                      { fr: 'Application Scanning', en: 'Application Scanning' },
+                    ].map((f, i) => (
+                      <li key={i} className="flex items-center gap-2.5 text-sm text-slate-200">
+                        <svg width="14" height="14" fill="none" stroke="#a78bfa" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                        {lang === 'fr' ? f.fr : f.en}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    onClick={() => openPricing('pricing_section')}
+                    className="w-full py-2.5 rounded-xl bg-violet-500 hover:bg-violet-400 text-white text-sm font-bold transition"
+                  >
+                    {lang === 'fr' ? 'Choisir Dev' : 'Choose Dev'}
+                  </button>
+                </div>
               </div>
               {/* ── Tableau comparatif ─────────────────────────────────────── */}
               <div className="mt-8 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr>
-                      <th className="text-left text-slate-500 font-medium py-3 pr-4 text-xs w-1/2">{lang === 'fr' ? 'Fonctionnalité' : 'Feature'}</th>
-                      <th className="text-center text-slate-400 font-semibold py-3 px-4 text-xs">Free</th>
-                      <th className="text-center text-emerald-400 font-semibold py-3 px-4 text-xs">Starter</th>
-                      <th className="text-center text-cyan-400 font-semibold py-3 px-4 text-xs">Pro</th>
+                      <th className="text-left text-slate-500 font-medium py-3 pr-4 text-xs w-2/5">{lang === 'fr' ? 'Fonctionnalité' : 'Feature'}</th>
+                      <th className="text-center text-slate-400 font-semibold py-3 px-2 text-xs">Free</th>
+                      <th className="text-center text-emerald-400 font-semibold py-3 px-2 text-xs">Starter</th>
+                      <th className="text-center text-cyan-400 font-semibold py-3 px-2 text-xs">Pro</th>
+                      <th className="text-center text-violet-400 font-semibold py-3 px-2 text-xs">Dev</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
                     {([
-                      { fr: 'Scans / jour', en: 'Scans / day',                      free: '5',     starter: '∞',  pro: '∞'   },
-                      { fr: 'Rapport PDF',  en: 'PDF report',                         free: '—',     starter: '✓',  pro: '✓'   },
-                      { fr: 'Historique',   en: 'History',                             free: '20',    starter: '∞',  pro: '∞'   },
-                      { fr: 'Monitoring continu', en: 'Continuous monitoring',         free: '—',     starter: '1 domaine', pro: '∞' },
-                      { fr: 'Alertes email', en: 'Email alerts',                       free: '—',     starter: '✓',  pro: '✓'   },
-                      { fr: 'Marque blanche', en: 'White-label',                       free: '—',     starter: '—',  pro: '✓'   },
-                      { fr: 'Webhooks & clé API', en: 'Webhooks & API key',            free: '—',     starter: '—',  pro: '✓'   },
-                      { fr: 'Badge SVG dynamique', en: 'Dynamic SVG badge',            free: '—',     starter: '—',  pro: '✓'   },
-                      { fr: 'Export JSON / CSV', en: 'JSON / CSV export',              free: '—',     starter: '—',  pro: '✓'   },
-                    ] as Array<{fr:string;en:string;free:string;starter:string;pro:string}>).map((row, i) => (
+                      { fr: 'Scans / jour',           en: 'Scans / day',                free: '5',            starter: '∞',          pro: '∞',   dev: '∞'   },
+                      { fr: 'Rapport PDF',             en: 'PDF report',                 free: '—',            starter: '✓',          pro: '✓',   dev: '✓'   },
+                      { fr: 'Historique',              en: 'History',                    free: '20',           starter: '∞',          pro: '∞',   dev: '∞'   },
+                      { fr: 'Monitoring continu',      en: 'Continuous monitoring',      free: '—',            starter: '1 domaine',  pro: '∞',   dev: '∞'   },
+                      { fr: 'Alertes email',           en: 'Email alerts',               free: '—',            starter: '✓',          pro: '✓',   dev: '✓'   },
+                      { fr: 'Marque blanche',          en: 'White-label',                free: '—',            starter: '—',          pro: '✓',   dev: '✓'   },
+                      { fr: 'Webhooks sortants',       en: 'Outbound webhooks',          free: '—',            starter: '—',          pro: '✓',   dev: '✓'   },
+                      { fr: 'Badge SVG dynamique',     en: 'Dynamic SVG badge',          free: '—',            starter: '—',          pro: '✓',   dev: '✓'   },
+                      { fr: 'Export JSON / CSV',       en: 'JSON / CSV export',          free: '—',            starter: '—',          pro: '✓',   dev: '✓'   },
+                      { fr: 'Clé API (wsk_)',          en: 'API key (wsk_)',             free: '—',            starter: '—',          pro: '—',   dev: '✓'   },
+                      { fr: 'Application Scanning',    en: 'Application Scanning',       free: '—',            starter: '—',          pro: '—',   dev: '✓'   },
+                    ] as Array<{fr:string;en:string;free:string;starter:string;pro:string;dev:string}>).map((row, i) => (
                       <tr key={i} className="hover:bg-slate-900/40 transition-colors">
                         <td className="py-3 pr-4 text-slate-400 text-xs">{lang === 'fr' ? row.fr : row.en}</td>
-                        <td className="py-3 px-4 text-center text-xs text-slate-500 font-mono">{row.free}</td>
-                        <td className="py-3 px-4 text-center text-xs font-mono">
+                        <td className="py-3 px-2 text-center text-xs text-slate-500 font-mono">{row.free}</td>
+                        <td className="py-3 px-2 text-center text-xs font-mono">
                           <span className={row.starter === '—' ? 'text-slate-700' : row.starter === '✓' ? 'text-emerald-400' : 'text-emerald-300 font-semibold'}>{row.starter}</span>
                         </td>
-                        <td className="py-3 px-4 text-center text-xs font-mono">
+                        <td className="py-3 px-2 text-center text-xs font-mono">
                           <span className={row.pro === '—' ? 'text-slate-700' : row.pro === '✓' ? 'text-cyan-400' : 'text-cyan-300 font-semibold'}>{row.pro}</span>
+                        </td>
+                        <td className="py-3 px-2 text-center text-xs font-mono">
+                          <span className={row.dev === '—' ? 'text-slate-700' : row.dev === '✓' ? 'text-violet-400' : 'text-violet-300 font-semibold'}>{row.dev}</span>
                         </td>
                       </tr>
                     ))}
@@ -2531,8 +2565,8 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   {
                     q: lang === 'fr' ? 'L\'analyse est-elle vraiment gratuite ?' : 'Is the analysis really free?',
                     a: lang === 'fr'
-                      ? 'Oui, le scan de base est gratuit et sans inscription. Vous obtenez un score de sécurité et les principales vulnérabilités détectées. Les plans payants (Starter 9,90€ et Pro 19,90€) débloquent les checks avancés, le monitoring continu et les rapports PDF détaillés.'
-                      : 'Yes, the basic scan is free and requires no registration. You get a security score and the main detected vulnerabilities. Paid plans (Starter €9.90 and Pro €19.90) unlock advanced checks, continuous monitoring and detailed PDF reports.',
+                      ? 'Oui, le scan de base est gratuit et sans inscription. Vous obtenez un score de sécurité et les principales vulnérabilités détectées. Les plans payants (Starter 9,90€, Pro 19,90€ et Dev 29,90€) débloquent les checks avancés, le monitoring continu, les rapports PDF détaillés et plus encore.'
+                      : 'Yes, the basic scan is free and requires no registration. You get a security score and the main detected vulnerabilities. Paid plans (Starter €9.90, Pro €19.90 and Dev €29.90) unlock advanced checks, continuous monitoring, detailed PDF reports and more.',
                   },
                   {
                     q: lang === 'fr' ? 'Faut-il installer quelque chose sur mon serveur ?' : 'Do I need to install anything on my server?',
