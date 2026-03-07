@@ -1107,10 +1107,15 @@ class TestAppAuditorSslContextAndGetConn:
         import http.client
         from app.app_checks import AppAuditor
 
+        # Sauvegarder la vraie classe AVANT le patch — patch("…http.client.HTTPSConnection")
+        # modifie le module http.client partagé, donc http.client.HTTPSConnection devient
+        # le mock à l'intérieur du bloc, ce qui causerait InvalidSpecError si on tentait
+        # MagicMock(spec=http.client.HTTPSConnection) à l'intérieur.
+        real_cls = http.client.HTTPSConnection
         auditor = AppAuditor(domain="example.com")
         with patch("app.app_checks.http.client.HTTPSConnection") as mock_cls:
-            mock_cls.return_value = MagicMock(spec=http.client.HTTPSConnection)
-            conn = auditor._get_conn()
+            mock_cls.return_value = MagicMock(spec=real_cls)
+            auditor._get_conn()
         mock_cls.assert_called_once()
         # Le domaine est bien passé en premier argument
         assert mock_cls.call_args[0][0] == "example.com"
