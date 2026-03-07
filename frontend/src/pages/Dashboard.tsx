@@ -2385,35 +2385,37 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     : 'Start for free. Upgrade to a paid plan when you\'re ready.'}
                 </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {/* FREE */}
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col">
-                  <p className="text-sm font-medium text-slate-400 mb-1">Free</p>
-                  <div className="mb-4">
-                    <span className="text-3xl font-black text-white">0€</span>
-                    <span className="text-slate-500 text-sm ml-1">/{lang === 'fr' ? 'mois' : 'month'}</span>
-                  </div>
-                  <ul className="space-y-2.5 flex-1 mb-6">
-                    {[
-                      { fr: '5 scans / jour', en: '5 scans / day' },
-                      { fr: 'Score de sécurité /100', en: 'Security score /100' },
-                      { fr: 'Rapport PDF basique', en: 'Basic PDF report' },
-                      { fr: 'Historique des scans', en: 'Scan history' },
-                    ].map((f, i) => (
-                      <li key={i} className="flex items-center gap-2.5 text-sm text-slate-400">
-                        <svg width="14" height="14" fill="none" stroke="#64748b" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                        {lang === 'fr' ? f.fr : f.en}
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    onClick={() => document.getElementById('domain-input')?.focus()}
-                    className="w-full py-2.5 rounded-xl border border-slate-700 text-slate-300 text-sm font-semibold hover:border-slate-500 transition"
-                  >
-                    {lang === 'fr' ? 'Commencer gratuitement' : 'Start for free'}
-                  </button>
+              {/* FREE — bande horizontale */}
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-6 py-4 flex flex-wrap items-center gap-4 mb-6">
+                <div className="flex items-baseline gap-2 shrink-0">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Free</span>
+                  <span className="text-lg font-black text-slate-300">0€</span>
+                  <span className="text-xs text-slate-600">/{lang === 'fr' ? 'mois' : 'month'}</span>
                 </div>
+                <div className="w-px h-5 bg-slate-800 shrink-0 hidden sm:block" />
+                <ul className="flex flex-wrap gap-x-5 gap-y-1 flex-1">
+                  {[
+                    { fr: '5 scans / jour', en: '5 scans / day' },
+                    { fr: 'Score de sécurité /100', en: 'Security score /100' },
+                    { fr: 'Rapport PDF basique', en: 'Basic PDF report' },
+                    { fr: 'Historique des scans', en: 'Scan history' },
+                  ].map((f, i) => (
+                    <li key={i} className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <svg width="11" height="11" fill="none" stroke="#475569" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      {lang === 'fr' ? f.fr : f.en}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => document.getElementById('domain-input')?.focus()}
+                  className="shrink-0 px-4 py-2 rounded-lg border border-slate-700/80 text-slate-500 text-xs font-semibold hover:border-slate-600 hover:text-slate-400 transition"
+                >
+                  {lang === 'fr' ? 'Commencer gratuitement' : 'Start for free'}
+                </button>
+              </div>
 
+              {/* PLANS PAYANTS — grille 3 colonnes */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 items-start">
                 {/* STARTER */}
                 <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6 flex flex-col">
                   <p className="text-sm font-semibold text-emerald-400 mb-1">Starter</p>
@@ -2443,14 +2445,14 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   </button>
                 </div>
 
-                {/* PRO */}
-                <div className="relative rounded-2xl border-2 border-cyan-500/40 bg-cyan-500/5 p-6 flex flex-col overflow-hidden">
-                  <div className="absolute top-4 right-4">
-                    <span className="text-[10px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded-full font-semibold">
+                {/* PRO — carte centrale mise en avant */}
+                <div className="relative rounded-2xl border-2 border-cyan-500/50 bg-cyan-500/5 p-6 flex flex-col shadow-[0_0_40px_-8px_rgba(34,211,238,0.15)] -mt-2 pb-8">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="text-[10px] bg-cyan-500 text-slate-900 px-3 py-1 rounded-full font-bold tracking-wide shadow-lg">
                       {lang === 'fr' ? 'Recommandé' : 'Recommended'}
                     </span>
                   </div>
-                  <p className="text-sm font-semibold text-cyan-400 mb-1">Pro</p>
+                  <p className="text-sm font-semibold text-cyan-400 mb-1 mt-1">Pro</p>
                   <div className="mb-1">
                     <span className="text-3xl font-black text-white">19,90€</span>
                     <span className="text-slate-400 text-sm ml-1">/{lang === 'fr' ? 'mois' : 'month'}</span>
@@ -2480,7 +2482,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                 </div>
 
                 {/* DEV */}
-                <div className="relative rounded-2xl border-2 border-violet-500/40 bg-violet-500/5 p-6 flex flex-col overflow-hidden">
+                <div className="relative rounded-2xl border-2 border-violet-500/40 bg-violet-500/5 p-6 flex flex-col">
                   <p className="text-sm font-semibold text-violet-400 mb-1">Dev</p>
                   <div className="mb-1">
                     <span className="text-3xl font-black text-white">29,90€</span>
