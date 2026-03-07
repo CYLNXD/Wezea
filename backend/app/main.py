@@ -930,10 +930,10 @@ async def generate_pdf_report(
         if avg_v is not None and total >= 50:
             audit_data["industry_avg"] = round(float(avg_v))
         else:
-            audit_data["industry_avg"] = 58   # baseline PME européennes
+            audit_data["industry_avg"] = 70   # baseline
         _db.close()
     except Exception:
-        audit_data.setdefault("industry_avg", 58)
+        audit_data.setdefault("industry_avg", 70)
 
     # ── White-label : récupérer le branding Pro de l'utilisateur ─────────────
     white_label = None

@@ -155,9 +155,10 @@ def public_stats(request: Request, db: Session = Depends(get_db)):
 
     # ── Score moyen industrie ─────────────────────────────────────────────────
     # Calculé sur les scans authentifiés (qualité > scans anonymes one-shot).
-    # Fallback 58 tant que la base n'a pas assez de données (< 50 scans).
-    # 58/100 reflète la réalité terrain des PME européennes (études 2024).
-    INDUSTRY_BASELINE   = 58   # utilisé si pas assez de données réelles
+    # Fallback 70 tant que la base n'a pas assez de données (< 50 scans).
+    # 70/100 crée une pression maximale sur les mauvais scores tout en
+    # valorisant les bons scores ("vous êtes dans le top X%").
+    INDUSTRY_BASELINE   = 70   # utilisé si pas assez de données réelles
     MIN_SCANS_FOR_REAL  = 50   # seuil pour switcher sur la moyenne réelle
 
     avg_row = db.query(func.avg(ScanHistory.security_score)).scalar()
