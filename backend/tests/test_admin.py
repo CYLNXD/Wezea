@@ -7,6 +7,7 @@ Stratégie :
 - Tous les appels utilisent des JWT générés via create_access_token()
 """
 import uuid as _uuid
+from datetime import datetime, timezone
 
 import pytest
 
@@ -374,3 +375,79 @@ class TestAdminMetrics:
         u = _make_user(db_session, "free")
         resp = client.get("/admin/metrics", headers=_auth(u["token"]))
         assert resp.status_code == 403
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET/DELETE /admin/purge-scans
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestPurgeScans:
+    """Tests pour la purge RGPD des scans anciens."""
+
+    def test_dry_run_no_old_scans(self, client, db_session):
+        """Dry-run sans scans anciens → scans_to_delete=0."""
+        admin = _make_user(db_session, "pro", is_admin=True)
+        _make_scan(db_session, admin["user"].id)  # scan récent
+        resp = client.get("/admin/purge-scans", headers=_auth(admin["token"]))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["dry_run"] is True
+        assert data["scans_to_delete"] == 0
+
+    def test_dry_run_with_old_scans(self, client, db_session):
+        """Dry-run avec des scans anciens → scans_to_delete > 0."""
+        from datetime import timedelta
+        admin = _make_user(db_session, "pro", is_admin=True)
+        # Créer un scan avec une date ancienne
+        scan = _make_scan(db_session, admin["user"].id)
+        scan.created_at = datetime.now(timezone.utc) - timedelta(days=100)
+        db_session.commit()
+
+        resp = client.get("/admin/purge-scans?retention_days=90", headers=_auth(admin["token"]))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["scans_to_delete"] >= 1
+        assert data["retention_days"] == 90
+        assert data["dry_run"] is True
+
+    def test_execute_purge_deletes_old_scans(self, client, db_session):
+        """DELETE /admin/purge-scans supprime les scans anciens et retourne le count."""
+        from datetime import timedelta
+        from unittest.mock import patch
+        admin = _make_user(db_session, "pro", is_admin=True)
+
+        # Créer 2 scans anciens + 1 scan récent
+        scan1 = _make_scan(db_session, admin["user"].id)
+        scan2 = _make_scan(db_session, admin["user"].id)
+        recent_scan = _make_scan(db_session, admin["user"].id)
+        scan1.created_at = datetime.now(timezone.utc) - timedelta(days=95)
+        scan2.created_at = datetime.now(timezone.utc) - timedelta(days=91)
+        # recent_scan garde created_at=now
+        db_session.commit()
+
+        resp = client.delete("/admin/purge-scans?retention_days=90", headers=_auth(admin["token"]))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["dry_run"] is False
+        assert data["scans_deleted"] >= 2
+        assert data["retention_days"] == 90
+
+        # Le scan récent doit encore exister
+        from app.models import ScanHistory
+        still_exists = db_session.query(ScanHistory).filter(ScanHistory.id == recent_scan.id).first()
+        assert still_exists is not None
+
+    def test_execute_purge_non_admin_forbidden(self, client, db_session):
+        """DELETE /admin/purge-scans → 403 pour non-admin."""
+        u = _make_user(db_session, "pro")
+        resp = client.delete("/admin/purge-scans", headers=_auth(u["token"]))
+        assert resp.status_code == 403
+
+    def test_dry_run_custom_retention(self, client, db_session):
+        """dry-run avec retention_days=30 → cutoff correct."""
+        admin = _make_user(db_session, "pro", is_admin=True)
+        resp = client.get("/admin/purge-scans?retention_days=30", headers=_auth(admin["token"]))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["retention_days"] == 30
+        assert "cutoff" in data

@@ -616,6 +616,42 @@ async def _async_weekly_digest():
 # Démarrage / arrêt du scheduler
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Purge automatique des scans anciens (RGPD — rétention 90 jours)
+# ─────────────────────────────────────────────────────────────────────────────
+
+PURGE_RETENTION_DAYS = 90
+
+
+def purge_old_scans(retention_days: int = PURGE_RETENTION_DAYS) -> int:
+    """
+    Supprime les scans dont created_at < now - retention_days.
+    Retourne le nombre de lignes supprimées.
+    Conçu pour être appelé par APScheduler (synchrone) et par l'endpoint admin.
+    """
+    from datetime import timedelta
+    from sqlalchemy import delete
+    from app.database import SessionLocal
+    from app.models import ScanHistory
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    deleted = 0
+    db = SessionLocal()
+    try:
+        result = db.execute(
+            delete(ScanHistory).where(ScanHistory.created_at < cutoff)
+        )
+        db.commit()
+        deleted = result.rowcount
+        logger.info(f"🧹 Purge scans : {deleted} enregistrement(s) supprimé(s) (rétention {retention_days}j)")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erreur purge scans : {e}")
+    finally:
+        db.close()
+    return deleted
+
+
 def start_scheduler() -> bool:
     """
     Démarre le scheduler si ce worker obtient le verrou.
@@ -664,11 +700,23 @@ def start_scheduler() -> bool:
         misfire_grace_time=3600,
     )
 
+    # Chaque jour à 03:00 UTC — purge RGPD des scans > 90 jours
+    _scheduler.add_job(
+        purge_old_scans,
+        trigger="cron",
+        hour=3,
+        minute=0,
+        id="daily_purge",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
     _scheduler.start()
     logger.info(
         "✅ Scheduler démarré — monitoring hebdomadaire lundi 06:00 UTC"
         " | digest lundi 07:30 UTC"
         " | onboarding quotidien 09:00 UTC"
+        " | purge RGPD quotidienne 03:00 UTC"
     )
     return True
 

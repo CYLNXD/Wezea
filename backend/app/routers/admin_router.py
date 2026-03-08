@@ -327,3 +327,45 @@ def delete_blog_link(
         raise HTTPException(status_code=404, detail="Lien introuvable")
     db.delete(link)
     db.commit()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Purge RGPD — scans anciens
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/purge-scans")
+def purge_scans_dry_run(
+    retention_days: int = 90,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Aperçu (dry-run) : combien de scans seraient supprimés."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    count = db.query(func.count(ScanHistory.id)).filter(ScanHistory.created_at < cutoff).scalar()
+    return {
+        "dry_run": True,
+        "retention_days": retention_days,
+        "cutoff": cutoff.isoformat(),
+        "scans_to_delete": count,
+    }
+
+
+@router.delete("/purge-scans", status_code=200)
+def purge_scans_execute(
+    retention_days: int = 90,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Exécute la purge des scans plus anciens que retention_days.
+    Retourne le nombre de scans supprimés.
+    """
+    from sqlalchemy import delete as sa_delete
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    result = db.execute(sa_delete(ScanHistory).where(ScanHistory.created_at < cutoff))
+    db.commit()
+    deleted = result.rowcount
+    return {
+        "dry_run": False,
+        "retention_days": retention_days,
+        "scans_deleted": deleted,
+    }
