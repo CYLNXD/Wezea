@@ -143,7 +143,10 @@ export type RegisterCtaSource =
   | 'pdf_gate'          // téléchargement PDF bloqué
   | 'hero'              // zone hero
   | 'results_banner'    // bannière après scan
-  | 'maturity_widget';  // widget benchmark maturité
+  | 'maturity_widget'   // widget benchmark maturité
+  | 'results_save'      // notice "résultats non sauvegardés"
+  | 'sticky_bar'        // sticky bar bas d'écran post-scan
+  | 'low_findings_gate'; // gate LOW findings dans l'onglet vulnérabilités
 
 export function captureRegisterCtaClicked(source: RegisterCtaSource): void {
   ph('register_cta_clicked', { source });

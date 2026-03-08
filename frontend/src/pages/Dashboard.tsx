@@ -6,7 +6,7 @@
 //   success  → ScoreGauge + FindingCards + FinancialRisk
 //   error    → Message d'erreur avec retry
 //
-import { useState, useEffect, useCallback, FormEvent, useRef } from 'react';
+import { useState, useEffect, useCallback, FormEvent, useRef, ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Shield, Search, ArrowRight, RotateCcw,
@@ -102,6 +102,25 @@ interface Props {
   onScanUuidConsumed?: () => void;
 }
 
+// ─── SkuIcon — boîte d'icône skeuomorphique ───────────────────────────────────
+function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: string; size?: number }) {
+  const r = Math.round(size * 0.28);
+  return (
+    <div className="shrink-0 flex items-center justify-center relative overflow-hidden"
+      style={{
+        width: size, height: size, borderRadius: r,
+        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
+        border: `1px solid ${color}40`,
+        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
+      }}
+    >
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
+      {children}
+    </div>
+  );
+}
+
 export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAdmin, onGoClientSpace, onGoContact, onGoLegal, initialScanUuid, onScanUuidConsumed }: Props) {
   const [domain, setDomain]         = useState('');
   const [modalOpen, setModalOpen]   = useState(false);
@@ -131,6 +150,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [previousScore,  setPreviousScore]  = useState<number | null>(null);
   const [domainHistory,  setDomainHistory]  = useState<number[]>([]);
   const [blogLinks,      setBlogLinks]      = useState<Array<{ id: number; match_keyword: string; article_title: string; article_url: string }>>([]);
+  const [stickyDismissed, setStickyDismissed] = useState(false);
   const inputRef                    = useRef<HTMLInputElement>(null);
   const resultsRef                  = useRef<HTMLDivElement>(null);
 
@@ -1078,7 +1098,14 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
           {/* ── Résultats ─────────────────────────────────────────────── */}
           {isSuccess && scanner.result && (() => {
             const r = scanner.result;
-            const groups = groupFindings(r.findings);
+            const isAnon = !user;
+            // Anonymes : exclure les LOW des groups visibles (affichés dans un gate séparé)
+            const visibleForGroups = isAnon
+              ? r.findings.filter(f => f.severity !== 'LOW' && f.severity !== 'INFO')
+              : r.findings.filter(f => f.severity !== 'INFO');
+            const hiddenLow = isAnon ? r.findings.filter(f => f.severity === 'LOW') : [];
+            const infoFindings = r.findings.filter(f => f.severity === 'INFO');
+            const groups = groupFindings(visibleForGroups);
             const nonInfoCount = r.findings.filter(f => f.severity !== 'INFO').length;
 
             return (
@@ -1395,6 +1422,36 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   );
                 })()}
 
+                {/* ── Notice "Résultats non sauvegardés" (anonyme uniquement) ── */}
+                {!user && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="flex items-center gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 mb-2"
+                  >
+                    <SkuIcon color="#fbbf24" size={32}>
+                      <AlertTriangle size={15} className="text-amber-300" />
+                    </SkuIcon>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-amber-200 text-sm font-semibold">
+                        {lang === 'fr' ? 'Résultats non sauvegardés' : 'Results not saved'}
+                      </p>
+                      <p className="text-slate-400 text-xs mt-0.5 leading-snug">
+                        {lang === 'fr'
+                          ? 'Créez un compte gratuit pour retrouver ces résultats à tout moment.'
+                          : 'Create a free account to access these results at any time.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => goRegister('results_save')}
+                      className="shrink-0 sku-btn-primary text-xs px-3 py-1.5 whitespace-nowrap"
+                    >
+                      {lang === 'fr' ? 'Sauvegarder →' : 'Save →'}
+                    </button>
+                  </motion.div>
+                )}
+
                 {/* ── Onglets ─────────────────────────────────────────────── */}
                 <div>
                   {/* Barre de navigation */}
@@ -1626,16 +1683,62 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                               </div>
                             </div>
 
+                            {/* Gate LOW findings — anonymes uniquement */}
+                            {isAnon && hiddenLow.length > 0 && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                                className="relative rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/40"
+                                style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+                              >
+                                {/* Faux aperçu flou */}
+                                <div className="blur-sm opacity-40 pointer-events-none px-5 py-4 flex flex-col gap-3 select-none">
+                                  {[...Array(Math.min(hiddenLow.length, 3))].map((_, i) => (
+                                    <div key={i} className="h-12 rounded-lg bg-slate-800/60 border border-slate-700/40" />
+                                  ))}
+                                </div>
+                                {/* Overlay CTA */}
+                                <div
+                                  className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center"
+                                  style={{ background: 'linear-gradient(180deg, rgba(15,21,30,0.3) 0%, rgba(15,21,30,0.85) 60%, rgba(15,21,30,0.95) 100%)' }}
+                                >
+                                  <SkuIcon color="#fbbf24" size={40}>
+                                    <Lock size={20} className="text-amber-300" />
+                                  </SkuIcon>
+                                  <div>
+                                    <p className="text-white font-bold text-sm">
+                                      {lang === 'fr'
+                                        ? `${hiddenLow.length} recommandation${hiddenLow.length > 1 ? 's' : ''} LOW masquée${hiddenLow.length > 1 ? 's' : ''}`
+                                        : `${hiddenLow.length} LOW recommendation${hiddenLow.length > 1 ? 's' : ''} hidden`}
+                                    </p>
+                                    <p className="text-slate-400 text-xs mt-1">
+                                      {lang === 'fr'
+                                        ? 'Créez un compte gratuit pour accéder au plan de correction complet.'
+                                        : 'Create a free account to access the full remediation plan.'}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => goRegister('low_findings_gate')}
+                                    className="sku-btn-primary text-sm px-4 py-2 flex items-center gap-2"
+                                  >
+                                    <UserPlus size={14} />
+                                    {lang === 'fr' ? 'Créer un compte gratuit' : 'Create free account'}
+                                  </button>
+                                </div>
+                              </motion.div>
+                            )}
+
                             {/* Infos — collapsible */}
-                            {groups.info.length > 0 && (
+                            {infoFindings.length > 0 && (
                               <details className="group">
                                 <summary className="flex items-center gap-2 text-xs font-mono text-slate-600 cursor-pointer hover:text-slate-400 transition-colors list-none">
                                   <Info size={12} />
-                                  {groups.info.length} {t('findings_info')}
+                                  {infoFindings.length} {t('findings_info')}
                                   <span className="text-slate-700 group-open:rotate-90 transition-transform">▶</span>
                                 </summary>
                                 <div className="mt-3 flex flex-col gap-3">
-                                  {groups.info.map((f, i) => (
+                                  {infoFindings.map((f, i) => (
                                     <FindingCard key={(f.title ?? f.message ?? '') + i} finding={f} index={i} />
                                   ))}
                                 </div>
@@ -2834,6 +2937,59 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
           <a href="mailto:contact@wezea.net" className="hover:text-slate-400 transition-colors">contact@wezea.net</a>
         </div>
       </footer>
+
+      {/* ── Sticky bar post-scan (anonyme uniquement) ────────────────────── */}
+      <AnimatePresence>
+        {!user && scanner.status === 'success' && !stickyDismissed && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ delay: 1.8, duration: 0.4, ease: 'easeOut' }}
+            className="fixed bottom-0 left-0 right-0 z-50"
+            style={{
+              background: 'linear-gradient(180deg, rgba(8,18,30,0.96), rgba(5,10,18,0.99))',
+              borderTop: '1px solid rgba(34,211,238,0.18)',
+              backdropFilter: 'blur(14px)',
+            }}
+          >
+            <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div
+                  className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)' }}
+                >
+                  <FileDown size={15} className="text-cyan-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-white text-sm font-semibold truncate">
+                    {lang === 'fr' ? "Rapport PDF complet + sauvegarde de l'historique" : 'Full PDF report + history saving'}
+                  </p>
+                  <p className="text-slate-500 text-xs">
+                    {lang === 'fr' ? 'Gratuit — sans carte bancaire' : 'Free — no credit card required'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => goRegister('sticky_bar')}
+                  className="sku-btn-primary text-sm px-4 py-2 flex items-center gap-2"
+                >
+                  <UserPlus size={14} />
+                  {lang === 'fr' ? 'Créer mon compte →' : 'Create account →'}
+                </button>
+                <button
+                  onClick={() => setStickyDismissed(true)}
+                  className="text-slate-500 hover:text-slate-300 transition-colors p-1.5 rounded-lg hover:bg-slate-800/50"
+                  aria-label="Fermer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
