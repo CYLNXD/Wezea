@@ -11,7 +11,11 @@
     localStorage.setItem('wz-lang', lang);
     document.documentElement.setAttribute('data-lang', lang);
     document.querySelectorAll('.wz-lang-btn').forEach(function(btn) {
-      btn.setAttribute('data-active', btn.getAttribute('data-lang') === lang ? '1' : '0');
+      var isActive = btn.getAttribute('data-lang') === lang;
+      btn.setAttribute('data-active', isActive ? '1' : '0');
+      btn.style.color     = isActive ? '#22d3ee' : '#475569';
+      btn.style.background= isActive ? 'linear-gradient(180deg,#1e2d3d,#162433)' : 'transparent';
+      btn.style.boxShadow = isActive ? '0 1px 0 rgba(255,255,255,0.06) inset' : 'none';
     });
     /* Meta title + description per-page override */
     var t = window.WZ_T;
@@ -53,9 +57,10 @@
     'border-bottom:1px solid rgba(255,255,255,.07);' +
     'box-shadow:0 4px 24px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.03) inset;}' +
 
-    '.wz-nav-inner{max-width:1152px;margin:0 auto;padding:0 1.25rem;height:52px;' +
-    'display:flex;align-items:center;gap:1rem;}' +
+    '.wz-nav-inner{max-width:1152px;margin:0 auto;padding:0 1rem;height:52px;' +
+    'display:flex;align-items:center;gap:.75rem;}' +
 
+    /* — Logo — */
     '.wz-nav-logo{font-size:20px;font-weight:900;color:#fff;letter-spacing:-.03em;' +
     'font-family:-apple-system,"SF Pro Display","Inter",system-ui,sans-serif;' +
     'text-decoration:none;flex-shrink:0;line-height:1;}' +
@@ -64,37 +69,61 @@
     '.wz-nav-logo small{display:block;font-size:9px;font-weight:500;color:#64748b;' +
     'letter-spacing:.12em;text-transform:uppercase;margin-top:2px;}' +
 
-    '.wz-nav-links{display:flex;align-items:center;gap:.25rem;margin-left:1.5rem;flex:1;}' +
+    /* — Nav links (centre) — */
+    '.wz-nav-links{display:flex;align-items:center;gap:.25rem;margin-left:1.25rem;flex:1;}' +
 
     '.wz-nav-link{display:inline-flex;align-items:center;gap:.375rem;font-size:12px;' +
     'font-family:"Inter",system-ui,sans-serif;' +
     'font-weight:500;color:#94a3b8;padding:.375rem .75rem;border-radius:8px;' +
-    'transition:color .15s,background .15s;text-decoration:none;}' +
+    'transition:color .15s,background .15s;text-decoration:none;white-space:nowrap;}' +
     '.wz-nav-link svg{flex-shrink:0;}' +
     '.wz-nav-link:hover{color:#e2e8f0;background:rgba(255,255,255,.04);text-decoration:none;}' +
 
-    '.wz-btn-nav{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;' +
+    /* — Right side — */
+    '.wz-nav-right{display:flex;align-items:center;gap:.625rem;flex-shrink:0;margin-left:auto;}' +
+
+    /* — Separator — */
+    '.wz-nav-sep{width:1px;height:16px;background:rgba(255,255,255,.07);flex-shrink:0;}' +
+
+    /* — Connexion button (ghost) — */
+    '.wz-btn-login{display:inline-flex;align-items:center;font-size:12px;font-weight:500;' +
     'font-family:"Inter",system-ui,sans-serif;' +
-    'color:#020617;background:#22d3ee;padding:.375rem 1rem;border-radius:8px;' +
+    'color:#94a3b8;padding:.375rem .75rem;border-radius:8px;' +
+    'border:1px solid rgba(255,255,255,.08);' +
+    'transition:color .15s,background .15s;text-decoration:none;white-space:nowrap;}' +
+    '.wz-btn-login:hover{color:#e2e8f0;background:rgba(255,255,255,.05);text-decoration:none;}' +
+
+    /* — Sign up button (cyan) — */
+    '.wz-btn-signup{display:inline-flex;align-items:center;font-size:12px;font-weight:700;' +
+    'font-family:"Inter",system-ui,sans-serif;' +
+    'color:#020617;background:#22d3ee;padding:.375rem .9rem;border-radius:8px;' +
     'transition:background .15s;white-space:nowrap;flex-shrink:0;' +
     'text-decoration:none;}' +
-    '.wz-btn-nav:hover{background:#67e8f9;text-decoration:none;}' +
+    '.wz-btn-signup:hover{background:#67e8f9;text-decoration:none;}' +
 
-    /* — Language toggle — */
-    '.wz-lang-toggle{display:flex;align-items:center;gap:2px;' +
-    'background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);' +
-    'border-radius:8px;padding:2px;flex-shrink:0;margin-left:.5rem;}' +
-    '.wz-lang-btn{font-size:11px;font-weight:600;letter-spacing:.04em;' +
-    'font-family:"Inter",system-ui,sans-serif;' +
-    'color:#64748b;padding:.25rem .5rem;border-radius:6px;cursor:pointer;' +
-    'border:none;background:transparent;transition:all .15s;line-height:1;}' +
-    '.wz-lang-btn[data-active="1"]{color:#020617;background:#22d3ee;}' +
-    '.wz-lang-btn:hover:not([data-active="1"]){color:#e2e8f0;background:rgba(255,255,255,.06);}' +
+    /* — Language toggle (dark inset — same as React app) — */
+    '.wz-lang-toggle{display:flex;overflow:hidden;border-radius:8px;' +
+    'background:linear-gradient(180deg,#0f151e,#0b1018);' +
+    'border:1px solid rgba(255,255,255,.07);' +
+    'box-shadow:0 2px 5px rgba(0,0,0,.4) inset;' +
+    'flex-shrink:0;}' +
+    '.wz-lang-btn{font-size:11px;font-weight:700;letter-spacing:.04em;' +
+    'font-family:"JetBrains Mono","Fira Code",monospace;' +
+    'padding:.375rem .625rem;cursor:pointer;' +
+    'border:none;background:transparent;transition:all .15s;line-height:1;' +
+    'color:#475569;}' +
+    '.wz-lang-btn[data-active="1"]{color:#22d3ee;' +
+    'background:linear-gradient(180deg,#1e2d3d,#162433);' +
+    'box-shadow:0 1px 0 rgba(255,255,255,.06) inset;}' +
+    '.wz-lang-btn:hover:not([data-active="1"]){color:#e2e8f0;}' +
 
     /* — Responsive — */
-    '@media(max-width:480px){' +
+    '@media(max-width:600px){' +
     '.wz-nav-logo small{display:none;}' +
-    '.wz-btn-nav{display:none;}' +
+    '.wz-btn-login{display:none;}' +
+    '}' +
+    '@media(max-width:480px){' +
+    '.wz-btn-signup{display:none;}' +
     '}';
 
   var styleEl = document.createElement('style');
@@ -109,7 +138,8 @@
   /* ── Navbar ─────────────────────────────────────────────────────────────── */
   var blogLabel    = '<span class="lang-fr">Blog</span><span class="lang-en">Blog</span>';
   var agencesLabel = '<span class="lang-fr">Agences</span><span class="lang-en">Agencies</span>';
-  var ctaLabel     = '<span class="lang-fr">Scanner un domaine →</span><span class="lang-en">Scan a domain →</span>';
+  var loginLabel   = '<span class="lang-fr">Connexion</span><span class="lang-en">Sign in</span>';
+  var signupLabel  = '<span class="lang-fr">Créer un compte</span><span class="lang-en">Sign up</span>';
 
   var links = '';
   if (!isBlogIndex) {
@@ -119,10 +149,17 @@
     links += '<a href="/agences/" class="wz-nav-link">' + ICON_BUILDING + ' ' + agencesLabel + '</a>';
   }
 
+  /* Active state inline (applied at render + updated by setLang) */
+  function langBtnStyle(l) {
+    return LANG === l
+      ? 'color:#22d3ee;background:linear-gradient(180deg,#1e2d3d,#162433);box-shadow:0 1px 0 rgba(255,255,255,.06) inset;'
+      : 'color:#475569;';
+  }
+
   var langToggle =
     '<div class="wz-lang-toggle">' +
-      '<button class="wz-lang-btn" data-lang="fr" data-active="' + (LANG==='fr'?'1':'0') + '">FR</button>' +
-      '<button class="wz-lang-btn" data-lang="en" data-active="' + (LANG==='en'?'1':'0') + '">EN</button>' +
+      '<button class="wz-lang-btn" data-lang="fr" data-active="' + (LANG==='fr'?'1':'0') + '" style="' + langBtnStyle('fr') + '">FR</button>' +
+      '<button class="wz-lang-btn" data-lang="en" data-active="' + (LANG==='en'?'1':'0') + '" style="' + langBtnStyle('en') + '">EN</button>' +
     '</div>';
 
   var nav = document.createElement('nav');
@@ -134,8 +171,12 @@
         '<small>Security Scanner</small>' +
       '</a>' +
       '<div class="wz-nav-links">' + links + '</div>' +
-      langToggle +
-      '<a href="https://wezea.net" class="wz-btn-nav">' + ctaLabel + '</a>' +
+      '<div class="wz-nav-right">' +
+        langToggle +
+        '<div class="wz-nav-sep"></div>' +
+        '<a href="https://wezea.net" class="wz-btn-login">' + loginLabel + '</a>' +
+        '<a href="https://wezea.net?register=1" class="wz-btn-signup">' + signupLabel + '</a>' +
+      '</div>' +
     '</div>';
 
   /* Insertion synchrone au niveau du <script> appelant */
