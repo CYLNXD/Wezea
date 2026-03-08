@@ -6,8 +6,6 @@ import { useState, useRef, useEffect, ReactNode } from 'react';
 import { ChevronLeft, ChevronDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { ProfileModal } from './ProfileModal';
-import PricingModal from './PricingModal';
 import { apiClient } from '../lib/api';
 
 interface PageNavbarProps {
@@ -16,22 +14,20 @@ interface PageNavbarProps {
   icon?:     ReactNode;
   actions?:  ReactNode;
   // Navigation optionnelle vers d'autres sous-pages
-  onGoClientSpace?: () => void;
-  onGoHistory?:     () => void;
+  onGoClientSpace?: (tab?: string, section?: string) => void;
+  onGoHistory?:     () => void;   // accepté pour compatibilité, non utilisé dans le dropdown
   onGoAdmin?:       () => void;
   onGoContact?:     () => void;
 }
 
 export default function PageNavbar({
   onBack, title, icon, actions,
-  onGoClientSpace, onGoHistory, onGoAdmin, onGoContact,
+  onGoClientSpace, onGoAdmin, onGoContact,
 }: PageNavbarProps) {
   const { user, logout } = useAuth();
   const { lang, setLang } = useLanguage();
 
   const [menuOpen,        setMenuOpen]        = useState(false);
-  const [profileOpen,     setProfileOpen]     = useState(false);
-  const [pricingOpen,     setPricingOpen]     = useState(false);
   const [pwOpen,          setPwOpen]          = useState(false);
   const [pwCurrent,       setPwCurrent]       = useState('');
   const [pwNew,           setPwNew]           = useState('');
@@ -43,8 +39,6 @@ export default function PageNavbar({
   const menuRef = useRef<HTMLDivElement>(null);
 
   const displayName = user?.first_name ?? user?.email?.split('@')[0] ?? '';
-  const isPremium   = user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'dev' || user?.plan === 'team';
-
   // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -216,44 +210,19 @@ export default function PageNavbar({
                     </div>
 
                     {/* Navigation */}
-                    {(onGoClientSpace || onGoHistory) && (
-                      <div className="pt-1.5 pb-1 border-b border-white/6">
-                        <p className="px-3 pb-1 text-[9px] font-mono text-slate-600 uppercase tracking-widest">
-                          {lang === 'fr' ? 'Navigation' : 'Navigate'}
-                        </p>
-                        {isPremium && onGoClientSpace && (
-                          <DropItem
-                            icon={<svg width="10" height="10" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>}
-                            iconBg="linear-gradient(150deg,rgba(34,211,238,.18),rgba(34,211,238,.05))"
-                            iconBorder="1px solid rgba(34,211,238,.22)"
-                            label={lang === 'fr' ? 'Mon espace' : 'My space'}
-                            onClick={() => { closeAll(); onGoClientSpace(); }}
-                          />
-                        )}
-                        {!isPremium && onGoHistory && (
-                          <DropItem
-                            icon={<svg width="10" height="10" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 0 .5-4"/><polyline points="3 7 3 11 7 11"/></svg>}
-                            iconBg="linear-gradient(150deg,rgba(148,163,184,.18),rgba(148,163,184,.05))"
-                            iconBorder="1px solid rgba(148,163,184,.22)"
-                            label={lang === 'fr' ? 'Historique' : 'History'}
-                            onClick={() => { closeAll(); onGoHistory(); }}
-                          />
-                        )}
-                      </div>
-                    )}
-
-                    {/* Compte */}
                     <div className="pt-1.5 pb-1 border-b border-white/6">
                       <p className="px-3 pb-1 text-[9px] font-mono text-slate-600 uppercase tracking-widest">
-                        {lang === 'fr' ? 'Compte' : 'Account'}
+                        {lang === 'fr' ? 'Navigation' : 'Navigate'}
                       </p>
-                      <DropItem
-                        icon={<svg width="10" height="10" fill="none" stroke="#c084fc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
-                        iconBg="linear-gradient(150deg,rgba(192,132,252,.18),rgba(192,132,252,.05))"
-                        iconBorder="1px solid rgba(192,132,252,.22)"
-                        label={lang === 'fr' ? 'Mon profil' : 'My profile'}
-                        onClick={() => { closeAll(); setProfileOpen(true); }}
-                      />
+                      {onGoClientSpace && (
+                        <DropItem
+                          icon={<svg width="10" height="10" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>}
+                          iconBg="linear-gradient(150deg,rgba(34,211,238,.18),rgba(34,211,238,.05))"
+                          iconBorder="1px solid rgba(34,211,238,.22)"
+                          label={lang === 'fr' ? 'Mon espace' : 'My space'}
+                          onClick={() => { closeAll(); onGoClientSpace(); }}
+                        />
+                      )}
                       {!user.google_id && (
                         <DropItem
                           icon={<svg width="10" height="10" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
@@ -263,15 +232,6 @@ export default function PageNavbar({
                           onClick={() => { closeAll(); setPwOpen(true); }}
                         />
                       )}
-                      <DropItem
-                        icon={<svg width="10" height="10" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
-                        iconBg="linear-gradient(150deg,rgba(34,211,238,.18),rgba(34,211,238,.05))"
-                        iconBorder="1px solid rgba(34,211,238,.22)"
-                        label={user.plan === 'free'
-                          ? (lang === 'fr' ? 'Voir les plans' : 'View plans')
-                          : (lang === 'fr' ? "Gérer l'abonnement" : 'Manage subscription')}
-                        onClick={() => { closeAll(); setPricingOpen(true); }}
-                      />
                     </div>
 
                     {/* Aide + Admin */}
@@ -316,10 +276,6 @@ export default function PageNavbar({
 
         </div>
       </nav>
-
-      {/* Modales */}
-      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
-      <PricingModal open={pricingOpen} onClose={() => setPricingOpen(false)} />
 
       {/* Modale changement de mot de passe */}
       {pwOpen && (

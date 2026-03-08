@@ -16,6 +16,8 @@ import { initClientId, } from './lib/api';
 import { restoreConsent } from './lib/analytics';
 
 type Page = 'dashboard' | 'login' | 'history' | 'admin' | 'clientspace' | 'contact' | 'legal' | 'public-scan';
+type ClientSpaceTab = 'overview' | 'monitoring' | 'apps' | 'history' | 'settings' | 'developer';
+type SettingsSection = 'profile' | 'billing' | 'whitelabel' | 'danger';
 
 export default function App() {
   const [page, setPage]               = useState<Page>('dashboard');
@@ -24,6 +26,14 @@ export default function App() {
   const [publicScanUuid, setPublicScanUuid]   = useState<string | null>(null);
   const [pendingScanUuid, setPendingScanUuid] = useState<string | null>(null);
   const [resetToken, setResetToken]     = useState<string | null>(null);
+  const [csTab, setCsTab]                   = useState<ClientSpaceTab | undefined>(undefined);
+  const [csSection, setCsSection]           = useState<SettingsSection | undefined>(undefined);
+
+  const goClientSpace = (tab?: ClientSpaceTab, section?: SettingsSection) => {
+    setCsTab(tab);
+    setCsSection(section);
+    setPage('clientspace');
+  };
 
   // Initialise le cookie d'identification anonyme et restaure le consentement analytics
   useEffect(() => {
@@ -78,7 +88,7 @@ export default function App() {
             onGoRegister={()     => { setLoginMode('register'); setPage('login'); }}
             onGoHistory={()      => setPage('history')}
             onGoAdmin={()        => setPage('admin')}
-            onGoClientSpace={()  => setPage('clientspace')}
+            onGoClientSpace={(tab?, section?) => goClientSpace(tab as ClientSpaceTab | undefined, section as SettingsSection | undefined)}
             onGoContact={()      => setPage('contact')}
             onGoLegal={(s)       => { setLegalSection((s ?? 'mentions') as LegalSection); setPage('legal'); }}
             initialScanUuid={pendingScanUuid}
@@ -97,7 +107,7 @@ export default function App() {
             onBack={() => setPage('dashboard')}
             onLoadScan={(uuid) => { setPendingScanUuid(uuid); setPage('dashboard'); }}
             onGoAdmin={() => setPage('admin')}
-            onGoClientSpace={() => setPage('clientspace')}
+            onGoClientSpace={() => goClientSpace()}
             onGoContact={() => setPage('contact')}
           />
         )}
@@ -105,7 +115,7 @@ export default function App() {
           <AdminPage
             onBack={() => setPage('dashboard')}
             onGoHistory={() => setPage('history')}
-            onGoClientSpace={() => setPage('clientspace')}
+            onGoClientSpace={() => goClientSpace()}
             onGoContact={() => setPage('contact')}
           />
         )}
@@ -115,12 +125,14 @@ export default function App() {
             onGoHistory={() => setPage('history')}
             onGoAdmin={() => setPage('admin')}
             onGoContact={() => setPage('contact')}
+            initialTab={csTab}
+            initialSettingsSection={csSection}
           />
         )}
         {page === 'contact' && (
           <ContactPage
             onBack={() => setPage('dashboard')}
-            onGoClientSpace={() => setPage('clientspace')}
+            onGoClientSpace={() => goClientSpace()}
             onGoHistory={() => setPage('history')}
             onGoAdmin={() => setPage('admin')}
           />
@@ -129,7 +141,7 @@ export default function App() {
           <LegalPage
             section={legalSection}
             onBack={() => setPage('dashboard')}
-            onGoClientSpace={() => setPage('clientspace')}
+            onGoClientSpace={() => goClientSpace()}
             onGoHistory={() => setPage('history')}
             onGoAdmin={() => setPage('admin')}
             onGoContact={() => setPage('contact')}

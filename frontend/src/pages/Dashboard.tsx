@@ -22,7 +22,6 @@ import { ScanConsole } from '../components/ScanConsole';
 import { ScoreGauge } from '../components/ScoreGauge';
 import { FindingCard, FindingGroup } from '../components/FindingCard';
 import { EmailCaptureModal } from '../components/EmailCaptureModal';
-import { ProfileModal } from '../components/ProfileModal';
 import PricingModal from '../components/PricingModal';
 import NewsletterWidget from '../components/NewsletterWidget';
 import type { Finding } from '../types/scanner';
@@ -93,7 +92,7 @@ interface Props {
   onGoRegister?:   () => void;
   onGoHistory?:    () => void;
   onGoAdmin?:      () => void;
-  onGoClientSpace?:() => void;
+  onGoClientSpace?:(tab?: string, section?: string) => void;
   onGoContact?:    () => void;
   onGoLegal?:      (section?: string) => void;
   /** UUID d'un scan historique à charger directement (depuis HistoryPage) */
@@ -126,7 +125,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [modalOpen, setModalOpen]   = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [pwModalOpen, setPwModalOpen]       = useState(false);
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [pricingModalOpen, setPricingModalOpen] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError,   setPdfError]   = useState<string | null>(null);
@@ -438,7 +436,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
             {user && (
               isPremium ? (
                 <button
-                  onClick={onGoClientSpace}
+                  onClick={() => onGoClientSpace?.()}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-cyan-300 bg-cyan-500/8 border border-cyan-500/22 hover:bg-cyan-500/15 hover:border-cyan-500/40 transition-all"
                 >
                   <Shield size={11} />
@@ -592,17 +590,17 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                       <p className="text-[11px] text-slate-500 font-mono truncate">{user.email}</p>
                     </div>
 
-                    {/* Section Compte */}
+                    {/* Section Navigation */}
                     <div className="pt-1.5 pb-1">
-                      <p className="px-3 pb-1 text-[9px] font-mono text-slate-600 uppercase tracking-widest">{lang === 'fr' ? 'Compte' : 'Account'}</p>
+                      <p className="px-3 pb-1 text-[9px] font-mono text-slate-600 uppercase tracking-widest">{lang === 'fr' ? 'Navigation' : 'Navigate'}</p>
                       <button
-                        onClick={() => { setUserMenuOpen(false); setProfileModalOpen(true); }}
+                        onClick={() => { setUserMenuOpen(false); onGoClientSpace?.(); }}
                         className="w-full text-left px-3 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-slate-200 transition flex items-center gap-2.5"
                       >
-                        <span className="w-[18px] h-[18px] rounded-[5px] shrink-0 inline-flex items-center justify-center" style={{background:'linear-gradient(150deg,rgba(192,132,252,.18),rgba(192,132,252,.05))',border:'1px solid rgba(192,132,252,.22)'}}>
-                          <svg width="10" height="10" fill="none" stroke="#c084fc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <span className="w-[18px] h-[18px] rounded-[5px] shrink-0 inline-flex items-center justify-center" style={{background:'linear-gradient(150deg,rgba(34,211,238,.18),rgba(34,211,238,.05))',border:'1px solid rgba(34,211,238,.22)'}}>
+                          <svg width="10" height="10" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                         </span>
-                        {lang === 'fr' ? 'Mon profil' : 'My profile'}
+                        {lang === 'fr' ? 'Mon espace' : 'My space'}
                       </button>
                       {!user.google_id && (
                         <button
@@ -615,15 +613,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                           {lang === 'fr' ? 'Changer le mot de passe' : 'Change password'}
                         </button>
                       )}
-                      <button
-                        onClick={() => { setUserMenuOpen(false); openPricing('user_menu'); }}
-                        className="w-full text-left px-3 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-slate-200 transition flex items-center gap-2.5"
-                      >
-                        <span className="w-[18px] h-[18px] rounded-[5px] shrink-0 inline-flex items-center justify-center" style={{background:'linear-gradient(150deg,rgba(34,211,238,.18),rgba(34,211,238,.05))',border:'1px solid rgba(34,211,238,.22)'}}>
-                          <svg width="10" height="10" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                        </span>
-                        {user.plan === 'free' ? (lang === 'fr' ? 'Voir les plans' : 'View plans') : (lang === 'fr' ? "Gérer l'abonnement" : 'Manage subscription')}
-                      </button>
                     </div>
 
                     {/* Section Aide */}
@@ -2792,12 +2781,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
       <PricingModal
         open={pricingModalOpen}
         onClose={() => setPricingModalOpen(false)}
-      />
-
-      {/* ── Modal : Profil RGPD ─────────────────────────────────────────── */}
-      <ProfileModal
-        open={profileModalOpen}
-        onClose={() => setProfileModalOpen(false)}
       />
 
       {/* ── Modal : Changer le mot de passe ─────────────────────────────── */}

@@ -276,13 +276,15 @@ interface Props {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoContact?: () => void;
+  initialTab?: Tab;
+  initialSettingsSection?: 'profile' | 'billing' | 'whitelabel' | 'danger';
 }
 
-export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContact }: Props) {
+export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContact, initialTab, initialSettingsSection }: Props) {
   const { user, deleteAccount, getPortalUrl, logout, refreshUser } = useAuth();
   const { lang } = useLanguage();
 
-  const [tab, setTab]                   = useState<Tab>('overview');
+  const [tab, setTab]                   = useState<Tab>(initialTab ?? 'overview');
   const [domains, setDomains]           = useState<MonitoredDomain[]>([]);
   const [history, setHistory]           = useState<ScanHistoryItem[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -328,7 +330,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   const [historyDomain, setHistoryDomain] = useState<string>('all');
 
   // Settings sub-section
-  const [settingsSection, setSettingsSection] = useState<'profile' | 'billing' | 'whitelabel' | 'danger'>('profile');
+  const [settingsSection, setSettingsSection] = useState<'profile' | 'billing' | 'whitelabel' | 'danger'>(initialSettingsSection ?? 'profile');
 
   // White-label state
   const [wb, setWb]                     = useState<WhiteLabelSettings | null>(null);
