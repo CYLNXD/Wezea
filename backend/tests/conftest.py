@@ -108,15 +108,18 @@ def db_user(db_session):
     Évite le rate limit sur /auth/register pour les tests qui n'ont pas besoin du flow HTTP.
     """
     from app.models import User
-    from app.auth import hash_password, generate_api_key
+    from app.auth import hash_password, generate_api_key, hash_api_key, mask_api_key
 
     email = f"dbuser-{uuid.uuid4().hex[:8]}@example.com"
     password = "TestPassword123"
+    _raw_key = generate_api_key()
     user = User(
         email=email,
         password_hash=hash_password(password),
         plan="free",
-        api_key=generate_api_key(),
+        api_key=_raw_key,
+        api_key_hash=hash_api_key(_raw_key),
+        api_key_hint=mask_api_key(_raw_key),
     )
     db_session.add(user)
     db_session.commit()

@@ -399,13 +399,17 @@ class TestRunInExecutor:
 
 def _make_user_in_db(db_session, plan: str = "free"):
     """Helper : crée un user en DB de test et retourne (user, token)."""
-    from app.auth import hash_password, generate_api_key, create_access_token
+    from app.auth import hash_password, generate_api_key, hash_api_key, mask_api_key, create_access_token
     from app.models import User
     import uuid
+    raw_key = generate_api_key()
     u = User(
         email=f"main-{uuid.uuid4().hex[:8]}@test.com",
         password_hash=hash_password("Pass123"),
-        plan=plan, api_key=generate_api_key(), is_active=True,
+        plan=plan, api_key=raw_key,
+        api_key_hash=hash_api_key(raw_key),
+        api_key_hint=mask_api_key(raw_key),
+        is_active=True,
     )
     db_session.add(u)
     db_session.commit()
@@ -648,14 +652,17 @@ class TestGeneratePdfEndpoint:
 
     def test_white_label_pro_user_uses_brand_name(self, client, db_session):
         """User Pro avec wb_enabled → white_label dict construit (line 850)."""
-        from app.auth import hash_password, generate_api_key, create_access_token
+        from app.auth import hash_password, generate_api_key, hash_api_key, mask_api_key, create_access_token
         from app.models import User
         import uuid
 
+        _wk = generate_api_key()
         u = User(
             email=f"wb-{uuid.uuid4().hex[:8]}@test.com",
             password_hash=hash_password("Pass123"),
-            plan="pro", api_key=generate_api_key(), is_active=True,
+            plan="pro", api_key=_wk,
+            api_key_hash=hash_api_key(_wk), api_key_hint=mask_api_key(_wk),
+            is_active=True,
             wb_enabled=True,
             wb_company_name="Acme Corp",
             wb_primary_color="#ff0000",

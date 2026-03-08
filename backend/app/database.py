@@ -145,6 +145,29 @@ def _apply_migrations():
             _add_column_if_missing(conn, "users", "teams_webhook_url", "VARCHAR(512)")
             _mark_applied("013_user_integrations")
 
+        if not _applied("014_api_key_hash"):
+            _add_column_if_missing(conn, "users", "api_key_hash", "VARCHAR(64)")
+            _add_column_if_missing(conn, "users", "api_key_hint", "VARCHAR(24)")
+            # Backfill : hacher les clés existantes en Python (nécessite SECRET_KEY)
+            try:
+                from app.auth import hash_api_key, mask_api_key
+                rows = conn.execute(
+                    text("SELECT id, api_key FROM users WHERE api_key IS NOT NULL AND api_key_hash IS NULL")
+                ).fetchall()
+                for row in rows:
+                    h    = hash_api_key(row[1])
+                    hint = mask_api_key(row[1])
+                    conn.execute(
+                        text("UPDATE users SET api_key_hash=:h, api_key_hint=:hint WHERE id=:id"),
+                        {"h": h, "hint": hint, "id": row[0]},
+                    )
+                if rows:
+                    conn.commit()
+                    print(f"✅ Migration 014 : {len(rows)} clé(s) API hachée(s).")
+            except Exception as exc:  # pragma: no cover
+                print(f"⚠️  Migration 014 backfill échouée : {exc}")
+            _mark_applied("014_api_key_hash")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente

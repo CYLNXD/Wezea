@@ -119,3 +119,24 @@ def decode_token(token: str) -> Optional[dict]:
 
 def generate_api_key() -> str:
     return "wsk_" + secrets.token_urlsafe(32)
+
+
+def hash_api_key(key: str) -> str:
+    """
+    HMAC-SHA256 de la clé API avec SECRET_KEY.
+    Permet le lookup en DB sans stocker la clé en clair.
+    Déterministe : hash(key) == hash(key) → pas de sel aléatoire (contrairement aux mots de passe).
+    """
+    import hmac as _hmac
+    import hashlib as _hashlib
+    return _hmac.new(SECRET_KEY.encode(), key.encode(), _hashlib.sha256).hexdigest()
+
+
+def mask_api_key(key: str) -> str:
+    """
+    Retourne un masque pour affichage (p. ex. wsk_AbCdEfGh...wxyz).
+    Affiche les 12 premiers + 4 derniers caractères.
+    """
+    if len(key) <= 20:
+        return key
+    return key[:12] + "..." + key[-4:]

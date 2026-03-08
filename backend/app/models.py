@@ -30,7 +30,9 @@ class User(Base):
     is_admin      = Column(Boolean, default=False)   # True uniquement pour les vrais admins WEZEA
     mfa_enabled   = Column(Boolean, default=False)
     mfa_secret    = Column(String(64), nullable=True)
-    api_key       = Column(String(64), unique=True, nullable=True, index=True)
+    api_key       = Column(String(64), unique=True, nullable=True, index=True)   # DEPRECATED → migration 014 → api_key_hash
+    api_key_hash  = Column(String(64), unique=True, nullable=True, index=True)   # HMAC-SHA256(key, SECRET_KEY)
+    api_key_hint  = Column(String(24), nullable=True)                            # wsk_AbCdEfGh...wxyz (affichage)
     # ── Profil RGPD ────────────────────────────────────────────────────────────
     first_name    = Column(String(100), nullable=True)
     last_name     = Column(String(100), nullable=True)

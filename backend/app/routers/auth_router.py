@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.auth import (
     hash_password, verify_password, needs_rehash,
     create_access_token, decode_token,
-    generate_api_key,
+    generate_api_key, hash_api_key, mask_api_key,
 )
 import os
 from app.database import get_db
@@ -101,7 +101,8 @@ class UserResponse(BaseModel):
     id: int
     email: str
     plan: str
-    api_key: Optional[str]
+    api_key: Optional[str]          # DEPRECATED — sera None pour les nouveaux users ; conservé pour compatibilité frontend
+    api_key_hint: Optional[str] = None  # wsk_AbCdEfGh...wxyz — ne révèle pas la clé complète
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     google_id: Optional[str] = None
@@ -148,9 +149,10 @@ def get_current_user(
         return user
 
     # Fallback : API key (format wsk_<base64url>, plan Dev uniquement)
-    # Note : token_urlsafe(32) génère ~43 chars base64url — pas 64 hex, pas isalnum()
+    # Lookup par HMAC hash — la clé n'est pas stockée en clair en DB.
     if token.startswith("wsk_"):
-        user = db.query(User).filter(User.api_key == token).first()
+        key_hash = hash_api_key(token)
+        user = db.query(User).filter(User.api_key_hash == key_hash).first()
         if user and user.is_active and user.plan in ("dev",):
             return user
 
@@ -171,9 +173,10 @@ def get_optional_user(
     if payload:
         return db.query(User).filter(User.id == int(payload["sub"])).first()
 
-    # Fallback API key (wsk_ prefix, plan Dev)
+    # Fallback API key (wsk_ prefix, plan Dev) — lookup par HMAC hash
     if token.startswith("wsk_"):
-        user = db.query(User).filter(User.api_key == token).first()
+        key_hash = hash_api_key(token)
+        user = db.query(User).filter(User.api_key_hash == key_hash).first()
         if user and user.is_active and user.plan in ("dev",):
             return user
 
@@ -209,11 +212,14 @@ def register(
     if db.query(User).filter(User.email == req.email).first():
         raise HTTPException(status_code=409, detail="Email already registered")
 
+    _new_api_key = generate_api_key()
     user = User(
         email=req.email,
         password_hash=hash_password(req.password),
         plan="free",
-        api_key=generate_api_key(),
+        api_key=_new_api_key,
+        api_key_hash=hash_api_key(_new_api_key),
+        api_key_hint=mask_api_key(_new_api_key),
     )
     db.add(user)
     db.commit()
@@ -272,7 +278,8 @@ def me(current_user: User = Depends(get_current_user)):
         id=current_user.id,
         email=current_user.email,
         plan=current_user.plan,
-        api_key=current_user.api_key,
+        api_key=current_user.api_key,          # conservé pour compatibilité frontend (période de transition)
+        api_key_hint=current_user.api_key_hint,
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         google_id=current_user.google_id,
@@ -310,6 +317,7 @@ def update_profile(
         email=current_user.email,
         plan=current_user.plan,
         api_key=current_user.api_key,
+        api_key_hint=current_user.api_key_hint,
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         google_id=current_user.google_id,
@@ -355,9 +363,13 @@ def regenerate_api_key(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    current_user.api_key = generate_api_key()
+    new_key = generate_api_key()
+    current_user.api_key      = new_key
+    current_user.api_key_hash = hash_api_key(new_key)
+    current_user.api_key_hint = mask_api_key(new_key)
     db.commit()
-    return {"api_key": current_user.api_key}
+    # Retourner la clé en clair UNE SEULE FOIS — ne sera plus disponible ensuite
+    return {"api_key": new_key, "api_key_hint": current_user.api_key_hint}
 
 
 # ─── Change password ───────────────────────────────────────────────────────────
@@ -472,11 +484,14 @@ def google_auth(
 
     if not user:
         is_new = True
+        _new_api_key = generate_api_key()
         user = User(
             email=email,
             password_hash=f"!google:{google_sub}",   # hash inutilisable volontairement
             plan="free",
-            api_key=generate_api_key(),
+            api_key=_new_api_key,
+            api_key_hash=hash_api_key(_new_api_key),
+            api_key_hint=mask_api_key(_new_api_key),
             google_id=google_sub,
             first_name=first_name,
             last_name=last_name,

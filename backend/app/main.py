@@ -93,6 +93,29 @@ def _is_private_ip(value: str) -> bool:
         return False  # pas une IP — c'est un FQDN, la regex DOMAIN_REGEX s'en charge
 
 
+def _resolve_and_check_ssrf(domain: str) -> None:
+    """
+    Résout le FQDN et vérifie que l'IP cible n'est pas une adresse privée/réservée.
+    Protège contre le DNS rebinding : un attaquant pourrait posséder un domaine
+    valide (p. ex. evil.attacker.com) qui résout vers 192.168.x.x ou 127.0.0.1.
+    Lève HTTPException 422 si la cible est interne.
+    """
+    import socket as _socket
+    try:
+        resolved_ip = _socket.gethostbyname(domain)
+    except _socket.gaierror:
+        # Domaine non résolvable — le scanner remontera l'erreur lui-même
+        return
+    if _is_private_ip(resolved_ip):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "domain",
+                "msg":   "Ce domaine résout vers une adresse IP interne. Scan non autorisé.",
+            },
+        )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Cycle de vie de l'application
 # ─────────────────────────────────────────────────────────────────────────────
@@ -517,12 +540,12 @@ async def get_scan_limits(request: Request) -> dict:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header.split(" ", 1)[1]
-            from app.auth import decode_token
+            from app.auth import decode_token, hash_api_key as _hash_api_key
             payload = decode_token(token)
             if payload:
                 current_user = db.query(User).filter(User.id == int(payload["sub"])).first()
             elif token.startswith("wsk_"):
-                candidate = db.query(User).filter(User.api_key == token).first()
+                candidate = db.query(User).filter(User.api_key_hash == _hash_api_key(token)).first()
                 if candidate and candidate.is_active and candidate.plan in ("dev",):
                     current_user = candidate
 
@@ -615,6 +638,11 @@ async def run_scan(
             _check_user_rate_limit(current_user, db)
         else:
             _check_anon_rate_limit(client_id, ip, db)
+
+        # ── Vérification SSRF (DNS rebinding) ─────────────────────────────────
+        # La validation Pydantic bloque les IPs privées directes, mais un domaine
+        # valide peut résoudre vers une IP interne → on vérifie après résolution DNS.
+        _resolve_and_check_ssrf(domain)
 
         # ── Scan ──────────────────────────────────────────────────────────────
         try:
@@ -763,7 +791,13 @@ async def _deliver_lead_report(email: str, domain: str, lead_id: str) -> None:
         # 1. Enregistrer le lead dans le CRM Brevo
         await brevo_service.add_lead_contact(email, domain)
 
-        # 2. Scanner le domaine (plan pro → tous les auditeurs actifs)
+        # 2. Vérifier SSRF avant scan (silencieux — erreurs ignorées)
+        try:
+            _resolve_and_check_ssrf(domain)
+        except HTTPException:
+            return  # domaine interne → ne pas scanner, sortir silencieusement
+
+        # Scanner le domaine (plan pro → tous les auditeurs actifs)
         manager = AuditManager(domain, plan="pro")
         result  = await manager.run()
         rd      = result.to_dict()

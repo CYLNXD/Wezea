@@ -297,10 +297,10 @@ def test_reset_password_short_password(client, db_user, db_session):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _make_pro_with_api_key(db_session) -> dict:
-    """Crée un utilisateur Dev en DB avec une clé API valide."""
+    """Crée un utilisateur Dev en DB avec une clé API valide (hash + hint stockés)."""
     import uuid as _uuid
     from app.models import User
-    from app.auth import hash_password, generate_api_key, create_access_token
+    from app.auth import hash_password, generate_api_key, hash_api_key, mask_api_key, create_access_token
 
     email = f"dev-apikey-{_uuid.uuid4().hex[:8]}@example.com"
     api_key = generate_api_key()
@@ -309,6 +309,8 @@ def _make_pro_with_api_key(db_session) -> dict:
         password_hash=hash_password("TestPass123"),
         plan="dev",
         api_key=api_key,
+        api_key_hash=hash_api_key(api_key),
+        api_key_hint=mask_api_key(api_key),
     )
     db_session.add(user)
     db_session.commit()
@@ -336,10 +338,10 @@ def test_api_key_auth_on_me_endpoint(client, db_session):
 
 
 def test_api_key_auth_free_user_rejected(client, db_session):
-    """Une clé API d'un utilisateur free doit être rejetée (plan Pro requis)."""
+    """Une clé API d'un utilisateur free doit être rejetée (plan Dev requis)."""
     import uuid as _uuid
     from app.models import User
-    from app.auth import hash_password, generate_api_key
+    from app.auth import hash_password, generate_api_key, hash_api_key, mask_api_key
 
     email = f"free-apikey-{_uuid.uuid4().hex[:8]}@example.com"
     api_key = generate_api_key()
@@ -348,6 +350,8 @@ def test_api_key_auth_free_user_rejected(client, db_session):
         password_hash=hash_password("TestPass123"),
         plan="free",
         api_key=api_key,
+        api_key_hash=hash_api_key(api_key),
+        api_key_hint=mask_api_key(api_key),
     )
     db_session.add(user)
     db_session.commit()
@@ -395,20 +399,23 @@ def _make_user(db_session, plan: str = "free", password: str = "TestPass123") ->
     """Crée un utilisateur directement en DB et retourne email + token JWT."""
     import uuid as _uuid
     from app.models import User
-    from app.auth import hash_password, generate_api_key, create_access_token
+    from app.auth import hash_password, generate_api_key, hash_api_key, mask_api_key, create_access_token
 
     email = f"user-{plan}-{_uuid.uuid4().hex[:8]}@example.com"
+    raw_key = generate_api_key()
     user = User(
         email=email,
         password_hash=hash_password(password),
         plan=plan,
-        api_key=generate_api_key(),
+        api_key=raw_key,
+        api_key_hash=hash_api_key(raw_key),
+        api_key_hint=mask_api_key(raw_key),
     )
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
     token = create_access_token(user.id, email, plan)
-    return {"email": email, "password": password, "token": token, "user": user}
+    return {"email": email, "password": password, "token": token, "user": user, "api_key": raw_key}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -977,19 +984,22 @@ class TestOptionalUserApiKey:
     def test_api_key_pro_user_authenticated(self, client, db_session):
         """Clé API wsk_ valide pour un Dev → authentifié via l'endpoint /auth/me."""
         from app.models import User
-        from app.auth import generate_api_key
+        from app.auth import generate_api_key, hash_api_key, mask_api_key
+        raw_key = generate_api_key()
         u = User(
             email="prouser@example.com",
             password_hash="!google:stub",
             plan="dev",
-            api_key=generate_api_key(),
+            api_key=raw_key,
+            api_key_hash=hash_api_key(raw_key),
+            api_key_hint=mask_api_key(raw_key),
             is_active=True,
         )
         db_session.add(u)
         db_session.commit()
         db_session.refresh(u)
 
-        resp = client.get("/auth/me", headers={"Authorization": f"Bearer {u.api_key}"})
+        resp = client.get("/auth/me", headers={"Authorization": f"Bearer {raw_key}"})
         assert resp.status_code == 200
         assert resp.json()["email"] == u.email
 
@@ -1169,20 +1179,24 @@ class TestGetOptionalUserWithBearer:
 
     def test_wsk_pro_key_returns_user(self, db_session):
         """Bearer wsk_ Dev → get_optional_user retourne le user (lines 174-177)."""
-        from app.auth import hash_password, generate_api_key
+        from app.auth import hash_password, generate_api_key, hash_api_key, mask_api_key
         from app.models import User
         from app.routers.auth_router import get_optional_user
 
+        raw_key = generate_api_key()
         u = User(
             email="optional-wsk@example.com",
             password_hash=hash_password("Pass123"),
-            plan="dev", api_key=generate_api_key(), is_active=True,
+            plan="dev", api_key=raw_key,
+            api_key_hash=hash_api_key(raw_key),
+            api_key_hint=mask_api_key(raw_key),
+            is_active=True,
         )
         db_session.add(u)
         db_session.commit()
         db_session.refresh(u)
 
-        result = get_optional_user(authorization=f"Bearer {u.api_key}", db=db_session)
+        result = get_optional_user(authorization=f"Bearer {raw_key}", db=db_session)
         assert result is not None
         assert result.id == u.id
 
