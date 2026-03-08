@@ -67,7 +67,7 @@
     'display:flex;align-items:center;gap:.75rem;}' +
 
     /* — Logo — */
-    '.wz-nav-logo{display:flex;flex-direction:column;font-size:20px;font-weight:900;' +
+    '.wz-nav-logo{font-size:20px;font-weight:900;' +
     'color:#fff;letter-spacing:-.03em;' +
     'font-family:-apple-system,"SF Pro Display","Inter",system-ui,sans-serif;' +
     'text-decoration:none;flex-shrink:0;line-height:1;' +
