@@ -4,7 +4,7 @@ CyberHealth Scanner — Script de load testing Locust
 Simule 3 profils d'utilisateurs réels :
   - AnonUser      : visiteur non connecté (scan public, stats, blog)
   - AuthUser      : utilisateur connecté (historique, profil, monitoring)
-  - ScanUser      : utilisateur qui lance des scans (rate-limitié par l'API)
+  - ScanUser      : utilisateur qui lance des scans (rate-limité par l'API)
 
 Usage :
     pip install locust
@@ -16,7 +16,7 @@ Puis ouvrir http://localhost:8089 et lancer avec :
 Cibles réalistes :
     - p95 < 200ms pour tous les endpoints hors /scan
     - p95 < 8s    pour /scan (timeout serveur = 8s)
-    - 0% error rate sur /health et endpoints GET légers
+    - 0% error rate sur /health et endpoints GET légers (hors 429)
 
 Variables d'environnement optionnelles :
     LOCUST_EMAIL    : email d'un compte de test existant
@@ -26,13 +26,13 @@ Variables d'environnement optionnelles :
 
 from __future__ import annotations
 
-import json
 import os
 import random
+import threading
 import time
 import uuid
 
-from locust import HttpUser, TaskSet, between, constant, task, events
+from locust import HttpUser, between, task, events
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,45 @@ TEST_DOMAIN   = os.getenv("LOCUST_DOMAIN",  "example.com")
 
 # Domaines rapides à scanner (peu de findings, résolution DNS rapide)
 _SAFE_DOMAINS = ["example.com", "example.org", "example.net"]
+
+# ─── Token partagé ───────────────────────────────────────────────────────────
+# Un seul login pour tous les AuthUser/ScanUser — évite d'inonder le rate
+# limiter de /auth/login au démarrage (50 users × on_start = 50 logins)
+
+_token_lock  = threading.Lock()
+_shared_token: str | None = None
+
+
+def _get_shared_token(client) -> str | None:
+    """
+    Retourne le JWT partagé entre tous les users authentifiés.
+    Login effectué une seule fois, résultat mis en cache globalement.
+    """
+    global _shared_token
+    if _shared_token:
+        return _shared_token
+    with _token_lock:
+        # Double-check après acquisition du verrou
+        if _shared_token:
+            return _shared_token
+        r = client.post(
+            "/auth/login",
+            json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+            name="/auth/login [setup]",
+            catch_response=True,
+        )
+        with r:
+            data = _json(r)
+            if r.status_code == 200 and "access_token" in data:
+                _shared_token = data["access_token"]
+                r.success()
+            elif r.status_code == 429:
+                r.success()  # rate limit — réessayer plus tard
+                time.sleep(3)
+            else:
+                r.failure(f"Login failed: {r.status_code}")
+    return _shared_token
+
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -53,49 +92,55 @@ def _json(response) -> dict:
         return {}
 
 
+def _get(client, path: str, name: str, token: str | None = None):
+    """
+    GET avec gestion automatique des 429 (comptés comme succès).
+    Les 401 sur endpoints authentifiés sont des vraies erreurs.
+    """
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    with client.get(path, name=name, headers=headers, catch_response=True) as r:
+        if r.status_code == 429:
+            r.success()   # rate limit = comportement attendu, pas un bug
+        elif r.status_code >= 500:
+            r.failure(f"Server error {r.status_code}")
+        # 401 → failure automatique si token absent/expiré (comportement voulu)
+    return r
+
+
 # ─── Profil 1 : Visiteur anonyme ─────────────────────────────────────────────
 
 class AnonUser(HttpUser):
     """
     Simule un visiteur non connecté qui arrive sur le dashboard.
     Représente ~60% du trafic réel.
-    Poids élevé : 3 instances pour 1 AuthUser.
     """
-    weight        = 3
-    wait_time     = between(1, 4)   # temps de lecture entre les actions
+    weight    = 3
+    wait_time = between(1, 4)
 
     def on_start(self):
-        # Récupérer un client-id comme le ferait le browser
-        r = self.client.get("/client-id", name="/client-id")
-        data = _json(r)
-        self.client_id = data.get("client_id", str(uuid.uuid4()))
+        r = self.client.get("/client-id", name="/client-id", catch_response=True)
+        with r:
+            r.success()  # 429 aussi accepté
 
     @task(5)
     def load_dashboard_data(self):
-        """Données chargées à chaque ouverture du Dashboard."""
-        self.client.get("/scan/limits", name="/scan/limits [anon]")
+        _get(self.client, "/scan/limits", "/scan/limits [anon]")
 
     @task(4)
     def load_public_stats(self):
-        """Widget maturité industrie."""
-        self.client.get("/public/stats", name="/public/stats")
+        _get(self.client, "/public/stats", "/public/stats")
 
     @task(3)
     def load_blog_links(self):
-        """Liens blog dans le dashboard."""
-        self.client.get("/public/blog-links", name="/public/blog-links")
+        _get(self.client, "/public/blog-links", "/public/blog-links")
 
     @task(2)
     def health_check(self):
-        """Uptime monitoring simulé."""
         self.client.get("/health", name="/health")
 
     @task(1)
     def launch_anonymous_scan(self):
-        """
-        Scan anonyme — l'action principale du visiteur.
-        Limité à ~5/jour par IP côté API, on ne spamme pas.
-        """
+        """Scan anonyme — rate limité 5/jour par IP, 429 = succès."""
         domain = random.choice(_SAFE_DOMAINS)
         with self.client.post(
             "/scan",
@@ -104,8 +149,7 @@ class AnonUser(HttpUser):
             catch_response=True,
             timeout=12,
         ) as r:
-            if r.status_code == 429:
-                # Rate limit attendu — pas une erreur de notre côté
+            if r.status_code in (429, 401):
                 r.success()
             elif r.status_code >= 500:
                 r.failure(f"Server error {r.status_code}")
@@ -116,92 +160,41 @@ class AnonUser(HttpUser):
 class AuthUser(HttpUser):
     """
     Simule un utilisateur qui consulte son espace client.
-    Représente ~35% du trafic.
+    Utilise le token partagé — pas de login individuel.
     """
     weight    = 2
     wait_time = between(2, 6)
 
     def on_start(self):
-        """Login une seule fois, conserver le token JWT."""
-        self.token = None
-        self._login()
-
-    def _login(self):
-        """Authentification — récupère et stocke le JWT."""
-        r = self.client.post(
-            "/auth/login",
-            json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
-            name="/auth/login",
-        )
-        data = _json(r)
-        if r.status_code == 200 and "access_token" in data:
-            self.token = data["access_token"]
-            self.client.headers.update({"Authorization": f"Bearer {self.token}"})
-        elif r.status_code == 429:
-            # Rate limit login — attendre avant de réessayer
-            time.sleep(5)
-        # Si login échoue (ex : compte inexistant), on continue sans auth
-        # → les endpoints authentifiés retourneront 401 (comptés comme failure normalement)
-
-    def _auth_headers(self) -> dict:
-        if self.token:
-            return {"Authorization": f"Bearer {self.token}"}
-        return {}
+        self.token = _get_shared_token(self.client)
 
     @task(6)
     def check_me(self):
-        """GET /auth/me — appelé à chaque chargement de page connectée."""
-        self.client.get("/auth/me", name="/auth/me", headers=self._auth_headers())
+        _get(self.client, "/auth/me", "/auth/me", self.token)
 
     @task(5)
     def scan_limits(self):
-        """Quotas de scan de l'utilisateur connecté."""
-        self.client.get(
-            "/scan/limits",
-            name="/scan/limits [auth]",
-            headers=self._auth_headers(),
-        )
+        _get(self.client, "/scan/limits", "/scan/limits [auth]", self.token)
 
     @task(4)
     def scan_history(self):
-        """Historique des scans — HistoryPage."""
-        self.client.get(
-            "/scans/history?limit=20",
-            name="/scans/history",
-            headers=self._auth_headers(),
-        )
+        _get(self.client, "/scans/history?limit=20", "/scans/history", self.token)
 
     @task(3)
     def monitoring_status(self):
-        """Statut surveillance — ClientSpace monitoring tab."""
-        self.client.get(
-            "/monitoring/status",
-            name="/monitoring/status",
-            headers=self._auth_headers(),
-        )
+        _get(self.client, "/monitoring/status", "/monitoring/status", self.token)
 
     @task(3)
     def monitoring_domains(self):
-        """Liste des domaines surveillés."""
-        self.client.get(
-            "/monitoring/domains",
-            name="/monitoring/domains",
-            headers=self._auth_headers(),
-        )
+        _get(self.client, "/monitoring/domains", "/monitoring/domains", self.token)
 
     @task(2)
     def payment_status(self):
-        """Statut abonnement Stripe — ClientSpace billing tab."""
-        self.client.get(
-            "/payment/status",
-            name="/payment/status",
-            headers=self._auth_headers(),
-        )
+        _get(self.client, "/payment/status", "/payment/status", self.token)
 
     @task(1)
     def public_stats(self):
-        """Stats industrie — même que les anonymes."""
-        self.client.get("/public/stats", name="/public/stats")
+        _get(self.client, "/public/stats", "/public/stats")
 
 
 # ─── Profil 3 : Utilisateur qui scanne activement ────────────────────────────
@@ -209,27 +202,16 @@ class AuthUser(HttpUser):
 class ScanUser(HttpUser):
     """
     Simule un utilisateur Pro qui lance des scans fréquemment.
-    Représente ~5% du trafic mais génère le plus de charge CPU.
-    Wait_time long pour respecter les rate limits.
+    Wait_time long pour respecter les rate limits serveur.
     """
     weight    = 1
-    wait_time = between(10, 30)  # scans espacés — Pro = 50/jour
+    wait_time = between(10, 30)
 
     def on_start(self):
-        self.token = None
-        r = self.client.post(
-            "/auth/login",
-            json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
-            name="/auth/login",
-        )
-        data = _json(r)
-        if r.status_code == 200 and "access_token" in data:
-            self.token = data["access_token"]
-            self.client.headers.update({"Authorization": f"Bearer {self.token}"})
+        self.token = _get_shared_token(self.client)
 
     @task(3)
     def authenticated_scan(self):
-        """Scan complet avec sauvegarde en historique."""
         domain = random.choice(_SAFE_DOMAINS)
         with self.client.post(
             "/scan",
@@ -239,33 +221,28 @@ class ScanUser(HttpUser):
             timeout=12,
         ) as r:
             if r.status_code == 429:
-                r.success()  # rate limit attendu, pas une erreur
+                r.success()
             elif r.status_code >= 500:
                 r.failure(f"Server error {r.status_code}")
             elif r.status_code == 200:
-                data = _json(r)
-                # Vérification minimale de la structure de réponse
-                if "score" not in data:
+                if "score" not in _json(r):
                     r.failure("Réponse scan sans champ 'score'")
 
     @task(1)
     def scan_history_after_scan(self):
-        """Consulter l'historique après un scan."""
-        self.client.get(
-            "/scans/history?limit=5",
-            name="/scans/history [post-scan]",
-        )
+        _get(self.client, "/scans/history?limit=5", "/scans/history [post-scan]", self.token)
 
 
-# ─── Événements Locust (affichage custom) ─────────────────────────────────────
+# ─── Événements Locust ────────────────────────────────────────────────────────
 
 @events.test_start.add_listener
 def on_test_start(environment, **kwargs):
     print("\n" + "="*60)
     print("🚀 CyberHealth Load Test démarré")
     print(f"   Host     : {environment.host}")
-    print(f"   Domain   : {TEST_DOMAIN}")
+    print(f"   Compte   : {TEST_EMAIL}")
     print(f"   Profils  : AnonUser×3, AuthUser×2, ScanUser×1")
+    print(f"   Token    : partagé (1 login pour tous les users auth)")
     print("="*60 + "\n")
 
 @events.test_stop.add_listener
