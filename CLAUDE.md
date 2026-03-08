@@ -1014,6 +1014,32 @@ STRIPE_DEV_PRICE_ID=price_1T8MpWKOrtMvErGv0iXhORaP
 
 ---
 
+## 🧪 Load Testing — Locust
+
+Script : `load_tests/locustfile.py`
+
+```bash
+# Installation (dev uniquement)
+pip install locust==2.32.3
+
+# UI interactive (recommandé pour la première fois)
+cd load_tests
+locust -f locustfile.py --host=https://scan.wezea.net
+# → http://localhost:8089 | Users: 50 | Spawn: 5/s | Duration: 2min
+
+# Headless (CI / comparaison avant/après)
+locust -f locustfile.py \
+  --host=https://scan.wezea.net \
+  --users=50 --spawn-rate=5 --run-time=2m \
+  --headless --csv=load_tests/results/run_$(date +%Y%m%d_%H%M)
+```
+
+**Prérequis** : créer un compte `loadtest@example.com` / `LoadTest2026!` sur wezea.net avant de lancer.
+
+**Objectifs** : p95 < 200ms sur les GET légers, p95 < 8s sur /scan, 0% erreur (hors 429 rate limit).
+
+---
+
 ## 📋 Tâches en attente
 
 - [ ] Surveiller les premières migrations argon2 dans les logs (rehash au prochain login de chaque user)
