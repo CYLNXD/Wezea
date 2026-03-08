@@ -18,19 +18,39 @@
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
   <link rel="stylesheet" href="blog.css" />
+  <script>
+  window.WZ_T = {
+    fr: {
+      title: "Blog Sécurité — Guides pratiques pour protéger votre domaine | Wezea",
+      description: "Guides pratiques sur la sécurité de domaine : SPF, DKIM, DMARC, SSL, audit de sécurité, protection contre le phishing.",
+      og_title: "Blog Sécurité — Guides pratiques pour protéger votre domaine"
+    },
+    en: {
+      title: "Security Blog — Practical guides to protect your domain | Wezea",
+      description: "Practical guides on domain security: SPF, DKIM, DMARC, SSL, security audits, phishing protection. Written by the Wezea team.",
+      og_title: "Security Blog — Practical guides to protect your domain"
+    }
+  };
+  </script>
 </head>
 <body>
 <script src="/nav.js"></script>
 <main class="page">
 
-  <!-- Hero -->
-  <section class="blog-hero">
+  <!-- Hero FR -->
+  <section class="blog-hero lang-fr">
     <h1>Guides sécurité domaine</h1>
     <p>Tout ce que vous devez savoir pour protéger votre domaine, vos emails et votre réputation en ligne — expliqué simplement.</p>
   </section>
 
-  <!-- Articles -->
-  <div class="blog-grid">
+  <!-- Hero EN -->
+  <section class="blog-hero lang-en">
+    <h1>Domain Security Guides</h1>
+    <p>Everything you need to know to protect your domain, your emails and your online reputation — explained simply.</p>
+  </section>
+
+  <!-- Articles FR -->
+  <div class="blog-grid lang-fr">
 
     <a href="/blog/usurpation-domaine-email/" class="card">
       <div class="card-tag">Menaces</div>
@@ -145,7 +165,7 @@
     </a>
 
     <a href="/blog/ransomware-pme-prevention/" class="card">
-      <div class="card-tag">Menaces & attaques</div>
+      <div class="card-tag">Menaces &amp; attaques</div>
       <h2>Ransomware et PME : comment se protéger efficacement en 2026</h2>
       <p>Une PME sur cinq touchée en 2025. Vecteurs d'entrée, règle de sauvegarde 3-2-1, checklist de prévention et procédure d'urgence si vous êtes attaqué.</p>
       <div class="card-meta">8 mars 2026 · 9 min</div>
@@ -166,7 +186,7 @@
     </a>
 
     <a href="/blog/dnssec-securiser-dns/" class="card">
-      <div class="card-tag">DNS & Infrastructure</div>
+      <div class="card-tag">DNS &amp; Infrastructure</div>
       <h2>DNSSEC : sécuriser votre DNS contre le cache poisoning et le hijacking</h2>
       <p>DNSSEC protège les réponses DNS par des signatures cryptographiques. Chaîne de confiance, activation chez votre registrar, et vérification.</p>
       <div class="card-meta">8 mars 2026 · 8 min</div>
@@ -174,12 +194,165 @@
 
   </div>
 
-  <!-- CTA -->
-  <div class="cta-block" style="margin-bottom: 3rem;">
+  <!-- Articles EN -->
+  <div class="blog-grid lang-en">
+
+    <a href="/blog/usurpation-domaine-email/" class="card">
+      <div class="card-tag">Threats</div>
+      <h2>Domain spoofing: how hackers send emails pretending to be you</h2>
+      <p>Email spoofing lets attackers send fraudulent emails impersonating your domain — without hacking anything. Understand how it works and how to protect yourself.</p>
+      <div class="card-meta">5 Mar 2026 · 7 min</div>
+    </a>
+
+    <a href="/blog/configurer-spf-dkim-dmarc/" class="card">
+      <div class="card-tag">Technical guide</div>
+      <h2>SPF, DKIM and DMARC: the complete guide to protecting your domain</h2>
+      <p>Step-by-step configuration with DNS examples, provider table, errors to avoid and final checklist. The reference guide in English.</p>
+      <div class="card-meta">5 Mar 2026 · 8 min</div>
+    </a>
+
+    <a href="/blog/audit-securite-domaine/" class="card">
+      <div class="card-tag">Security audit</div>
+      <h2>Domain security audit: what it really checks</h2>
+      <p>SPF, DKIM, DMARC, SSL, open ports, CVE, IP reputation — what each point means, how to interpret your score and which actions to prioritize.</p>
+      <div class="card-meta">5 Mar 2026 · 6 min</div>
+    </a>
+
+    <a href="/blog/certificat-ssl-expire/" class="card">
+      <div class="card-tag">SSL / TLS</div>
+      <h2>Expired SSL certificate: consequences, detection and renewal</h2>
+      <p>An expired SSL shows a red error page to visitors, hurts your SEO and blocks integrations. How to detect expiration and renew quickly.</p>
+      <div class="card-meta">5 Mar 2026 · 6 min</div>
+    </a>
+
+    <a href="/blog/ports-reseau-dangereux/" class="card">
+      <div class="card-tag">Network security</div>
+      <h2>Dangerous network ports: which ones to close to secure your server</h2>
+      <p>Bots constantly scan your open ports. RDP, Telnet, SMB, exposed databases — which ports to close first and how to check your exposure.</p>
+      <div class="card-meta">5 Mar 2026 · 7 min</div>
+    </a>
+
+    <a href="/blog/liste-noire-email-domaine/" class="card">
+      <div class="card-tag">Email reputation</div>
+      <h2>Email blacklist: how to tell if your domain is blocked</h2>
+      <p>A blacklisted domain means emails silently disappearing. Causes, detection on major blacklists (Spamhaus, Barracuda), and removal procedures.</p>
+      <div class="card-meta">5 Mar 2026 · 6 min</div>
+    </a>
+
+    <a href="/blog/dmarc-rapports-analyse/" class="card">
+      <div class="card-tag">DMARC</div>
+      <h2>Reading and analysing your DMARC reports: a complete guide</h2>
+      <p>DMARC reports come as unreadable XML. This guide explains how to interpret them, detect suspicious sources, and progress toward p=reject.</p>
+      <div class="card-meta">5 Mar 2026 · 7 min</div>
+    </a>
+
+    <a href="/blog/securite-wordpress-checklist/" class="card">
+      <div class="card-tag">CMS</div>
+      <h2>Securing WordPress: complete checklist 2026</h2>
+      <p>WordPress is the #1 target for automated attacks. Updates, access, files, SSL, email, plugins, backups — the complete checklist for your site.</p>
+      <div class="card-meta">5 Mar 2026 · 8 min</div>
+    </a>
+
+    <a href="/blog/sous-domaines-risques-securite/" class="card">
+      <div class="card-tag">DNS</div>
+      <h2>Forgotten subdomains: an overlooked attack vector</h2>
+      <p>Subdomain takeover, dangling DNS, shadow IT — abandoned subdomains are backdoors for attackers you can't see.</p>
+      <div class="card-meta">5 Mar 2026 · 6 min</div>
+    </a>
+
+    <a href="/blog/expiration-nom-domaine/" class="card">
+      <div class="card-tag">Domain</div>
+      <h2>Expired domain name: consequences and how to avoid it</h2>
+      <p>An expired domain can be bought by a competitor or squatter within hours. Grace periods, lifecycle, and prevention tips.</p>
+      <div class="card-meta">5 Mar 2026 · 5 min</div>
+    </a>
+
+    <a href="/blog/dns-hijacking/" class="card">
+      <div class="card-tag">DNS</div>
+      <h2>DNS Hijacking: how your domain can be taken over</h2>
+      <p>DNS hijacking redirects your visitors to malicious sites without touching your server. Mechanisms, detection and protection with DNSSEC.</p>
+      <div class="card-meta">5 Mar 2026 · 7 min</div>
+    </a>
+
+    <a href="/blog/reputation-ip-delivrabilite-email/" class="card">
+      <div class="card-tag">Email</div>
+      <h2>IP reputation and email deliverability: the full picture</h2>
+      <p>Emails going to spam despite correct SPF/DKIM/DMARC? Your sending server's IP reputation is often the cause. Diagnosis and solutions.</p>
+      <div class="card-meta">5 Mar 2026 · 6 min</div>
+    </a>
+
+    <a href="/blog/audit-securite-site-web-checklist/" class="card">
+      <div class="card-tag">Audit</div>
+      <h2>Website security audit checklist (2026)</h2>
+      <p>SSL, HTTP headers, email, DNS, ports, CVE, access, monitoring — the 8 domains to check for every site you manage.</p>
+      <div class="card-meta">5 Mar 2026 · 9 min</div>
+    </a>
+
+    <a href="/blog/protection-phishing-domaine/" class="card">
+      <div class="card-tag">Phishing</div>
+      <h2>Protecting your domain against phishing: complete guide</h2>
+      <p>Your domain can be used to send fraudulent emails to your clients without your knowledge. DMARC, typosquatting, monitoring and reporting.</p>
+      <div class="card-meta">5 Mar 2026 · 7 min</div>
+    </a>
+
+    <a href="/blog/score-securite-domaine/" class="card">
+      <div class="card-tag">Audit</div>
+      <h2>How to interpret a domain security score</h2>
+      <p>What does a score of 62/100 mean for your domain? Components, rating scale, action plan to go from C to A+, and score limitations.</p>
+      <div class="card-meta">5 Mar 2026 · 6 min</div>
+    </a>
+
+    <a href="/blog/headers-http-securite/" class="card">
+      <div class="card-tag">Web security</div>
+      <h2>HTTP security headers: HSTS, CSP, X-Frame-Options — complete guide</h2>
+      <p>These HTTP headers protect your visitors against XSS, clickjacking and MITM attacks. nginx and Apache configuration included.</p>
+      <div class="card-meta">8 Mar 2026 · 8 min</div>
+    </a>
+
+    <a href="/blog/ransomware-pme-prevention/" class="card">
+      <div class="card-tag">Threats &amp; attacks</div>
+      <h2>Ransomware and SMBs: how to protect yourself effectively in 2026</h2>
+      <p>One in five SMBs hit in 2025. Attack vectors, 3-2-1 backup rule, prevention checklist and emergency procedure if you're attacked.</p>
+      <div class="card-meta">8 Mar 2026 · 9 min</div>
+    </a>
+
+    <a href="/blog/mfa-authentification-double-facteur/" class="card">
+      <div class="card-tag">Authentication</div>
+      <h2>MFA and two-factor authentication: complete guide for SMBs</h2>
+      <p>MFA blocks 99% of account attacks. Types of 2FA, passkeys, TOTP, priority deployment — everything to take action.</p>
+      <div class="card-meta">8 Mar 2026 · 7 min</div>
+    </a>
+
+    <a href="/blog/vulnerabilites-cve-logiciels/" class="card">
+      <div class="card-tag">Vulnerabilities</div>
+      <h2>CVE and software vulnerabilities: understand and act before attackers do</h2>
+      <p>CVE, CVSS, zero-day, CISA KEV: vulnerability lifecycle, reaction window, and patch management without blocking production.</p>
+      <div class="card-meta">8 Mar 2026 · 8 min</div>
+    </a>
+
+    <a href="/blog/dnssec-securiser-dns/" class="card">
+      <div class="card-tag">DNS &amp; Infrastructure</div>
+      <h2>DNSSEC: securing your DNS against cache poisoning and hijacking</h2>
+      <p>DNSSEC protects DNS responses with cryptographic signatures. Chain of trust, registrar activation, and verification.</p>
+      <div class="card-meta">8 Mar 2026 · 8 min</div>
+    </a>
+
+  </div>
+
+  <!-- CTA FR -->
+  <div class="cta-block lang-fr" style="margin-bottom: 3rem;">
     <h3>Prêt à analyser votre domaine ?</h3>
     <p>Lancez un audit complet en 60 secondes — gratuit, sans compte requis.</p>
     <a href="https://wezea.net" class="btn-cta">→ Scanner mon domaine</a>
     <p class="cta-note">SPF · DKIM · DMARC · SSL · Ports · CVE · Réputation</p>
+  </div>
+
+  <!-- CTA EN -->
+  <div class="cta-block lang-en" style="margin-bottom: 3rem;">
+    <h3>Ready to analyse your domain?</h3>
+    <p>Run a full audit in 60 seconds — free, no account required.</p>
+    <a href="https://wezea.net" class="btn-cta">→ Scan my domain</a>
+    <p class="cta-note">SPF · DKIM · DMARC · SSL · Ports · CVE · Reputation</p>
   </div>
 
 </main>

@@ -17,6 +17,22 @@
   <meta property="og:site_name"   content="Wezea Security Scanner" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+
+  <script>
+  window.WZ_T = {
+    fr: {
+      title: "Protéger son domaine contre le phishing : guide complet 2026 | Wezea",
+      description: "Des hackers utilisent votre domaine pour envoyer des emails frauduleux à vos clients. Découvrez comment le phishing par domaine fonctionne et comment s'en protéger efficacement.",
+      og_title: "Protéger son domaine contre le phishing : guide complet"
+    },
+    en: {
+      title: "Protecting your domain against phishing: complete guide (2026) | Wezea",
+      description: "Your domain can be used to send fraudulent emails to your clients without your knowledge. DMARC, typosquatting, monitoring and reporting.",
+      og_title: "Protecting your domain against phishing: complete guide"
+    }
+  };
+  </script>
+
   <link rel="stylesheet" href="../blog.css" />
 
   <script type="application/ld+json">
@@ -37,162 +53,324 @@
 <script src="/nav.js"></script>
 <main class="page">
 
-  <header class="article-header">
-    <div class="article-meta">
-      <span class="article-tag">Phishing</span>
-      <span class="read-time">7 min de lecture</span>
-      <time datetime="2026-03-05">5 mars 2026</time>
-    </div>
-    <h1>Protéger son domaine contre le phishing : guide complet</h1>
-    <p class="article-intro">
-      Chaque jour, des milliers d'emails frauduleux sont envoyés en usurpant l'identité de domaines légitimes. Vos clients peuvent recevoir un email apparent de <code>contact@votredomaine.com</code> — sans que vous l'ayez envoyé. La conséquence : perte de confiance, plaintes, et votre domaine blacklisté.
-    </p>
-  </header>
-
-  <nav class="toc">
-    <strong>Sommaire</strong>
-    <ol>
-      <li><a href="#comment">Comment les hackers usurpent votre domaine</a></li>
-      <li><a href="#typosquatting">Le typosquatting : les faux jumeaux de votre domaine</a></li>
-      <li><a href="#consequences">Conséquences pour votre entreprise</a></li>
-      <li><a href="#protection-email">Protéger votre email avec SPF, DKIM, DMARC</a></li>
-      <li><a href="#monitoring-phishing">Surveiller les imposteurs</a></li>
-      <li><a href="#signalement">Signaler et faire retirer un site de phishing</a></li>
-    </ol>
-  </nav>
-
-  <div class="article-body">
-
-    <h2 id="comment">Comment les hackers usurpent votre domaine</h2>
-
-    <h3>L'usurpation directe (email spoofing)</h3>
-    <p>
-      Sans protection SPF/DKIM/DMARC, n'importe qui peut envoyer un email avec <code>From: contact@votredomaine.com</code>. C'est techniquement simple — le protocole SMTP d'origine ne prévoyait aucune vérification d'identité. Les attaquants exploitent cette faiblesse pour créer des emails qui semblent provenir de vous.
-    </p>
-
-    <h3>L'usurpation d'affichage (display name spoofing)</h3>
-    <p>
-      Même avec DMARC configuré, un attaquant peut afficher <em>Contact Votre Entreprise &lt;contact@domaine-pirate.com&gt;</em>. Le nom affiché ressemble au vôtre, mais le vrai domaine d'envoi est différent. Les clients qui ne regardent pas l'adresse complète sont piégés.
-    </p>
-
-    <h3>Les faux sous-domaines</h3>
-    <p>
-      Un attaquant enregistre <code>security.votredomaine-alerte.com</code> ou utilise un sous-domaine compromis de votre domaine pour envoyer des emails crédibles. Le destinataire voit "votredomaine" dans l'adresse et fait confiance.
-    </p>
-
-    <div class="callout callout-warn">
-      <span class="callout-icon">WARN</span>
-      <div class="callout-body">
-        <strong>Le phishing passe aussi par les sites web</strong><br/>
-        En plus des emails, des sites web copiant votre design sont créés sous des domaines similaires. Ces faux sites collectent les identifiants de vos clients ou leur font payer des produits qu'ils croient acheter chez vous.
+  <div class="lang-fr">
+    <header class="article-header">
+      <div class="article-meta">
+        <span class="article-tag">Phishing</span>
+        <span class="read-time">7 min de lecture</span>
+        <time datetime="2026-03-05">5 mars 2026</time>
       </div>
-    </div>
+      <h1>Protéger son domaine contre le phishing : guide complet</h1>
+      <p class="article-intro">
+        Chaque jour, des milliers d'emails frauduleux sont envoyés en usurpant l'identité de domaines légitimes. Vos clients peuvent recevoir un email apparent de <code>contact@votredomaine.com</code> — sans que vous l'ayez envoyé. La conséquence : perte de confiance, plaintes, et votre domaine blacklisté.
+      </p>
+    </header>
 
-    <h2 id="typosquatting">Le typosquatting : les faux jumeaux de votre domaine</h2>
-    <p>
-      Le typosquatting consiste à enregistrer des domaines visuellement proches du vôtre pour piéger les utilisateurs qui font une faute de frappe ou ne regardent pas l'URL attentivement.
-    </p>
-    <p>
-      Exemples pour <code>votredomaine.com</code> :
-    </p>
-    <ul>
-      <li><code>votredomanie.com</code> — lettre transposée</li>
-      <li><code>votre-domaine.com</code> — tiret ajouté</li>
-      <li><code>votredomaine.net</code> — TLD différent</li>
-      <li><code>v0tredomaine.com</code> — caractère similaire (0 au lieu de o)</li>
-      <li><code>votredomaineconnexion.com</code> — mot ajouté</li>
-      <li><code>votredomaine.be</code> — extension nationale</li>
-    </ul>
-    <p>
-      Ces domaines sont souvent enregistrés en masse par des services automatisés qui surveillent les nouveaux dépôts de marques ou les domaines populaires.
-    </p>
+    <nav class="toc">
+      <strong>Sommaire</strong>
+      <ol>
+        <li><a href="#comment">Comment les hackers usurpent votre domaine</a></li>
+        <li><a href="#typosquatting">Le typosquatting : les faux jumeaux de votre domaine</a></li>
+        <li><a href="#consequences">Conséquences pour votre entreprise</a></li>
+        <li><a href="#protection-email">Protéger votre email avec SPF, DKIM, DMARC</a></li>
+        <li><a href="#monitoring-phishing">Surveiller les imposteurs</a></li>
+        <li><a href="#signalement">Signaler et faire retirer un site de phishing</a></li>
+      </ol>
+    </nav>
 
-    <h2 id="consequences">Conséquences pour votre entreprise</h2>
-    <ul>
-      <li><strong>Vos clients sont arnaqués</strong> — et vous tiennent responsable, même si vous êtes victime</li>
-      <li><strong>Votre réputation email se dégrade</strong> — les plaintes spam générées par le phishing impactent votre domaine</li>
-      <li><strong>Blacklisting</strong> — votre domaine peut être ajouté aux listes noires si des rapports d'abus le citent</li>
-      <li><strong>Perte de confiance durable</strong> — un client piraté via votre faux domaine ne revient pas facilement</li>
-      <li><strong>Responsabilité légale</strong> — selon le contexte, vous pourriez être mis en cause si vous n'avez pas pris les mesures raisonnables de protection</li>
-    </ul>
+    <div class="article-body">
 
-    <h2 id="protection-email">Protéger votre email avec SPF, DKIM, DMARC</h2>
-    <p>
-      Ces trois protocoles forment le bouclier de base contre l'usurpation email. Leur rôle combiné :
-    </p>
-    <ul>
-      <li><strong>SPF</strong> — liste les serveurs autorisés à envoyer des emails pour votre domaine. Tout autre serveur est rejeté ou marqué suspect.</li>
-      <li><strong>DKIM</strong> — ajoute une signature cryptographique à chaque email. Si un attaquant modifie le message, la signature ne correspond plus.</li>
-      <li><strong>DMARC</strong> — définit la politique à appliquer quand SPF ou DKIM échoue. Avec <code>p=reject</code>, les emails non authentifiés sont bloqués avant livraison.</li>
-    </ul>
+      <h2 id="comment">Comment les hackers usurpent votre domaine</h2>
 
-    <div class="callout callout-ok">
-      <span class="callout-icon">OK</span>
-      <div class="callout-body">
-        <strong>DMARC p=reject : le bouclier définitif</strong><br/>
-        Avec <code>p=reject</code>, un email usurpant votre domaine est rejeté par le serveur destinataire avant même d'arriver dans le dossier spam. C'est le seul niveau qui bloque réellement le phishing direct par votre domaine.
+      <h3>L'usurpation directe (email spoofing)</h3>
+      <p>
+        Sans protection SPF/DKIM/DMARC, n'importe qui peut envoyer un email avec <code>From: contact@votredomaine.com</code>. C'est techniquement simple — le protocole SMTP d'origine ne prévoyait aucune vérification d'identité. Les attaquants exploitent cette faiblesse pour créer des emails qui semblent provenir de vous.
+      </p>
+
+      <h3>L'usurpation d'affichage (display name spoofing)</h3>
+      <p>
+        Même avec DMARC configuré, un attaquant peut afficher <em>Contact Votre Entreprise &lt;contact@domaine-pirate.com&gt;</em>. Le nom affiché ressemble au vôtre, mais le vrai domaine d'envoi est différent. Les clients qui ne regardent pas l'adresse complète sont piégés.
+      </p>
+
+      <h3>Les faux sous-domaines</h3>
+      <p>
+        Un attaquant enregistre <code>security.votredomaine-alerte.com</code> ou utilise un sous-domaine compromis de votre domaine pour envoyer des emails crédibles. Le destinataire voit "votredomaine" dans l'adresse et fait confiance.
+      </p>
+
+      <div class="callout callout-warn">
+        <span class="callout-icon">WARN</span>
+        <div class="callout-body">
+          <strong>Le phishing passe aussi par les sites web</strong><br/>
+          En plus des emails, des sites web copiant votre design sont créés sous des domaines similaires. Ces faux sites collectent les identifiants de vos clients ou leur font payer des produits qu'ils croient acheter chez vous.
+        </div>
       </div>
-    </div>
 
-    <h3>Protéger aussi les domaines "silencieux"</h3>
-    <p>
-      Vous avez d'autres domaines qui n'envoient jamais d'emails ? <code>votrevieuxdomaine.com</code>, <code>votredomaine.be</code> ? Ces domaines peuvent aussi être usurpés. Configurez-y un SPF bloquant et un DMARC reject :
-    </p>
-    <div class="code-block">
-      <pre><code># SPF qui rejette tout pour un domaine qui n'envoie pas d'emails
+      <h2 id="typosquatting">Le typosquatting : les faux jumeaux de votre domaine</h2>
+      <p>
+        Le typosquatting consiste à enregistrer des domaines visuellement proches du vôtre pour piéger les utilisateurs qui font une faute de frappe ou ne regardent pas l'URL attentivement.
+      </p>
+      <p>
+        Exemples pour <code>votredomaine.com</code> :
+      </p>
+      <ul>
+        <li><code>votredomanie.com</code> — lettre transposée</li>
+        <li><code>votre-domaine.com</code> — tiret ajouté</li>
+        <li><code>votredomaine.net</code> — TLD différent</li>
+        <li><code>v0tredomaine.com</code> — caractère similaire (0 au lieu de o)</li>
+        <li><code>votredomaineconnexion.com</code> — mot ajouté</li>
+        <li><code>votredomaine.be</code> — extension nationale</li>
+      </ul>
+      <p>
+        Ces domaines sont souvent enregistrés en masse par des services automatisés qui surveillent les nouveaux dépôts de marques ou les domaines populaires.
+      </p>
+
+      <h2 id="consequences">Conséquences pour votre entreprise</h2>
+      <ul>
+        <li><strong>Vos clients sont arnaqués</strong> — et vous tiennent responsable, même si vous êtes victime</li>
+        <li><strong>Votre réputation email se dégrade</strong> — les plaintes spam générées par le phishing impactent votre domaine</li>
+        <li><strong>Blacklisting</strong> — votre domaine peut être ajouté aux listes noires si des rapports d'abus le citent</li>
+        <li><strong>Perte de confiance durable</strong> — un client piraté via votre faux domaine ne revient pas facilement</li>
+        <li><strong>Responsabilité légale</strong> — selon le contexte, vous pourriez être mis en cause si vous n'avez pas pris les mesures raisonnables de protection</li>
+      </ul>
+
+      <h2 id="protection-email">Protéger votre email avec SPF, DKIM, DMARC</h2>
+      <p>
+        Ces trois protocoles forment le bouclier de base contre l'usurpation email. Leur rôle combiné :
+      </p>
+      <ul>
+        <li><strong>SPF</strong> — liste les serveurs autorisés à envoyer des emails pour votre domaine. Tout autre serveur est rejeté ou marqué suspect.</li>
+        <li><strong>DKIM</strong> — ajoute une signature cryptographique à chaque email. Si un attaquant modifie le message, la signature ne correspond plus.</li>
+        <li><strong>DMARC</strong> — définit la politique à appliquer quand SPF ou DKIM échoue. Avec <code>p=reject</code>, les emails non authentifiés sont bloqués avant livraison.</li>
+      </ul>
+
+      <div class="callout callout-ok">
+        <span class="callout-icon">OK</span>
+        <div class="callout-body">
+          <strong>DMARC p=reject : le bouclier définitif</strong><br/>
+          Avec <code>p=reject</code>, un email usurpant votre domaine est rejeté par le serveur destinataire avant même d'arriver dans le dossier spam. C'est le seul niveau qui bloque réellement le phishing direct par votre domaine.
+        </div>
+      </div>
+
+      <h3>Protéger aussi les domaines "silencieux"</h3>
+      <p>
+        Vous avez d'autres domaines qui n'envoient jamais d'emails ? <code>votrevieuxdomaine.com</code>, <code>votredomaine.be</code> ? Ces domaines peuvent aussi être usurpés. Configurez-y un SPF bloquant et un DMARC reject :
+      </p>
+      <div class="code-block">
+        <pre><code># SPF qui rejette tout pour un domaine qui n'envoie pas d'emails
 v=spf1 -all
 
 # DMARC reject pour un domaine silencieux
 v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s;</code></pre>
-    </div>
+      </div>
 
-    <h2 id="monitoring-phishing">Surveiller les imposteurs</h2>
+      <h2 id="monitoring-phishing">Surveiller les imposteurs</h2>
 
-    <h3>Monitoring des Certificate Transparency logs</h3>
-    <p>
-      Chaque certificat SSL émis est enregistré publiquement. Des outils comme <a href="https://crt.sh" rel="noopener noreferrer">crt.sh</a> vous permettent de rechercher tous les certificats émis pour des variantes de votre domaine. Un certificat émis pour <code>votredomaine-secure.com</code> est un signal d'alarme.
-    </p>
+      <h3>Monitoring des Certificate Transparency logs</h3>
+      <p>
+        Chaque certificat SSL émis est enregistré publiquement. Des outils comme <a href="https://crt.sh" rel="noopener noreferrer">crt.sh</a> vous permettent de rechercher tous les certificats émis pour des variantes de votre domaine. Un certificat émis pour <code>votredomaine-secure.com</code> est un signal d'alarme.
+      </p>
 
-    <h3>Monitoring des enregistrements DNS similaires</h3>
-    <p>
-      Des services spécialisés (Dnstwist, PhishTank) génèrent automatiquement des variations de votre domaine et vérifient si elles sont enregistrées. C'est la méthode la plus efficace pour détecter le typosquatting en temps réel.
-    </p>
+      <h3>Monitoring des enregistrements DNS similaires</h3>
+      <p>
+        Des services spécialisés (Dnstwist, PhishTank) génèrent automatiquement des variations de votre domaine et vérifient si elles sont enregistrées. C'est la méthode la plus efficace pour détecter le typosquatting en temps réel.
+      </p>
 
-    <h3>Google Alerts et monitoring de marque</h3>
-    <p>
-      Configurez des alertes Google pour votre nom de marque + termes comme "phishing", "arnaque", "fraude". Vos clients victimes signalent souvent publiquement sur les réseaux sociaux avant de vous contacter directement.
-    </p>
+      <h3>Google Alerts et monitoring de marque</h3>
+      <p>
+        Configurez des alertes Google pour votre nom de marque + termes comme "phishing", "arnaque", "fraude". Vos clients victimes signalent souvent publiquement sur les réseaux sociaux avant de vous contacter directement.
+      </p>
 
-    <h2 id="signalement">Signaler et faire retirer un site de phishing</h2>
+      <h2 id="signalement">Signaler et faire retirer un site de phishing</h2>
 
-    <h3>Signalement aux autorités et bases de données</h3>
-    <ul>
-      <li><strong>Google Safe Browsing</strong> — signalement direct, retire le site des résultats Google et déclenche des avertissements sur Chrome</li>
-      <li><strong>PhishTank</strong> — base collaborative de sites de phishing</li>
-      <li><strong>CERT.be / CERT.fr</strong> — centres de réponse aux incidents cyber nationaux</li>
-      <li><strong>ICANN</strong> — pour les abus graves de nommage de domaine</li>
-    </ul>
+      <h3>Signalement aux autorités et bases de données</h3>
+      <ul>
+        <li><strong>Google Safe Browsing</strong> — signalement direct, retire le site des résultats Google et déclenche des avertissements sur Chrome</li>
+        <li><strong>PhishTank</strong> — base collaborative de sites de phishing</li>
+        <li><strong>CERT.be / CERT.fr</strong> — centres de réponse aux incidents cyber nationaux</li>
+        <li><strong>ICANN</strong> — pour les abus graves de nommage de domaine</li>
+      </ul>
 
-    <h3>Contacter le registrar du domaine frauduleux</h3>
-    <p>
-      La plupart des registrars ont une politique d'abus et peuvent suspendre un domaine utilisé pour du phishing sous 24-48h. Préparez des preuves : captures d'écran, en-têtes d'email complets, URLs exactes.
-    </p>
+      <h3>Contacter le registrar du domaine frauduleux</h3>
+      <p>
+        La plupart des registrars ont une politique d'abus et peuvent suspendre un domaine utilisé pour du phishing sous 24-48h. Préparez des preuves : captures d'écran, en-têtes d'email complets, URLs exactes.
+      </p>
 
-    <div class="cta-block">
-      <p>Vérifiez si votre domaine est bien protégé contre l'usurpation :</p>
-      <a href="https://wezea.net" class="btn-cta">→ Analyser mon domaine gratuitement</a>
-    </div>
+      <div class="cta-block">
+        <p>Vérifiez si votre domaine est bien protégé contre l'usurpation :</p>
+        <a href="https://wezea.net" class="btn-cta">→ Analyser mon domaine gratuitement</a>
+      </div>
 
 
-    <div class="related">
-      <p class="related-title">Lire aussi</p>
-      <div class="related-grid">
-      <a href="/blog/usurpation-domaine-email/" class="related-card">Usurpation de domaine : comment des hackers envoient des emails à votre place</a>
-      <a href="/blog/dns-hijacking/" class="related-card">DNS Hijacking : comment votre domaine peut être détourné</a>
-      <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM et DMARC : le guide complet</a>
+      <div class="related">
+        <p class="related-title">Lire aussi</p>
+        <div class="related-grid">
+        <a href="/blog/usurpation-domaine-email/" class="related-card">Usurpation de domaine : comment des hackers envoient des emails à votre place</a>
+        <a href="/blog/dns-hijacking/" class="related-card">DNS Hijacking : comment votre domaine peut être détourné</a>
+        <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM et DMARC : le guide complet</a>
+        </div>
       </div>
     </div>
   </div>
+
+  <div class="lang-en">
+    <header class="article-header">
+      <div class="article-meta">
+        <span class="article-tag">Phishing</span>
+        <span class="read-time">7-min read</span>
+        <time datetime="2026-03-05">March 5, 2026</time>
+      </div>
+      <h1>Protecting your domain against phishing: complete guide</h1>
+      <p class="article-intro">
+        Every day, thousands of fraudulent emails are sent impersonating legitimate domains. Your customers can receive an email appearing to come from <code>contact@yourdomain.com</code> — without you sending it. The consequence: loss of trust, complaints, and your domain blacklisted.
+      </p>
+    </header>
+
+    <nav class="toc">
+      <strong>Table of Contents</strong>
+      <ol>
+        <li><a href="#comment">How attackers spoof your domain</a></li>
+        <li><a href="#typosquatting">Typosquatting: false twins of your domain</a></li>
+        <li><a href="#consequences">Consequences for your business</a></li>
+        <li><a href="#protection-email">Protect your email with SPF, DKIM, DMARC</a></li>
+        <li><a href="#monitoring-phishing">Monitor imposters</a></li>
+        <li><a href="#signalement">Report and remove a phishing site</a></li>
+      </ol>
+    </nav>
+
+    <div class="article-body">
+
+      <h2 id="comment">How attackers spoof your domain</h2>
+
+      <h3>Direct spoofing (email spoofing)</h3>
+      <p>
+        Without SPF/DKIM/DMARC protection, anyone can send an email with <code>From: contact@yourdomain.com</code>. It's technically simple — the original SMTP protocol had no identity verification. Attackers exploit this weakness to create emails appearing to come from you.
+      </p>
+
+      <h3>Display name spoofing</h3>
+      <p>
+        Even with DMARC configured, an attacker can display <em>Your Company Contact &lt;contact@pirate-domain.com&gt;</em>. The displayed name resembles yours, but the actual sending domain is different. Customers who don't check the full address are fooled.
+      </p>
+
+      <h3>Fake subdomains</h3>
+      <p>
+        An attacker registers <code>security.yourdomain-alert.com</code> or uses a compromised subdomain of your domain to send credible emails. The recipient sees "yourdomain" in the address and trusts it.
+      </p>
+
+      <div class="callout callout-warn">
+        <span class="callout-icon">WARN</span>
+        <div class="callout-body">
+          <strong>Phishing also happens via websites</strong><br/>
+          Besides emails, fake websites copying your design are created under similar domains. These counterfeit sites collect your customers' credentials or make them buy products they think they're purchasing from you.
+        </div>
+      </div>
+
+      <h2 id="typosquatting">Typosquatting: false twins of your domain</h2>
+      <p>
+        Typosquatting involves registering domains visually similar to yours to trap users who make typos or don't check the URL carefully.
+      </p>
+      <p>
+        Examples for <code>yourdomain.com</code>:
+      </p>
+      <ul>
+        <li><code>yourdmain.com</code> — transposed letter</li>
+        <li><code>your-domain.com</code> — hyphen added</li>
+        <li><code>yourdomain.net</code> — different TLD</li>
+        <li><code>y0urdomain.com</code> — similar character (0 instead of o)</li>
+        <li><code>yourdomainlogin.com</code> — word added</li>
+        <li><code>yourdomain.be</code> — national extension</li>
+      </ul>
+      <p>
+        These domains are often registered in bulk by automated services monitoring new trademark filings or popular domains.
+      </p>
+
+      <h2 id="consequences">Consequences for your business</h2>
+      <ul>
+        <li><strong>Your customers are defrauded</strong> — and blame you, even if you're the victim</li>
+        <li><strong>Your email reputation degrades</strong> — spam complaints from phishing impact your domain</li>
+        <li><strong>Blacklisting</strong> — your domain can be added to blacklists if abuse reports cite it</li>
+        <li><strong>Lasting loss of trust</strong> — a customer hacked via your fake domain doesn't return easily</li>
+        <li><strong>Legal responsibility</strong> — depending on context, you could be held liable if you haven't taken reasonable protective measures</li>
+      </ul>
+
+      <h2 id="protection-email">Protect your email with SPF, DKIM, DMARC</h2>
+      <p>
+        These three protocols form the basic shield against email spoofing. Their combined role:
+      </p>
+      <ul>
+        <li><strong>SPF</strong> — lists servers authorized to send emails for your domain. Any other server is rejected or marked suspicious.</li>
+        <li><strong>DKIM</strong> — adds a cryptographic signature to each email. If an attacker modifies the message, the signature no longer matches.</li>
+        <li><strong>DMARC</strong> — defines the policy to apply when SPF or DKIM fails. With <code>p=reject</code>, unauthenticated emails are blocked before delivery.</li>
+      </ul>
+
+      <div class="callout callout-ok">
+        <span class="callout-icon">OK</span>
+        <div class="callout-body">
+          <strong>DMARC p=reject: the ultimate shield</strong><br/>
+          With <code>p=reject</code>, an email spoofing your domain is rejected by the receiving server before even reaching spam. It's the only level that actually blocks direct phishing of your domain.
+        </div>
+      </div>
+
+      <h3>Protect "silent" domains too</h3>
+      <p>
+        Do you have other domains that never send emails? <code>youroldomain.com</code>, <code>yourdomain.be</code>? These domains can also be spoofed. Configure a blocking SPF and reject DMARC:
+      </p>
+      <div class="code-block">
+        <pre><code># SPF that blocks everything for a domain that doesn't send emails
+v=spf1 -all
+
+# DMARC reject for a silent domain
+v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s;</code></pre>
+      </div>
+
+      <h2 id="monitoring-phishing">Monitor imposters</h2>
+
+      <h3>Monitor Certificate Transparency logs</h3>
+      <p>
+        Every issued SSL certificate is publicly logged. Tools like <a href="https://crt.sh" rel="noopener noreferrer">crt.sh</a> let you search for all certificates issued for your domain variants. A certificate issued for <code>yourdomain-secure.com</code> is a red flag.
+      </p>
+
+      <h3>Monitor similar DNS records</h3>
+      <p>
+        Specialized services (Dnstwist, PhishTank) automatically generate domain variations and check if they're registered. This is the most effective method to detect typosquatting in real-time.
+      </p>
+
+      <h3>Google Alerts and brand monitoring</h3>
+      <p>
+        Set up Google Alerts for your brand name + terms like "phishing", "scam", "fraud". Your victim customers often report publicly on social media before contacting you directly.
+      </p>
+
+      <h2 id="signalement">Report and remove a phishing site</h2>
+
+      <h3>Report to authorities and databases</h3>
+      <ul>
+        <li><strong>Google Safe Browsing</strong> — direct report, removes site from Google results and triggers Chrome warnings</li>
+        <li><strong>PhishTank</strong> — collaborative phishing site database</li>
+        <li><strong>CERT.be / CERT.fr</strong> — national cyber incident response centers</li>
+        <li><strong>ICANN</strong> — for serious domain name abuse</li>
+      </ul>
+
+      <h3>Contact the fraudulent domain's registrar</h3>
+      <p>
+        Most registrars have an abuse policy and can suspend a domain used for phishing within 24-48h. Prepare evidence: screenshots, full email headers, exact URLs.
+      </p>
+
+      <div class="cta-block">
+        <p>Check if your domain is protected against spoofing:</p>
+        <a href="https://wezea.net" class="btn-cta">→ Scan my domain for free</a>
+      </div>
+
+
+      <div class="related">
+        <p class="related-title">Read also</p>
+        <div class="related-grid">
+        <a href="/blog/usurpation-domaine-email/" class="related-card">Domain spoofing: how hackers send emails on your behalf</a>
+        <a href="/blog/dns-hijacking/" class="related-card">DNS Hijacking: how your domain can be taken over</a>
+        <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM and DMARC: the complete guide</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </main>
 <script src="/footer.js"></script>
 </body>

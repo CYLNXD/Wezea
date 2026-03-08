@@ -1,5 +1,30 @@
 /* ── Wezea — Navbar + Footer partagés pour les pages statiques ──────────── */
 (function () {
+  /* ── Langue ──────────────────────────────────────────────────────────────── */
+  var stored = localStorage.getItem('wz-lang');
+  var auto   = (navigator.language || '').startsWith('en') ? 'en' : 'fr';
+  var LANG   = stored || auto;
+  document.documentElement.setAttribute('data-lang', LANG);
+
+  function setLang(lang) {
+    LANG = lang;
+    localStorage.setItem('wz-lang', lang);
+    document.documentElement.setAttribute('data-lang', lang);
+    document.querySelectorAll('.wz-lang-btn').forEach(function(btn) {
+      btn.setAttribute('data-active', btn.getAttribute('data-lang') === lang ? '1' : '0');
+    });
+    /* Meta title + description per-page override */
+    var t = window.WZ_T;
+    if (t && t[lang]) {
+      if (t[lang].title)       document.title = t[lang].title;
+      if (t[lang].description) { var m = document.querySelector('meta[name="description"]'); if(m) m.content = t[lang].description; }
+      if (t[lang].og_title)    { var m = document.querySelector('meta[property="og:title"]'); if(m) m.content = t[lang].og_title; }
+    }
+  }
+
+  /* Apply on load */
+  setLang(LANG);
+
   /* ── Icônes SVG ─────────────────────────────────────────────────────────── */
   var ICON_BOOK =
     '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
@@ -15,8 +40,12 @@
     '<path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>' +
     '</svg>';
 
-  /* ── CSS navbar + footer ────────────────────────────────────────────────── */
+  /* ── CSS navbar + langue ────────────────────────────────────────────────── */
   var css =
+    /* — Language visibility — */
+    'html[data-lang="fr"] .lang-en{display:none!important;}' +
+    'html[data-lang="en"] .lang-fr{display:none!important;}' +
+
     /* — Navbar — */
     '.wz-nav{position:sticky;top:0;z-index:50;' +
     'backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);' +
@@ -48,8 +77,19 @@
     'font-family:"Inter",system-ui,sans-serif;' +
     'color:#020617;background:#22d3ee;padding:.375rem 1rem;border-radius:8px;' +
     'transition:background .15s;white-space:nowrap;flex-shrink:0;' +
-    'margin-left:auto;text-decoration:none;}' +
+    'text-decoration:none;}' +
     '.wz-btn-nav:hover{background:#67e8f9;text-decoration:none;}' +
+
+    /* — Language toggle — */
+    '.wz-lang-toggle{display:flex;align-items:center;gap:2px;' +
+    'background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);' +
+    'border-radius:8px;padding:2px;flex-shrink:0;margin-left:.5rem;}' +
+    '.wz-lang-btn{font-size:11px;font-weight:600;letter-spacing:.04em;' +
+    'font-family:"Inter",system-ui,sans-serif;' +
+    'color:#64748b;padding:.25rem .5rem;border-radius:6px;cursor:pointer;' +
+    'border:none;background:transparent;transition:all .15s;line-height:1;}' +
+    '.wz-lang-btn[data-active="1"]{color:#020617;background:#22d3ee;}' +
+    '.wz-lang-btn:hover:not([data-active="1"]){color:#e2e8f0;background:rgba(255,255,255,.06);}' +
 
     /* — Responsive — */
     '@media(max-width:480px){' +
@@ -67,13 +107,23 @@
   var isAgences   = path.startsWith('/agences/');
 
   /* ── Navbar ─────────────────────────────────────────────────────────────── */
+  var blogLabel    = '<span class="lang-fr">Blog</span><span class="lang-en">Blog</span>';
+  var agencesLabel = '<span class="lang-fr">Agences</span><span class="lang-en">Agencies</span>';
+  var ctaLabel     = '<span class="lang-fr">Scanner un domaine →</span><span class="lang-en">Scan a domain →</span>';
+
   var links = '';
   if (!isBlogIndex) {
-    links += '<a href="/blog/" class="wz-nav-link">' + ICON_BOOK + ' Blog</a>';
+    links += '<a href="/blog/" class="wz-nav-link">' + ICON_BOOK + ' ' + blogLabel + '</a>';
   }
   if (!isAgences) {
-    links += '<a href="/agences/" class="wz-nav-link">' + ICON_BUILDING + ' Agences</a>';
+    links += '<a href="/agences/" class="wz-nav-link">' + ICON_BUILDING + ' ' + agencesLabel + '</a>';
   }
+
+  var langToggle =
+    '<div class="wz-lang-toggle">' +
+      '<button class="wz-lang-btn" data-lang="fr" data-active="' + (LANG==='fr'?'1':'0') + '">FR</button>' +
+      '<button class="wz-lang-btn" data-lang="en" data-active="' + (LANG==='en'?'1':'0') + '">EN</button>' +
+    '</div>';
 
   var nav = document.createElement('nav');
   nav.className = 'wz-nav';
@@ -84,7 +134,8 @@
         '<small>Security Scanner</small>' +
       '</a>' +
       '<div class="wz-nav-links">' + links + '</div>' +
-      '<a href="https://wezea.net" class="wz-btn-nav">Scanner un domaine →</a>' +
+      langToggle +
+      '<a href="https://wezea.net" class="wz-btn-nav">' + ctaLabel + '</a>' +
     '</div>';
 
   /* Insertion synchrone au niveau du <script> appelant */
@@ -94,5 +145,11 @@
   } else {
     document.body.insertBefore(nav, document.body.firstChild);
   }
+
+  /* ── Lang toggle click ───────────────────────────────────────────────────── */
+  nav.addEventListener('click', function(e) {
+    var btn = e.target.closest('.wz-lang-btn');
+    if (btn) setLang(btn.getAttribute('data-lang'));
+  });
 
 })();

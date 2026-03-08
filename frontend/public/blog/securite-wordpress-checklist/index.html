@@ -17,6 +17,21 @@
   <meta property="og:site_name"   content="Wezea Security Scanner" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+
+  <script>
+  window.WZ_T = {
+    fr: {
+      title: "Sécuriser WordPress : checklist complète 2026 | Wezea",
+      description: "WordPress représente 43% du web et est la cible numéro 1 des hackers. Suivez cette checklist complète pour sécuriser votre site WordPress : plugins, thèmes, accès, SSL, sauvegardes.",
+      og_title: "Sécuriser WordPress : checklist complète 2026"
+    },
+    en: {
+      title: "Securing WordPress: complete checklist 2026 | Wezea",
+      description: "WordPress is the #1 target for automated attacks. Updates, access, files, SSL, email, plugins, backups — the complete checklist for your site.",
+      og_title: "Securing WordPress: complete checklist 2026"
+    }
+  };
+  </script>
   <link rel="stylesheet" href="../blog.css" />
 
   <script type="application/ld+json">
@@ -37,6 +52,7 @@
 <script src="/nav.js"></script>
 <main class="page">
 
+  <div class="lang-fr">
   <header class="article-header">
     <div class="article-meta">
       <span class="article-tag">CMS</span>
@@ -216,7 +232,6 @@ wp-config.php : 440 ou 400
       </div>
     </div>
 
-
     <div class="related">
       <p class="related-title">Lire aussi</p>
       <div class="related-grid">
@@ -225,6 +240,198 @@ wp-config.php : 440 ou 400
       <a href="/blog/audit-securite-site-web-checklist/" class="related-card">Checklist d'audit sécurité d'un site web (2026)</a>
       </div>
     </div>
+  </div>
+  </div>
+
+  <div class="lang-en">
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">CMS</span>
+      <span class="read-time">8-min read</span>
+      <time datetime="2026-03-05">March 5, 2026</time>
+    </div>
+    <h1>Securing WordPress: complete checklist 2026</h1>
+    <p class="article-intro">
+      WordPress powers 43% of the web — and is also the #1 target for automated attacks. An unpatched WordPress site is compromised on average within 72 hours of exposure. This checklist covers all levels: access, updates, configuration, email, and monitoring.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Table of Contents</strong>
+    <ol>
+      <li><a href="#mises-a-jour">Updates</a></li>
+      <li><a href="#acces">Access control</a></li>
+      <li><a href="#fichiers">File security</a></li>
+      <li><a href="#ssl-https">SSL and HTTPS</a></li>
+      <li><a href="#email">Domain email security</a></li>
+      <li><a href="#plugins">Recommended plugins</a></li>
+      <li><a href="#sauvegardes">Backups</a></li>
+      <li><a href="#monitoring">Continuous monitoring</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="mises-a-jour">1. Updates — the non-negotiable foundation</h2>
+    <p>
+      According to Sucuri, <strong>52% of WordPress sites compromised in 2025 had at least one outdated component</strong> at the time of attack. Hackers exploit CVEs published hours after announcement.
+    </p>
+    <ul>
+      <li>Update WordPress core with every release</li>
+      <li>Update all active AND inactive plugins</li>
+      <li>Update all installed themes (even unused ones)</li>
+      <li>Enable automatic updates for WordPress core</li>
+      <li>Delete unused plugins and themes — they remain attack vectors</li>
+    </ul>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Abandoned plugins</strong><br/>
+        A plugin not updated in over 2 years is likely abandoned by its developer. Vulnerabilities will never be fixed. Replace it with an active alternative.
+      </div>
+    </div>
+
+    <h2 id="acces">2. Access control</h2>
+
+    <h3>Login page</h3>
+    <ul>
+      <li>Change the login URL (default <code>/wp-admin</code> or <code>/wp-login.php</code> are too predictable)</li>
+      <li>Enable two-factor authentication (2FA) for all administrators</li>
+      <li>Limit login attempts (Limit Login Attempts Reloaded plugin)</li>
+      <li>Never use "admin" as a username</li>
+    </ul>
+
+    <h3>User management</h3>
+    <ul>
+      <li>Apply the principle of least privilege: editors don't need Administrator role</li>
+      <li>Delete inactive and test accounts</li>
+      <li>Use strong passwords (minimum 16 characters, randomly generated)</li>
+      <li>Disable public registration if you don't need it</li>
+    </ul>
+
+    <h3>Server access</h3>
+    <ul>
+      <li>Use SSH keys instead of FTP passwords</li>
+      <li>Disable FTP — use SFTP only</li>
+      <li>Restrict SSH access by IP if possible</li>
+    </ul>
+
+    <h2 id="fichiers">3. File security</h2>
+
+    <h3>File and folder permissions</h3>
+    <div class="code-block">
+      <pre><code># Recommended permissions
+WordPress files: 644
+WordPress folders: 755
+wp-config.php: 440 or 400
+.htaccess: 644</code></pre>
+    </div>
+
+    <h3>Protect wp-config.php</h3>
+    <p>This file contains your database credentials. Move it one level above the public folder or add to <code>.htaccess</code>:</p>
+    <div class="code-block">
+      <pre><code>&lt;files wp-config.php&gt;
+  order allow,deny
+  deny from all
+&lt;/files&gt;</code></pre>
+    </div>
+
+    <h3>Disable file editing from dashboard</h3>
+    <p>Add to <code>wp-config.php</code>:</p>
+    <div class="code-block">
+      <pre><code>define('DISALLOW_FILE_EDIT', true);</code></pre>
+    </div>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">INFO</span>
+      <div class="callout-body">
+        <strong>Disable PHP execution in uploads</strong><br/>
+        A classic attack vector: uploading a malicious PHP file disguised as an image. Add a <code>.htaccess</code> in <code>wp-content/uploads/</code> with <code>php_flag engine off</code> to prevent PHP execution in that folder.
+      </div>
+    </div>
+
+    <h2 id="ssl-https">4. SSL and HTTPS</h2>
+    <ul>
+      <li>Valid, non-expired SSL certificate (check expiration date)</li>
+      <li>Automatic HTTP → HTTPS redirect in <code>.htaccess</code> or <code>wp-config.php</code></li>
+      <li>HSTS enabled to prevent downgrade attacks</li>
+      <li>Zero mixed content (images and scripts over HTTP on HTTPS pages)</li>
+      <li>TLS 1.2 minimum, TLS 1.3 recommended</li>
+    </ul>
+
+    <h2 id="email">5. Domain email security</h2>
+    <p>
+      Your WordPress site likely sends emails (notifications, password resets, newsletters). Without SPF, DKIM, and DMARC configured, these emails land in spam — and your domain can be spoofed for phishing.
+    </p>
+    <ul>
+      <li>SPF record covering your WordPress sending server</li>
+      <li>DKIM signed for your domain (via your host or sending tool)</li>
+      <li>DMARC configured at minimum in <code>p=none</code> mode with RUA address</li>
+    </ul>
+
+    <div class="cta-block">
+      <p>Check SPF, DKIM and DMARC for your WordPress domain:</p>
+      <a href="https://wezea.net" class="btn-cta">→ Audit my domain for free</a>
+    </div>
+
+    <h2 id="plugins">6. Recommended security plugins</h2>
+    <ul>
+      <li><strong>Wordfence</strong> — Web application firewall, malware scanner, IP blocking. Free version is very complete.</li>
+      <li><strong>WP Cerber</strong> — Robust brute-force and spam protection.</li>
+      <li><strong>iThemes Security</strong> — WordPress hardening, file change detection.</li>
+      <li><strong>WP Activity Log</strong> — Complete audit log of all site actions.</li>
+      <li><strong>UpdraftPlus</strong> — Automatic backups to cloud (not security but essential).</li>
+    </ul>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Don't install multiple security plugins</strong><br/>
+        Two application firewalls simultaneously create conflicts, slow down your site, and give false sense of double protection. Choose one and configure it well.
+      </div>
+    </div>
+
+    <h2 id="sauvegardes">7. Backups — your last resort</h2>
+    <p>
+      Good WordPress backup strategy follows the <strong>3-2-1 rule</strong>: 3 copies, on 2 different media, with 1 off-site.
+    </p>
+    <ul>
+      <li>Automatic daily backup of database and files</li>
+      <li>Off-server storage (S3, Google Drive, Dropbox)</li>
+      <li>Test restoration at least once per quarter</li>
+      <li>Keep minimum 30 days of history</li>
+    </ul>
+
+    <h2 id="monitoring">8. Continuous monitoring</h2>
+    <p>
+      Security is not a state, it is a process. A site can be silently compromised (code injection in a plugin, hidden redirect) with no visible symptoms for weeks.
+    </p>
+    <ul>
+      <li>Regularly scan for malware (Wordfence, Sucuri)</li>
+      <li>Monitor critical file changes (<code>wp-config.php</code>, <code>functions.php</code>)</li>
+      <li>Track SSL certificate status and domain expiration</li>
+      <li>Regularly check IP reputation and blacklist status</li>
+      <li>Enable Google Search Console alerts for security issues</li>
+    </ul>
+
+    <div class="callout callout-ok">
+      <span class="callout-icon">OK</span>
+      <div class="callout-body">
+        <strong>Quick audit</strong><br/>
+        A tool like Wezea can check in 60 seconds your SSL status, SPF/DKIM/DMARC, exposed ports, known CVEs, and blacklist status for your WordPress domain.
+      </div>
+    </div>
+
+    <div class="related">
+      <p class="related-title">Read also</p>
+      <div class="related-grid">
+      <a href="/blog/certificat-ssl-expire/" class="related-card">Expired SSL certificate: consequences and renewal</a>
+      <a href="/blog/ports-reseau-dangereux/" class="related-card">Dangerous network ports: which ones to close</a>
+      <a href="/blog/audit-securite-site-web-checklist/" class="related-card">Website security audit checklist (2026)</a>
+      </div>
+    </div>
+  </div>
   </div>
 </main>
 <script src="/footer.js"></script>

@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-07 (session 27)
+> Dernière mise à jour : 2026-03-07 (session 28)
 
 ---
 
@@ -45,13 +45,83 @@ cyberhealth-scanner/
 
 ## 🖥️ Infrastructure & Déploiement
 
-- **Runner CI/CD** : GitHub Actions self-hosted runner sur le serveur
+- **Hébergeur** : Infomaniak VPS Lite (migré 2026-03-07, ancien : self-hosted)
+- **OS** : Ubuntu 24.04 LTS — Python **3.12** (pas 3.11 — non disponible par défaut sur 24.04)
+- **IP publique** : `83.228.217.154`
+- **Runner CI/CD** : GitHub Actions self-hosted runner (`/home/cyberhealth/actions-runner/`)
 - **Chemin serveur** : `/home/cyberhealth/app/`
 - **Virtualenv deploy** : `.venv/` (avec le point — NE PAS confondre avec `venv/`)
 - **Virtualenv service** : `venv/` (sans le point — tel que configuré dans cyberhealth-api.service)
 - **Process manager** : systemd + uvicorn (`--workers 2` — optimal pour 2 vCPU + SQLite)
-- **Frontend** : build Vite → servi par nginx
+- **Frontend** : build Vite → servi par nginx (`/home/cyberhealth/app/frontend/dist/`)
 - **Backend** : FastAPI sur uvicorn, port 8000
+
+### Domaines & DNS
+| Domaine | Rôle | Pointe vers |
+|---------|------|-------------|
+| `wezea.net` | Frontend | `83.228.217.154` |
+| `www.wezea.net` | Frontend (redirect) | `83.228.217.154` |
+| `scan.wezea.net` | API backend | `83.228.217.154` |
+
+### Variables d'environnement — `.env` backend
+Fichier : `/home/cyberhealth/app/backend/.env`, propriétaire `cyberhealth`
+⚠️ Le service systemd lit **`backend/.env`** (EnvironmentFile dans cyberhealth-api.service) — ne pas éditer `/home/cyberhealth/app/.env` qui n'est PAS lu par le service.
+```bash
+API_ENV=production
+SECRET_KEY=<secrets.token_hex(32)>
+RATE_LIMIT=20/minute
+CORS_ORIGINS=https://wezea.net,https://scan.wezea.net,http://localhost:3000
+SCAN_TIMEOUT_SEC=8
+SSL_EXPIRY_WARNING_DAYS=30
+
+# Email — Brevo
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=a3aca2001@smtp-brevo.com
+SMTP_PASS=<depuis Brevo SMTP settings>
+FROM_NAME=CyberHealth Scanner
+FROM_EMAIL=contact@wezea.net
+BREVO_API_KEY=<depuis Brevo API Keys>
+
+# Auth
+GOOGLE_CLIENT_ID=307486238342-aagbmcb5ia7f8mod8ltmlogd916lgkrc.apps.googleusercontent.com
+JWT_SECRET_KEY=<openssl rand -hex 32>   # STABLE — ne pas changer, déconnecte tous les users
+
+# Stripe
+STRIPE_SECRET_KEY=<depuis Stripe Developers → API keys>
+STRIPE_PUBLISHABLE_KEY=<depuis Stripe Developers → API keys>
+STRIPE_WEBHOOK_SECRET=<depuis Stripe Developers → Webhooks → Signing secret>
+STRIPE_STARTER_PRICE_ID=price_1T7BaSKOrtMvErGvXlh4JA44
+STRIPE_PRO_PRICE_ID=price_1T7BaVKOrtMvErGv17gX79zw
+STRIPE_DEV_PRICE_ID=price_1T8MpWKOrtMvErGv0iXhORaP
+
+# Frontend
+FRONTEND_URL=https://wezea.net
+```
+
+### Variables d'environnement — `.env.production` frontend
+Fichier : `/home/cyberhealth/app/frontend/.env.production` (NON dans git — à recréer à chaque migration)
+```bash
+VITE_API_URL=https://scan.wezea.net
+VITE_GOOGLE_CLIENT_ID=307486238342-aagbmcb5ia7f8mod8ltmlogd916lgkrc.apps.googleusercontent.com
+```
+**⚠️ Après toute modification de ce fichier, rebuilder le frontend :**
+```bash
+sudo -u cyberhealth bash -c "cd /home/cyberhealth/app/frontend && npm run build"
+```
+
+### Nginx — Content-Security-Policy complète
+Fichier : `/etc/nginx/sites-available/wezea.net`
+La CSP complète à utiliser dans le bloc `wezea.net` (frontend) :
+```nginx
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://internal-j.posthog.com https://f.wezea.net https://accounts.google.com https://ssl.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://f.wezea.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://f.wezea.net https://lh3.googleusercontent.com; connect-src 'self' https://scan.wezea.net https://f.wezea.net https://accounts.google.com https://us.posthog.com https://internal-j.posthog.com https://us-assets.i.posthog.com; frame-src https://accounts.google.com; worker-src blob:;" always;
+```
+
+### sudoers — permissions cyberhealth
+Le runner CI/CD et le déploiement ont besoin de sudo limité :
+```
+cyberhealth ALL=(ALL) NOPASSWD: /bin/systemctl restart cyberhealth-api, /bin/systemctl reload nginx
+```
 
 ### Points critiques du deploy.yml
 ```yaml
@@ -62,16 +132,46 @@ pip: utiliser .venv/bin/pip (pas pip global)
 # Les tests backend s'exécutent AVANT le déploiement (étape 4)
 ```
 
+### GitHub Actions Runner
+- **Emplacement** : `/home/cyberhealth/actions-runner/`
+- **Service** : `actions.runner.CYLNXD-Wezea.ov-ac0014.service`
+- **Commandes** :
+```bash
+sudo systemctl status actions.runner.CYLNXD-Wezea.ov-ac0014
+sudo systemctl restart actions.runner.CYLNXD-Wezea.ov-ac0014
+# Réinstaller si besoin (nouveau token depuis github.com/CYLNXD/Wezea/settings/actions/runners/new) :
+cd /home/cyberhealth/actions-runner && sudo ./svc.sh uninstall
+# Puis reconfigurer avec ./config.sh --url ... --token ...
+sudo ./svc.sh install cyberhealth && sudo ./svc.sh start
+```
+
 ### Backup de la DB
 ```bash
-# Installation une fois (sur le serveur) :
-sudo crontab -u cyberhealth -e
-# Ajouter : 0 2 * * * /home/cyberhealth/app/scripts/backup_db.sh >> /home/cyberhealth/app/logs/backup.log 2>&1
+# Installé sur le serveur (cron cyberhealth) :
+# 0 2 * * * /home/cyberhealth/app/scripts/backup_db.sh >> /home/cyberhealth/app/logs/backup.log 2>&1
 
 # Variables d'env optionnelles :
 # BACKUP_DIR=/home/cyberhealth/backups  (défaut)
 # RETENTION=30                          (jours de rétention)
 # S3_BUCKET=s3://mon-bucket/backups/    (optionnel)
+```
+
+### Opérations DB courantes
+```bash
+# Accéder à la DB (toujours en tant que cyberhealth) :
+sudo -u cyberhealth sqlite3 /home/cyberhealth/app/backend/cyberhealth.db
+
+# ⚠️ Nom correct de la table rate limit : scan_rate_limits (PLURIEL)
+# Vider les quotas anonymes du jour (utile pour les tests) :
+sudo -u cyberhealth sqlite3 /home/cyberhealth/app/backend/cyberhealth.db \
+  "DELETE FROM scan_rate_limits WHERE date_key = date('now');"
+
+# Voir les tables :
+sudo -u cyberhealth sqlite3 /home/cyberhealth/app/backend/cyberhealth.db ".tables"
+
+# Voir les migrations :
+sudo -u cyberhealth sqlite3 /home/cyberhealth/app/backend/cyberhealth.db \
+  "SELECT * FROM db_migrations ORDER BY id;"
 ```
 
 ---
@@ -324,6 +424,40 @@ ls -lh /home/cyberhealth/backups/
     - `reset-done` : succès + bouton "Se connecter"
   - Lien "Mot de passe oublié ?" discret sous le formulaire login (mode `isLogin` uniquement)
 - **Tests** : 8 nouveaux tests (73 total), fixture `db_user` pour éviter le rate limit `/register`
+
+## 🆕 Migration VPS Infomaniak (2026-03-07, session 28)
+
+### Migration self-hosted → Infomaniak VPS Lite
+
+#### Étapes réalisées
+1. Création VPS (Ubuntu 24.04, 2 vCPU, IP `83.228.217.154`)
+2. `sudo apt install python3.12 python3.12-venv nodejs npm nginx certbot python3-certbot-nginx`
+3. Création user `cyberhealth` + clone repo dans `/home/cyberhealth/app/`
+4. Création venv `.venv` + `pip install -r requirements.txt`
+5. Création `/home/cyberhealth/app/.env` (JWT, Google, Stripe, Brevo…)
+6. Création `/home/cyberhealth/app/frontend/.env.production` (VITE_API_URL + VITE_GOOGLE_CLIENT_ID)
+7. Installation service systemd `cyberhealth-api`
+8. Build frontend (`npm run build`)
+9. Config nginx avec CSP complète + SSL Let's Encrypt (3 domaines)
+10. Migration DB : SCP de l'ancien serveur → Mac → nouveau VPS
+11. GitHub Actions runner → `/home/cyberhealth/actions-runner/` (service systemd)
+12. Cron backup DB + JWT stable + sudoers cyberhealth
+
+#### Bugs découverts pendant la migration
+
+- **`python3.11` absent sur Ubuntu 24.04** : utiliser `python3.12` et `python3.12-venv`
+- **Permission denied nginx sur `/home/cyberhealth/dist/`** : `sudo chmod o+x /home/cyberhealth /home/cyberhealth/app /home/cyberhealth/app/frontend /home/cyberhealth/app/frontend/dist`
+- **Certbot timeout** : firewall Infomaniak bloquait ports 80/443 → ajouter règles TCP 80+443 dans le panneau VPS Infomaniak
+- **nginx `conflicting server name scan.wezea.net`** : certbot ajoutait un bloc dans `/etc/nginx/sites-enabled/default` → `sudo rm /etc/nginx/sites-enabled/default`
+- **Frontend appelait `localhost:8000`** : `.env.production` absent du repo → créer manuellement sur le serveur après chaque migration, puis rebuilder
+- **CSP incomplète** : la CSP doit inclure PostHog (`f.wezea.net`, `us.posthog.com`, `us-assets.i.posthog.com`, `internal-j.posthog.com`), Google Fonts, Google Sign-In (`accounts.google.com`, `ssl.gstatic.com`) — voir section nginx ci-dessus
+- **`scan_rate_limits` (PLURIEL)** : le nom de la table SQLite est `scan_rate_limits` et non `scan_rate_limit` — erreur fréquente dans les requêtes manuelles
+- **sqlite3 nécessite `sudo -u cyberhealth`** : la DB est en lecture seule pour `ubuntu` — toujours utiliser `sudo -u cyberhealth sqlite3 ...`
+- **GitHub Actions runner dans `/home/ubuntu/`** : le service tourne en tant que `cyberhealth` qui n'a pas accès à `/home/ubuntu/` → déplacer dans `/home/cyberhealth/actions-runner/` + `chown -R cyberhealth:cyberhealth`
+- **`VITE_GOOGLE_CLIENT_ID` manquant** : le bouton Google Sign-In n'apparaît pas si cette variable est absente de `.env.production` → à recréer à chaque migration
+- **Mauvais fichier `.env`** : le service lit `/home/cyberhealth/app/backend/.env` (défini dans `EnvironmentFile` du service systemd), PAS `/home/cyberhealth/app/.env` — toujours éditer `backend/.env`
+
+---
 
 ## 🆕 Fonctionnalités récentes (2026-03-07, session 27)
 
@@ -882,10 +1016,9 @@ STRIPE_DEV_PRICE_ID=price_1T8MpWKOrtMvErGv0iXhORaP
 
 ## 📋 Tâches en attente
 
-- [ ] Configurer `JWT_SECRET_KEY` stable dans `.env` serveur (`openssl rand -hex 32`)
-- [ ] Installer le cron de backup DB sur le serveur (voir ci-dessus)
 - [ ] Surveiller les premières migrations argon2 dans les logs (rehash au prochain login de chaque user)
-- [ ] Ajouter `FRONTEND_URL=https://wezea.net` dans `.env` serveur (utilisé par les emails de reset mot de passe)
+- [ ] Vérifier que `wezea.net` est bien dans les **Authorized JavaScript origins** du client OAuth Google (Google Cloud Console → APIs & Services → Credentials)
+- [ ] Migration Google Sign-In vers FedCM (avertissement Chrome — pas urgent, non obligatoire aujourd'hui)
 
 ## 💡 Features en attente de trafic suffisant
 

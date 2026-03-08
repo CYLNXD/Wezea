@@ -18,6 +18,21 @@
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
 
+  <script>
+  window.WZ_T = {
+    fr: {
+      title: "Wezea pour les agences web et MSP — Audit sécurité white-label pour vos clients",
+      description: "Proposez des audits de sécurité domaine professionnels à vos clients. Rapports PDF à votre marque, scans illimités, monitoring continu. Plan Pro dès 19,90€/mois.",
+      og_title: "Wezea pour les agences web et MSP — Audits sécurité à votre marque"
+    },
+    en: {
+      title: "Wezea for web agencies and MSPs — White-label security audits for your clients",
+      description: "Offer professional domain security audits to your clients. White-label PDF reports, unlimited scans, continuous monitoring. Pro plan from €19.90/month.",
+      og_title: "Wezea for web agencies and MSPs — Security audits under your brand"
+    }
+  };
+  </script>
+
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -213,7 +228,6 @@
     .cta-final h2 { font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 900; color: #fff; letter-spacing: -0.02em; margin-bottom: 1rem; }
     .cta-final p  { font-size: 1rem; color: var(--muted2); margin-bottom: 2.5rem; }
 
-    /* ── Footer ── */
     /* ── Footer — injecté par /nav.js ── */
 
     /* ── Responsive ── */
@@ -229,6 +243,10 @@
 </head>
 <body>
 <script src="/nav.js"></script>
+
+<!-- ════════════════════════════════════════════════════════════ FR ═══ -->
+<div class="lang-fr">
+
 <!-- Hero -->
 <section class="hero">
   <div class="container-narrow">
@@ -249,34 +267,13 @@
   <div class="container">
     <p>Wezea analyse en une passe</p>
     <div class="proof-items">
-      <div class="proof-item">
-        <div class="proof-num">SPF</div>
-        <div class="proof-label">Sécurité email</div>
-      </div>
-      <div class="proof-item">
-        <div class="proof-num">DKIM</div>
-        <div class="proof-label">Signature email</div>
-      </div>
-      <div class="proof-item">
-        <div class="proof-num">DMARC</div>
-        <div class="proof-label">Anti-spoofing</div>
-      </div>
-      <div class="proof-item">
-        <div class="proof-num">SSL</div>
-        <div class="proof-label">Certificat HTTPS</div>
-      </div>
-      <div class="proof-item">
-        <div class="proof-num">Ports</div>
-        <div class="proof-label">Surface d'attaque</div>
-      </div>
-      <div class="proof-item">
-        <div class="proof-num">CVE</div>
-        <div class="proof-label">Vulnérabilités</div>
-      </div>
-      <div class="proof-item">
-        <div class="proof-num">Blacklist</div>
-        <div class="proof-label">Réputation IP</div>
-      </div>
+      <div class="proof-item"><div class="proof-num">SPF</div><div class="proof-label">Sécurité email</div></div>
+      <div class="proof-item"><div class="proof-num">DKIM</div><div class="proof-label">Signature email</div></div>
+      <div class="proof-item"><div class="proof-num">DMARC</div><div class="proof-label">Anti-spoofing</div></div>
+      <div class="proof-item"><div class="proof-num">SSL</div><div class="proof-label">Certificat HTTPS</div></div>
+      <div class="proof-item"><div class="proof-num">Ports</div><div class="proof-label">Surface d'attaque</div></div>
+      <div class="proof-item"><div class="proof-num">CVE</div><div class="proof-label">Vulnérabilités</div></div>
+      <div class="proof-item"><div class="proof-num">Blacklist</div><div class="proof-label">Réputation IP</div></div>
     </div>
   </div>
 </section>
@@ -287,45 +284,37 @@
     <div class="section-label">Fonctionnalités Pro</div>
     <h2 class="section-title">Tout ce dont votre agence a besoin</h2>
     <p class="section-sub">Du scan rapide au rapport client livrable en quelques minutes — sans compétences techniques avancées.</p>
-
     <div class="props-grid">
-
       <div class="prop-card">
         <div class="prop-icon prop-icon-cyan">PDF</div>
         <h3>Rapport PDF à votre marque</h3>
         <p>Générez des rapports de sécurité professionnels avec votre logo, vos couleurs et le nom de votre agence. Un livrable client clé en main pour chaque audit.</p>
       </div>
-
       <div class="prop-card">
         <div class="prop-icon prop-icon-green">MON</div>
         <h3>Monitoring continu multi-domaines</h3>
         <p>Surveillez automatiquement tous les domaines de vos clients. Soyez alerté en cas de dégradation du score, d'expiration SSL imminente ou d'apparition sur une blacklist.</p>
       </div>
-
       <div class="prop-card">
         <div class="prop-icon prop-icon-blue">∞</div>
         <h3>Scans illimités</h3>
         <p>Scannez autant de domaines clients que vous le souhaitez, sans quota journalier. Idéal pour les audits d'onboarding ou les revues de sécurité périodiques.</p>
       </div>
-
       <div class="prop-card">
         <div class="prop-icon prop-icon-amber">CVE</div>
         <h3>Détection CVE et technologies</h3>
         <p>Identifiez les versions logicielles exposées (CMS, serveurs, frameworks) et les vulnérabilités connues associées. Un argument fort dans vos recommandations client.</p>
       </div>
-
       <div class="prop-card">
         <div class="prop-icon prop-icon-cyan">SUB</div>
         <h3>Analyse des sous-domaines</h3>
         <p>Découvrez tous les sous-domaines actifs d'un domaine et évaluez leur surface d'attaque. Les sous-domaines oubliés sont souvent le maillon faible.</p>
       </div>
-
       <div class="prop-card">
         <div class="prop-icon prop-icon-green">API</div>
         <h3>Score de sécurité quantifié</h3>
         <p>Chaque domaine reçoit un score de 0 à 100. Facile à présenter à un client non technique pour justifier vos recommandations et suivre l'évolution dans le temps.</p>
       </div>
-
     </div>
   </div>
 </section>
@@ -335,7 +324,6 @@
   <div class="container">
     <div class="section-label">Workflow agence</div>
     <h2 class="section-title">De l'audit au rapport en 3 étapes</h2>
-
     <div class="steps">
       <div class="step">
         <div class="step-num">01</div>
@@ -366,9 +354,7 @@
   <div class="container">
     <div class="section-label">Cas d'usage</div>
     <h2 class="section-title">Adapté à votre type de structure</h2>
-
     <div class="usecases">
-
       <div class="usecase">
         <div class="usecase-tag">Agence web</div>
         <h3>Intégrez la sécurité dans chaque livraison</h3>
@@ -379,7 +365,6 @@
           <li>Monitoring mensuel en option récurrente</li>
         </ul>
       </div>
-
       <div class="usecase">
         <div class="usecase-tag">MSP / IT Manager</div>
         <h3>Surveillez votre parc client en continu</h3>
@@ -390,7 +375,6 @@
           <li>Rapports périodiques pour vos contrats</li>
         </ul>
       </div>
-
       <div class="usecase">
         <div class="usecase-tag">Consultant cybersécurité</div>
         <h3>Accélérez vos audits et livrables</h3>
@@ -401,7 +385,6 @@
           <li>Score objectif pour prioriser les actions</li>
         </ul>
       </div>
-
       <div class="usecase">
         <div class="usecase-tag">Hébergeur / Revendeur</div>
         <h3>Ajoutez la sécurité à votre catalogue</h3>
@@ -412,7 +395,6 @@
           <li>Facturable en option mensuelle</li>
         </ul>
       </div>
-
     </div>
   </div>
 </section>
@@ -426,7 +408,6 @@
       <p style="color: var(--muted2); font-size: 14px; margin-top: 0.5rem;">Scans illimités · Rapport PDF white-label · Monitoring · CVE · Sous-domaines</p>
       <div class="price">19,90€ <span>/ mois · résiliable à tout moment</span></div>
       <p class="pricing-sub">Paiement sécurisé via Stripe · Aucun engagement</p>
-
       <div class="features-list">
         <div class="feature-item">Scans illimités</div>
         <div class="feature-item">Rapport PDF à votre marque</div>
@@ -439,7 +420,6 @@
         <div class="feature-item">Score de sécurité 0-100</div>
         <div class="feature-item">Support prioritaire</div>
       </div>
-
       <a href="https://wezea.net" class="btn-primary" style="font-size: 15px; padding: 0.9rem 2.5rem;">
         Démarrer avec le plan Pro →
       </a>
@@ -452,7 +432,6 @@
   <div class="container-narrow">
     <div class="section-label">Questions fréquentes</div>
     <h2 class="section-title">Ce que les agences demandent souvent</h2>
-
     <div class="faq-list">
       <div class="faq-item">
         <h3>Le rapport PDF affiche-t-il vraiment mon logo et mes couleurs ?</h3>
@@ -489,6 +468,236 @@
     </div>
   </div>
 </section>
+
+</div><!-- /lang-fr -->
+
+<!-- ════════════════════════════════════════════════════════════ EN ═══ -->
+<div class="lang-en">
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container-narrow">
+    <div class="hero-badge">For web agencies &amp; MSPs</div>
+    <h1>Offer security audits<br><span>under your brand</span> to your clients</h1>
+    <p class="hero-sub">
+      Scan your clients' domains in 60 seconds. Generate professional PDF reports with your logo. Monitor their domains continuously and alert them before it's too late.
+    </p>
+    <div class="hero-ctas">
+      <a href="https://wezea.net" class="btn-primary">Get started for free →</a>
+      <a href="#fonctionnalites" class="btn-secondary">See features</a>
+    </div>
+  </div>
+</section>
+
+<!-- Social proof -->
+<section class="social-proof">
+  <div class="container">
+    <p>Wezea checks in a single pass</p>
+    <div class="proof-items">
+      <div class="proof-item"><div class="proof-num">SPF</div><div class="proof-label">Email security</div></div>
+      <div class="proof-item"><div class="proof-num">DKIM</div><div class="proof-label">Email signing</div></div>
+      <div class="proof-item"><div class="proof-num">DMARC</div><div class="proof-label">Anti-spoofing</div></div>
+      <div class="proof-item"><div class="proof-num">SSL</div><div class="proof-label">HTTPS certificate</div></div>
+      <div class="proof-item"><div class="proof-num">Ports</div><div class="proof-label">Attack surface</div></div>
+      <div class="proof-item"><div class="proof-num">CVE</div><div class="proof-label">Vulnerabilities</div></div>
+      <div class="proof-item"><div class="proof-num">Blacklist</div><div class="proof-label">IP reputation</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-label">Pro features</div>
+    <h2 class="section-title">Everything your agency needs</h2>
+    <p class="section-sub">From a quick scan to a client-ready deliverable in minutes — no advanced technical skills required.</p>
+    <div class="props-grid">
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-cyan">PDF</div>
+        <h3>White-label PDF report</h3>
+        <p>Generate professional security reports with your logo, brand colours, and agency name. A turnkey client deliverable for every audit.</p>
+      </div>
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-green">MON</div>
+        <h3>Continuous multi-domain monitoring</h3>
+        <p>Automatically monitor all your clients' domains. Get alerted when the security score drops, an SSL certificate is about to expire, or a domain appears on a blacklist.</p>
+      </div>
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-blue">∞</div>
+        <h3>Unlimited scans</h3>
+        <p>Scan as many client domains as you want with no daily quota. Perfect for onboarding audits or periodic security reviews.</p>
+      </div>
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-amber">CVE</div>
+        <h3>CVE and technology detection</h3>
+        <p>Identify exposed software versions (CMS, servers, frameworks) and known associated vulnerabilities. A strong argument in your client recommendations.</p>
+      </div>
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-cyan">SUB</div>
+        <h3>Subdomain analysis</h3>
+        <p>Discover all active subdomains of a domain and assess their attack surface. Forgotten subdomains are often the weakest link.</p>
+      </div>
+      <div class="prop-card">
+        <div class="prop-icon prop-icon-green">API</div>
+        <h3>Quantified security score</h3>
+        <p>Every domain receives a score from 0 to 100. Easy to present to a non-technical client to justify your recommendations and track progress over time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="section" style="background: linear-gradient(180deg, transparent, rgba(255,255,255,0.015), transparent); padding: 4rem 0;">
+  <div class="container">
+    <div class="section-label">Agency workflow</div>
+    <h2 class="section-title">From audit to report in 3 steps</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>Enter the client domain</h3>
+        <p>Type in the domain to audit. The scan starts within seconds and analyses the full exposure surface.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Review the security score</h3>
+        <p>Browse detailed results — overall score, critical issues, prioritised recommendations. Everything is readable at a glance.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Generate the client PDF report</h3>
+        <p>Export a white-label PDF report ready to send to the client. Professional, structured, and convincing — with no extra effort.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <h3>Enable monitoring</h3>
+        <p>Add the domain to monitoring to receive automatic alerts if the situation deteriorates — and bill a recurring surveillance service.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Use cases -->
+<section class="section">
+  <div class="container">
+    <div class="section-label">Use cases</div>
+    <h2 class="section-title">Built for your type of organisation</h2>
+    <div class="usecases">
+      <div class="usecase">
+        <div class="usecase-tag">Web agency</div>
+        <h3>Include security in every delivery</h3>
+        <p>Offer a systematic security audit at every launch or redesign. Differentiate yourself with a professional PDF report included in your proposal.</p>
+        <ul>
+          <li>Pre-launch audit included in the quote</li>
+          <li>PDF report delivered with the website</li>
+          <li>Monthly monitoring as a recurring add-on</li>
+        </ul>
+      </div>
+      <div class="usecase">
+        <div class="usecase-tag">MSP / IT Manager</div>
+        <h3>Monitor your client portfolio continuously</h3>
+        <p>Centralise monitoring of all your managed domains. Spot risks before they become incidents and justify your maintenance contracts.</p>
+        <ul>
+          <li>Multi-domain overview dashboard</li>
+          <li>Automatic alerts on degradation</li>
+          <li>Periodic reports for your contracts</li>
+        </ul>
+      </div>
+      <div class="usecase">
+        <div class="usecase-tag">Cybersecurity consultant</div>
+        <h3>Speed up your audits and deliverables</h3>
+        <p>Cut the time spent collecting technical information. Focus on analysis and recommendations rather than repetitive manual checks.</p>
+        <ul>
+          <li>Automated collection in 60 seconds</li>
+          <li>Structured report as a working baseline</li>
+          <li>Objective score to prioritise actions</li>
+        </ul>
+      </div>
+      <div class="usecase">
+        <div class="usecase-tag">Hosting provider / Reseller</div>
+        <h3>Add security to your catalogue</h3>
+        <p>Offer domain security audits as an add-on service to your hosting clients. A natural upsell that delivers concrete, measurable value.</p>
+        <ul>
+          <li>Full white-label service</li>
+          <li>No technical skills required</li>
+          <li>Billable as a monthly add-on</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section class="section">
+  <div class="container-narrow">
+    <div class="pricing-block">
+      <div class="pricing-tag">Pro plan — recommended for agencies</div>
+      <h2>Everything included for your agency</h2>
+      <p style="color: var(--muted2); font-size: 14px; margin-top: 0.5rem;">Unlimited scans · White-label PDF report · Monitoring · CVE · Subdomains</p>
+      <div class="price">€19.90 <span>/ month · cancel any time</span></div>
+      <p class="pricing-sub">Secure payment via Stripe · No commitment</p>
+      <div class="features-list">
+        <div class="feature-item">Unlimited scans</div>
+        <div class="feature-item">White-label PDF report</div>
+        <div class="feature-item">Logo, colours, agency name</div>
+        <div class="feature-item">Continuous monitoring</div>
+        <div class="feature-item">Automatic email alerts</div>
+        <div class="feature-item">Subdomain analysis</div>
+        <div class="feature-item">CVE and version detection</div>
+        <div class="feature-item">Blacklist checks</div>
+        <div class="feature-item">Security score 0–100</div>
+        <div class="feature-item">Priority support</div>
+      </div>
+      <a href="https://wezea.net" class="btn-primary" style="font-size: 15px; padding: 0.9rem 2.5rem;">
+        Get started with the Pro plan →
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" style="padding-top: 3rem;">
+  <div class="container-narrow">
+    <div class="section-label">Frequently asked questions</div>
+    <h2 class="section-title">What agencies usually ask</h2>
+    <div class="faq-list">
+      <div class="faq-item">
+        <h3>Does the PDF report actually show my logo and colours?</h3>
+        <p>Yes. From your client dashboard (Pro plan), you enter your agency name, logo URL, and primary colour. Every generated report includes these elements — with no mention of Wezea visible to your client.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Can I manage multiple clients from a single account?</h3>
+        <p>Absolutely. There's no limit on domains to scan or monitor. You manage your entire client portfolio from a single dashboard, with the full scan history for each domain.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Can my clients see the tool or access reports directly?</h3>
+        <p>No. Wezea is an internal tool for your agency. You generate the PDF reports and share them with clients however you prefer — by email, in your own client portal, or embedded in a review document.</p>
+      </div>
+      <div class="faq-item">
+        <h3>How does monitoring work? Is it automatic?</h3>
+        <p>Once a domain is added to monitoring, Wezea scans it automatically every week. If the security score drops or a critical issue appears (SSL expiry, blacklisting, new open port), you receive an immediate email alert.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Can I cancel at any time?</h3>
+        <p>Yes, the subscription is monthly and can be cancelled in one click from your dashboard — no fees, no notice period. Zero commitment.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Final CTA -->
+<section class="cta-final">
+  <div class="container-narrow">
+    <h2>Ready to offer security as a service?</h2>
+    <p>Start for free — no credit card required. Upgrade to Pro when you're convinced.</p>
+    <div class="hero-ctas">
+      <a href="https://wezea.net" class="btn-primary">Create a free account →</a>
+      <a href="/blog/" class="btn-secondary">Read our security guides</a>
+    </div>
+  </div>
+</section>
+
+</div><!-- /lang-en -->
+
 <script src="/footer.js"></script>
 </body>
 </html>

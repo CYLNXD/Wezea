@@ -17,6 +17,22 @@
   <meta property="og:site_name"   content="Wezea Security Scanner" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+
+  <script>
+  window.WZ_T = {
+    fr: {
+      title: "Comment interpréter un score de sécurité de domaine (2026) | Wezea",
+      description: "Que signifie un score de sécurité de 47/100 pour votre domaine ? Découvrez comment ces scores sont calculés, ce que chaque composante signifie, et comment améliorer votre note rapidement.",
+      og_title: "Comment interpréter un score de sécurité de domaine"
+    },
+    en: {
+      title: "How to interpret a domain security score (2026) | Wezea",
+      description: "What does a score of 62/100 mean for your domain? Components, rating scale, action plan to go from C to A+, and score limitations.",
+      og_title: "How to interpret a domain security score"
+    }
+  };
+  </script>
+
   <link rel="stylesheet" href="../blog.css" />
 
   <script type="application/ld+json">
@@ -37,180 +53,360 @@
 <script src="/nav.js"></script>
 <main class="page">
 
-  <header class="article-header">
-    <div class="article-meta">
-      <span class="article-tag">Audit</span>
-      <span class="read-time">6 min de lecture</span>
-      <time datetime="2026-03-05">5 mars 2026</time>
-    </div>
-    <h1>Comment interpréter un score de sécurité de domaine</h1>
-    <p class="article-intro">
-      Vous venez d'obtenir un score de sécurité pour votre domaine — 62/100, note C. Mais que signifie vraiment ce chiffre ? Quels critères sont évalués ? Est-ce grave ? Et surtout, comment l'améliorer ? Ce guide démystifie les scores de sécurité et vous donne un plan d'action concret.
-    </p>
-  </header>
-
-  <nav class="toc">
-    <strong>Sommaire</strong>
-    <ol>
-      <li><a href="#comment-calcule">Comment un score de sécurité est calculé</a></li>
-      <li><a href="#composantes">Les composantes principales</a></li>
-      <li><a href="#echelle">L'échelle de notation</a></li>
-      <li><a href="#priorites">Par où commencer pour améliorer son score</a></li>
-      <li><a href="#limites">Les limites d'un score de sécurité</a></li>
-      <li><a href="#frequence">À quelle fréquence vérifier ?</a></li>
-    </ol>
-  </nav>
-
-  <div class="article-body">
-
-    <h2 id="comment-calcule">Comment un score de sécurité est calculé</h2>
-    <p>
-      Il n'existe pas de standard universel pour les scores de sécurité de domaine. Chaque outil utilise ses propres critères et pondérations. Cependant, les bons outils partagent une approche commune : ils évaluent plusieurs <strong>domaines de risque indépendants</strong>, chacun avec un poids proportionnel à son impact réel sur la sécurité.
-    </p>
-    <p>
-      Wezea, par exemple, analyse 7 dimensions : SSL/TLS, authentification email (SPF, DKIM, DMARC), exposition des ports réseau, vulnérabilités CVE, présence sur les listes noires, configuration DNS, et exposition globale.
-    </p>
-
-    <div class="callout callout-info">
-      <span class="callout-icon">INFO</span>
-      <div class="callout-body">
-        <strong>Score ≠ conformité</strong><br/>
-        Un score de sécurité mesure la posture de sécurité observable de l'extérieur. Il ne remplace pas un audit de conformité (ISO 27001, NIS2) ni un test d'intrusion. C'est un outil de pilotage rapide, pas une certification.
+  <div class="lang-fr">
+    <header class="article-header">
+      <div class="article-meta">
+        <span class="article-tag">Audit</span>
+        <span class="read-time">6 min de lecture</span>
+        <time datetime="2026-03-05">5 mars 2026</time>
       </div>
-    </div>
+      <h1>Comment interpréter un score de sécurité de domaine</h1>
+      <p class="article-intro">
+        Vous venez d'obtenir un score de sécurité pour votre domaine — 62/100, note C. Mais que signifie vraiment ce chiffre ? Quels critères sont évalués ? Est-ce grave ? Et surtout, comment l'améliorer ? Ce guide démystifie les scores de sécurité et vous donne un plan d'action concret.
+      </p>
+    </header>
 
-    <h2 id="composantes">Les composantes principales d'un score de sécurité</h2>
+    <nav class="toc">
+      <strong>Sommaire</strong>
+      <ol>
+        <li><a href="#comment-calcule">Comment un score de sécurité est calculé</a></li>
+        <li><a href="#composantes">Les composantes principales</a></li>
+        <li><a href="#echelle">L'échelle de notation</a></li>
+        <li><a href="#priorites">Par où commencer pour améliorer son score</a></li>
+        <li><a href="#limites">Les limites d'un score de sécurité</a></li>
+        <li><a href="#frequence">À quelle fréquence vérifier ?</a></li>
+      </ol>
+    </nav>
 
-    <h3>SSL / TLS (poids élevé)</h3>
-    <p>
-      Un certificat expiré ou des protocoles obsolètes (TLS 1.0/1.1) impactent fortement le score. C'est souvent la première chose vérifiée car son impact est immédiat et visible par tous les visiteurs. Un certificat valide avec TLS 1.3 et HSTS configuré donne le score maximum sur ce critère.
-    </p>
+    <div class="article-body">
 
-    <h3>Authentification email — SPF (poids élevé)</h3>
-    <p>
-      Absence de SPF = score très dégradé. SPF avec <code>~all</code> (softfail) = score partiel. SPF bien configuré avec <code>-all</code> (hardfail) = score complet. L'erreur commune : avoir un SPF syntaxiquement valide mais qui ne couvre pas tous les serveurs d'envoi réels.
-    </p>
+      <h2 id="comment-calcule">Comment un score de sécurité est calculé</h2>
+      <p>
+        Il n'existe pas de standard universel pour les scores de sécurité de domaine. Chaque outil utilise ses propres critères et pondérations. Cependant, les bons outils partagent une approche commune : ils évaluent plusieurs <strong>domaines de risque indépendants</strong>, chacun avec un poids proportionnel à son impact réel sur la sécurité.
+      </p>
+      <p>
+        Wezea, par exemple, analyse 7 dimensions : SSL/TLS, authentification email (SPF, DKIM, DMARC), exposition des ports réseau, vulnérabilités CVE, présence sur les listes noires, configuration DNS, et exposition globale.
+      </p>
 
-    <h3>Authentification email — DKIM (poids moyen-élevé)</h3>
-    <p>
-      La présence et la validité de la clé DKIM pour le sélecteur principal est vérifiée. Une clé DKIM courte (&lt; 1024 bits) ou absente dégrade le score. Les clés de 2048 bits donnent le score maximal.
-    </p>
+      <div class="callout callout-info">
+        <span class="callout-icon">INFO</span>
+        <div class="callout-body">
+          <strong>Score ≠ conformité</strong><br/>
+          Un score de sécurité mesure la posture de sécurité observable de l'extérieur. Il ne remplace pas un audit de conformité (ISO 27001, NIS2) ni un test d'intrusion. C'est un outil de pilotage rapide, pas une certification.
+        </div>
+      </div>
 
-    <h3>Authentification email — DMARC (poids élevé)</h3>
-    <p>
-      C'est souvent le critère qui fait le plus chuter les scores. La progression est linéaire : absence = 0, <code>p=none</code> = score partiel, <code>p=quarantine</code> = bon score, <code>p=reject</code> = score maximal.
-    </p>
+      <h2 id="composantes">Les composantes principales d'un score de sécurité</h2>
 
-    <h3>Ports réseau exposés (poids moyen)</h3>
-    <p>
-      Chaque port sensible accessible depuis Internet (SSH public, base de données exposée, RDP...) dégrade le score. Un serveur qui n'expose que les ports 80 et 443 obtient un score maximal sur ce critère.
-    </p>
+      <h3>SSL / TLS (poids élevé)</h3>
+      <p>
+        Un certificat expiré ou des protocoles obsolètes (TLS 1.0/1.1) impactent fortement le score. C'est souvent la première chose vérifiée car son impact est immédiat et visible par tous les visiteurs. Un certificat valide avec TLS 1.3 et HSTS configuré donne le score maximum sur ce critère.
+      </p>
 
-    <h3>Présence sur les listes noires (poids critique)</h3>
-    <p>
-      Un domaine ou une IP présent sur une liste noire majeure (Spamhaus, Barracuda) entraîne une chute drastique du score. C'est un indicateur de problème actif — à traiter en priorité absolue.
-    </p>
+      <h3>Authentification email — SPF (poids élevé)</h3>
+      <p>
+        Absence de SPF = score très dégradé. SPF avec <code>~all</code> (softfail) = score partiel. SPF bien configuré avec <code>-all</code> (hardfail) = score complet. L'erreur commune : avoir un SPF syntaxiquement valide mais qui ne couvre pas tous les serveurs d'envoi réels.
+      </p>
 
-    <h3>Vulnérabilités CVE (poids variable)</h3>
-    <p>
-      Les CVE critiques (score CVSS ≥ 9.0) non patchées sur les services exposés impactent fortement le score. Les CVE moyennes (4.0-7.9) ont un impact modéré.
-    </p>
+      <h3>Authentification email — DKIM (poids moyen-élevé)</h3>
+      <p>
+        La présence et la validité de la clé DKIM pour le sélecteur principal est vérifiée. Une clé DKIM courte (&lt; 1024 bits) ou absente dégrade le score. Les clés de 2048 bits donnent le score maximal.
+      </p>
 
-    <h2 id="echelle">L'échelle de notation</h2>
+      <h3>Authentification email — DMARC (poids élevé)</h3>
+      <p>
+        C'est souvent le critère qui fait le plus chuter les scores. La progression est linéaire : absence = 0, <code>p=none</code> = score partiel, <code>p=quarantine</code> = bon score, <code>p=reject</code> = score maximal.
+      </p>
 
-    <div class="code-block">
-      <pre><code>A+ (95-100) — Posture de sécurité excellente
+      <h3>Ports réseau exposés (poids moyen)</h3>
+      <p>
+        Chaque port sensible accessible depuis Internet (SSH public, base de données exposée, RDP...) dégrade le score. Un serveur qui n'expose que les ports 80 et 443 obtient un score maximal sur ce critère.
+      </p>
+
+      <h3>Présence sur les listes noires (poids critique)</h3>
+      <p>
+        Un domaine ou une IP présent sur une liste noire majeure (Spamhaus, Barracuda) entraîne une chute drastique du score. C'est un indicateur de problème actif — à traiter en priorité absolue.
+      </p>
+
+      <h3>Vulnérabilités CVE (poids variable)</h3>
+      <p>
+        Les CVE critiques (score CVSS ≥ 9.0) non patchées sur les services exposés impactent fortement le score. Les CVE moyennes (4.0-7.9) ont un impact modéré.
+      </p>
+
+      <h2 id="echelle">L'échelle de notation</h2>
+
+      <div class="code-block">
+        <pre><code>A+ (95-100) — Posture de sécurité excellente
 A  (85-94)  — Très bonne sécurité, quelques ajustements mineurs
 B  (70-84)  — Bonne base, des points à corriger
 C  (55-69)  — Risques significatifs identifiés
 D  (35-54)  — Plusieurs problèmes importants
 F  (0-34)   — Posture de sécurité critique</code></pre>
-    </div>
-
-    <p>
-      La majorité des PME non spécialisées en IT obtiennent des scores entre C et B lors d'un premier audit. L'objectif réaliste pour une PME sans équipe sécurité dédiée est un score A stable.
-    </p>
-
-    <div class="callout callout-warn">
-      <span class="callout-icon">WARN</span>
-      <div class="callout-body">
-        <strong>Un score B peut cacher un score F</strong><br/>
-        Si votre domaine est blacklisté (F sur ce critère) mais excellent sur tout le reste, le score global peut afficher un C trompeur. Regardez toujours les scores par composante, pas seulement le score global.
       </div>
-    </div>
 
-    <h2 id="priorites">Par où commencer pour améliorer son score</h2>
+      <p>
+        La majorité des PME non spécialisées en IT obtiennent des scores entre C et B lors d'un premier audit. L'objectif réaliste pour une PME sans équipe sécurité dédiée est un score A stable.
+      </p>
 
-    <h3>Les gains rapides (impact élevé, effort faible)</h3>
-    <ol>
-      <li><strong>Corriger le DMARC</strong> — passer de none à quarantine, puis à reject. Configuration en 15 minutes, gain de points immédiat.</li>
-      <li><strong>Ajouter ou corriger SPF</strong> — si absent ou mal configuré. Impact fort sur le score et sur la délivrabilité.</li>
-      <li><strong>Renouveler le certificat SSL</strong> — si expiré ou expirant sous 30 jours. Impact immédiat.</li>
-      <li><strong>Demander le délistage</strong> — si présent sur une blacklist, identifier la cause et soumettre le délistage.</li>
-    </ol>
-
-    <h3>Les améliorations de fond (impact élevé, effort moyen)</h3>
-    <ol>
-      <li>Configurer DKIM si absent</li>
-      <li>Fermer les ports non nécessaires via le pare-feu</li>
-      <li>Mettre à jour les logiciels avec des CVE critiques</li>
-      <li>Activer HSTS avec une longue durée</li>
-    </ol>
-
-    <h3>L'optimisation avancée (score A+ visé)</h3>
-    <ol>
-      <li>Activer DNSSEC</li>
-      <li>Configurer les en-têtes HTTP de sécurité (CSP, X-Frame-Options...)</li>
-      <li>Passer le SPF en hardfail (<code>-all</code>)</li>
-      <li>DMARC en alignement strict (<code>adkim=s; aspf=s</code>)</li>
-    </ol>
-
-    <h2 id="limites">Les limites d'un score de sécurité</h2>
-    <p>
-      Un score élevé ne signifie pas que votre site est invulnérable. Les scores de sécurité évaluent uniquement ce qui est visible de l'extérieur. Ils ne détectent pas :
-    </p>
-    <ul>
-      <li>Les failles applicatives (injections SQL, XSS, CSRF)</li>
-      <li>Les erreurs de logique métier</li>
-      <li>Les accès non autorisés à vos données</li>
-      <li>Les menaces internes</li>
-      <li>Les mauvaises configurations internes invisibles de l'extérieur</li>
-    </ul>
-    <p>
-      Pour ces risques, un test d'intrusion (pentest) réalisé par un professionnel est nécessaire.
-    </p>
-
-    <h2 id="frequence">À quelle fréquence vérifier son score ?</h2>
-    <p>
-      La sécurité évolue en permanence. Un certificat peut expirer, un service peut devenir vulnérable suite à une CVE publiée, votre IP peut être blacklistée après une compromission. Un score parfait aujourd'hui peut être F demain.
-    </p>
-    <p>
-      La bonne pratique est un monitoring continu avec alertes en temps réel, plutôt qu'un audit ponctuel mensuel ou trimestriel. Vous voulez être alerté le jour où quelque chose change, pas le mois suivant.
-    </p>
-
-    <div class="callout callout-ok">
-      <span class="callout-icon">OK</span>
-      <div class="callout-body">
-        <strong>Monitoring automatique</strong><br/>
-        Wezea surveille votre domaine en continu et vous alerte dès qu'un indicateur se dégrade : SSL qui approche de l'expiration, nouvelle blacklist, CVE critique publiée sur votre stack, changement DNS suspect.
+      <div class="callout callout-warn">
+        <span class="callout-icon">WARN</span>
+        <div class="callout-body">
+          <strong>Un score B peut cacher un score F</strong><br/>
+          Si votre domaine est blacklisté (F sur ce critère) mais excellent sur tout le reste, le score global peut afficher un C trompeur. Regardez toujours les scores par composante, pas seulement le score global.
+        </div>
       </div>
-    </div>
 
-    <div class="cta-block">
-      <p>Obtenez votre score de sécurité maintenant :</p>
-      <a href="https://wezea.net" class="btn-cta">→ Scanner mon domaine gratuitement</a>
-    </div>
+      <h2 id="priorites">Par où commencer pour améliorer son score</h2>
+
+      <h3>Les gains rapides (impact élevé, effort faible)</h3>
+      <ol>
+        <li><strong>Corriger le DMARC</strong> — passer de none à quarantine, puis à reject. Configuration en 15 minutes, gain de points immédiat.</li>
+        <li><strong>Ajouter ou corriger SPF</strong> — si absent ou mal configuré. Impact fort sur le score et sur la délivrabilité.</li>
+        <li><strong>Renouveler le certificat SSL</strong> — si expiré ou expirant sous 30 jours. Impact immédiat.</li>
+        <li><strong>Demander le délistage</strong> — si présent sur une blacklist, identifier la cause et soumettre le délistage.</li>
+      </ol>
+
+      <h3>Les améliorations de fond (impact élevé, effort moyen)</h3>
+      <ol>
+        <li>Configurer DKIM si absent</li>
+        <li>Fermer les ports non nécessaires via le pare-feu</li>
+        <li>Mettre à jour les logiciels avec des CVE critiques</li>
+        <li>Activer HSTS avec une longue durée</li>
+      </ol>
+
+      <h3>L'optimisation avancée (score A+ visé)</h3>
+      <ol>
+        <li>Activer DNSSEC</li>
+        <li>Configurer les en-têtes HTTP de sécurité (CSP, X-Frame-Options...)</li>
+        <li>Passer le SPF en hardfail (<code>-all</code>)</li>
+        <li>DMARC en alignement strict (<code>adkim=s; aspf=s</code>)</li>
+      </ol>
+
+      <h2 id="limites">Les limites d'un score de sécurité</h2>
+      <p>
+        Un score élevé ne signifie pas que votre site est invulnérable. Les scores de sécurité évaluent uniquement ce qui est visible de l'extérieur. Ils ne détectent pas :
+      </p>
+      <ul>
+        <li>Les failles applicatives (injections SQL, XSS, CSRF)</li>
+        <li>Les erreurs de logique métier</li>
+        <li>Les accès non autorisés à vos données</li>
+        <li>Les menaces internes</li>
+        <li>Les mauvaises configurations internes invisibles de l'extérieur</li>
+      </ul>
+      <p>
+        Pour ces risques, un test d'intrusion (pentest) réalisé par un professionnel est nécessaire.
+      </p>
+
+      <h2 id="frequence">À quelle fréquence vérifier son score ?</h2>
+      <p>
+        La sécurité évolue en permanence. Un certificat peut expirer, un service peut devenir vulnérable suite à une CVE publiée, votre IP peut être blacklistée après une compromission. Un score parfait aujourd'hui peut être F demain.
+      </p>
+      <p>
+        La bonne pratique est un monitoring continu avec alertes en temps réel, plutôt qu'un audit ponctuel mensuel ou trimestriel. Vous voulez être alerté le jour où quelque chose change, pas le mois suivant.
+      </p>
+
+      <div class="callout callout-ok">
+        <span class="callout-icon">OK</span>
+        <div class="callout-body">
+          <strong>Monitoring automatique</strong><br/>
+          Wezea surveille votre domaine en continu et vous alerte dès qu'un indicateur se dégrade : SSL qui approche de l'expiration, nouvelle blacklist, CVE critique publiée sur votre stack, changement DNS suspect.
+        </div>
+      </div>
+
+      <div class="cta-block">
+        <p>Obtenez votre score de sécurité maintenant :</p>
+        <a href="https://wezea.net" class="btn-cta">→ Scanner mon domaine gratuitement</a>
+      </div>
 
 
-    <div class="related">
-      <p class="related-title">Lire aussi</p>
-      <div class="related-grid">
-      <a href="/blog/audit-securite-domaine/" class="related-card">Audit de sécurité de domaine : ce que ça vérifie vraiment</a>
-      <a href="/blog/certificat-ssl-expire/" class="related-card">Certificat SSL expiré : conséquences et renouvellement</a>
-      <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM et DMARC : le guide complet</a>
+      <div class="related">
+        <p class="related-title">Lire aussi</p>
+        <div class="related-grid">
+        <a href="/blog/audit-securite-domaine/" class="related-card">Audit de sécurité de domaine : ce que ça vérifie vraiment</a>
+        <a href="/blog/certificat-ssl-expire/" class="related-card">Certificat SSL expiré : conséquences et renouvellement</a>
+        <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM et DMARC : le guide complet</a>
+        </div>
       </div>
     </div>
   </div>
+
+  <div class="lang-en">
+    <header class="article-header">
+      <div class="article-meta">
+        <span class="article-tag">Audit</span>
+        <span class="read-time">6-min read</span>
+        <time datetime="2026-03-05">March 5, 2026</time>
+      </div>
+      <h1>How to interpret a domain security score</h1>
+      <p class="article-intro">
+        You've just got a security score for your domain — 62/100, grade C. But what does this number really mean? What criteria are evaluated? Is it serious? And most importantly, how do you improve it? This guide demystifies security scores and gives you a concrete action plan.
+      </p>
+    </header>
+
+    <nav class="toc">
+      <strong>Table of Contents</strong>
+      <ol>
+        <li><a href="#comment-calcule">How a security score is calculated</a></li>
+        <li><a href="#composantes">Main components</a></li>
+        <li><a href="#echelle">The rating scale</a></li>
+        <li><a href="#priorites">Where to start improving your score</a></li>
+        <li><a href="#limites">Score limitations</a></li>
+        <li><a href="#frequence">How often to check?</a></li>
+      </ol>
+    </nav>
+
+    <div class="article-body">
+
+      <h2 id="comment-calcule">How a security score is calculated</h2>
+      <p>
+        There's no universal standard for domain security scores. Each tool uses its own criteria and weightings. However, good tools share a common approach: they evaluate several <strong>independent risk domains</strong>, each weighted by its actual impact on security.
+      </p>
+      <p>
+        Wezea, for example, analyzes 7 dimensions: SSL/TLS, email authentication (SPF, DKIM, DMARC), network port exposure, CVE vulnerabilities, blacklist presence, DNS configuration, and overall exposure.
+      </p>
+
+      <div class="callout callout-info">
+        <span class="callout-icon">INFO</span>
+        <div class="callout-body">
+          <strong>Score ≠ compliance</strong><br/>
+          A security score measures observable external security posture. It doesn't replace compliance audits (ISO 27001, NIS2) or penetration testing. It's a quick steering tool, not a certification.
+        </div>
+      </div>
+
+      <h2 id="composantes">Main components of a security score</h2>
+
+      <h3>SSL / TLS (high weight)</h3>
+      <p>
+        An expired certificate or obsolete protocols (TLS 1.0/1.1) significantly impact the score. This is often checked first because its impact is immediate and visible to all visitors. A valid certificate with TLS 1.3 and HSTS configured gives maximum score on this criterion.
+      </p>
+
+      <h3>Email authentication — SPF (high weight)</h3>
+      <p>
+        No SPF = severely degraded score. SPF with <code>~all</code> (softfail) = partial score. Well-configured SPF with <code>-all</code> (hardfail) = full score. Common mistake: having syntactically valid SPF that doesn't cover all actual sending servers.
+      </p>
+
+      <h3>Email authentication — DKIM (medium-high weight)</h3>
+      <p>
+        The presence and validity of the DKIM key for the primary selector is verified. A short (&lt; 1024 bits) or missing DKIM key degrades the score. 2048-bit keys give maximum score.
+      </p>
+
+      <h3>Email authentication — DMARC (high weight)</h3>
+      <p>
+        This is often the criterion that most impacts scores. Progression is linear: absent = 0, <code>p=none</code> = partial score, <code>p=quarantine</code> = good score, <code>p=reject</code> = maximum score.
+      </p>
+
+      <h3>Exposed network ports (medium weight)</h3>
+      <p>
+        Each sensitive port accessible from the Internet (public SSH, exposed database, RDP...) degrades the score. A server exposing only ports 80 and 443 gets maximum score on this criterion.
+      </p>
+
+      <h3>Blacklist presence (critical weight)</h3>
+      <p>
+        A domain or IP on a major blacklist (Spamhaus, Barracuda) causes a drastic score drop. It's an indicator of active problems — treat as absolute priority.
+      </p>
+
+      <h3>CVE vulnerabilities (variable weight)</h3>
+      <p>
+        Critical CVEs (CVSS score ≥ 9.0) unpatched on exposed services strongly impact score. Medium CVEs (4.0-7.9) have moderate impact.
+      </p>
+
+      <h2 id="echelle">The rating scale</h2>
+
+      <div class="code-block">
+        <pre><code>A+ (95-100) — Excellent security posture
+A  (85-94)  — Very good security, minor adjustments
+B  (70-84)  — Good foundation, points to fix
+C  (55-69)  — Significant risks identified
+D  (35-54)  — Several major problems
+F  (0-34)   — Critical security posture</code></pre>
+      </div>
+
+      <p>
+        Most non-IT-specialized SMBs score between C and B on their first audit. A realistic goal for an SMB without dedicated security team is a stable A score.
+      </p>
+
+      <div class="callout callout-warn">
+        <span class="callout-icon">WARN</span>
+        <div class="callout-body">
+          <strong>A B score can hide an F</strong><br/>
+          If your domain is blacklisted (F on that criterion) but excellent elsewhere, overall score might show a misleading C. Always look at component scores, not just the overall score.
+        </div>
+      </div>
+
+      <h2 id="priorites">Where to start improving your score</h2>
+
+      <h3>Quick wins (high impact, low effort)</h3>
+      <ol>
+        <li><strong>Fix DMARC</strong> — move from none to quarantine, then reject. 15-minute configuration, immediate point gain.</li>
+        <li><strong>Add or fix SPF</strong> — if absent or misconfigured. Strong impact on score and deliverability.</li>
+        <li><strong>Renew SSL certificate</strong> — if expired or expiring within 30 days. Immediate impact.</li>
+        <li><strong>Request delisting</strong> — if on a blacklist, identify cause and submit delisting request.</li>
+      </ol>
+
+      <h3>Fundamental improvements (high impact, medium effort)</h3>
+      <ol>
+        <li>Configure DKIM if absent</li>
+        <li>Close unnecessary ports via firewall</li>
+        <li>Update software with critical CVEs</li>
+        <li>Enable HSTS with long duration</li>
+      </ol>
+
+      <h3>Advanced optimization (targeting A+)</h3>
+      <ol>
+        <li>Enable DNSSEC</li>
+        <li>Configure security HTTP headers (CSP, X-Frame-Options...)</li>
+        <li>Switch SPF to hardfail (<code>-all</code>)</li>
+        <li>DMARC with strict alignment (<code>adkim=s; aspf=s</code>)</li>
+      </ol>
+
+      <h2 id="limites">Security score limitations</h2>
+      <p>
+        A high score doesn't mean your site is invulnerable. Security scores only evaluate what's visible externally. They don't detect:
+      </p>
+      <ul>
+        <li>Application flaws (SQL injection, XSS, CSRF)</li>
+        <li>Business logic errors</li>
+        <li>Unauthorized data access</li>
+        <li>Insider threats</li>
+        <li>Internal misconfigurations invisible from outside</li>
+      </ul>
+      <p>
+        For these risks, professional penetration testing is needed.
+      </p>
+
+      <h2 id="frequence">How often to check?</h2>
+      <p>
+        Security changes constantly. A certificate can expire, a service can become vulnerable after CVE publication, your IP can be blacklisted after compromise. A perfect score today can be F tomorrow.
+      </p>
+      <p>
+        Best practice is continuous monitoring with real-time alerts, rather than monthly or quarterly spot audits. You want to be alerted the day something changes, not a month later.
+      </p>
+
+      <div class="callout callout-ok">
+        <span class="callout-icon">OK</span>
+        <div class="callout-body">
+          <strong>Automatic monitoring</strong><br/>
+          Wezea monitors your domain continuously and alerts you when any indicator degrades: SSL approaching expiration, new blacklist, critical CVE published on your stack, suspicious DNS change.
+        </div>
+      </div>
+
+      <div class="cta-block">
+        <p>Get your security score now:</p>
+        <a href="https://wezea.net" class="btn-cta">→ Scan my domain for free</a>
+      </div>
+
+
+      <div class="related">
+        <p class="related-title">Read also</p>
+        <div class="related-grid">
+        <a href="/blog/audit-securite-domaine/" class="related-card">Domain security audit: what it really checks</a>
+        <a href="/blog/certificat-ssl-expire/" class="related-card">Expired SSL certificate: consequences and renewal</a>
+        <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM and DMARC: the complete guide</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </main>
 <script src="/footer.js"></script>
 </body>

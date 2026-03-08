@@ -17,6 +17,22 @@
   <meta property="og:site_name"   content="Wezea Security Scanner" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+
+  <script>
+  window.WZ_T = {
+    fr: {
+      title: "Réputation IP et délivrabilité email : tout comprendre (2026) | Wezea",
+      description: "Vos emails arrivent en spam ? La réputation IP de votre serveur d'envoi en est souvent la cause. Découvrez comment fonctionne le scoring IP, comment vérifier votre réputation et l'améliorer.",
+      og_title: "Réputation IP et délivrabilité email : tout comprendre"
+    },
+    en: {
+      title: "IP reputation and email deliverability: the full picture (2026) | Wezea",
+      description: "Emails going to spam despite correct SPF/DKIM/DMARC? Your sending server's IP reputation is often the cause. Diagnosis and solutions.",
+      og_title: "IP reputation and email deliverability: the full picture"
+    }
+  };
+  </script>
+
   <link rel="stylesheet" href="../blog.css" />
 
   <script type="application/ld+json">
@@ -37,164 +53,328 @@
 <script src="/nav.js"></script>
 <main class="page">
 
-  <header class="article-header">
-    <div class="article-meta">
-      <span class="article-tag">Email</span>
-      <span class="read-time">6 min de lecture</span>
-      <time datetime="2026-03-05">5 mars 2026</time>
-    </div>
-    <h1>Réputation IP et délivrabilité email : tout comprendre</h1>
-    <p class="article-intro">
-      Vous avez configuré SPF, DKIM et DMARC à la perfection — et pourtant vos emails arrivent systématiquement en spam. Le problème vient probablement de la réputation IP de votre serveur d'envoi. Voici comment ce système fonctionne, comment diagnostiquer le problème, et comment l'améliorer.
-    </p>
-  </header>
-
-  <nav class="toc">
-    <strong>Sommaire</strong>
-    <ol>
-      <li><a href="#scoring">Comment fonctionne le scoring de réputation IP</a></li>
-      <li><a href="#facteurs">Les facteurs qui dégradent la réputation</a></li>
-      <li><a href="#blacklists">Les principales blacklists</a></li>
-      <li><a href="#verifier">Vérifier sa réputation IP</a></li>
-      <li><a href="#ameliorer">Améliorer sa délivrabilité</a></li>
-      <li><a href="#ip-partagee">IP partagée vs IP dédiée</a></li>
-    </ol>
-  </nav>
-
-  <div class="article-body">
-
-    <h2 id="scoring">Comment fonctionne le scoring de réputation IP</h2>
-    <p>
-      Quand un email arrive sur le serveur de Gmail, Outlook ou Yahoo, ces serveurs ne se contentent pas de vérifier SPF et DKIM. Ils consultent également des bases de données de réputation pour évaluer l'historique de l'IP expéditrice.
-    </p>
-    <p>
-      Ce score de réputation est calculé en temps réel à partir de nombreux signaux. Une IP avec un bon historique d'envois légitimes, peu de rebonds et peu de signalements spam passera en boîte de réception. Une IP avec un historique douteux sera filtrée, quelle que soit la qualité du contenu de l'email.
-    </p>
-
-    <div class="callout callout-info">
-      <span class="callout-icon">INFO</span>
-      <div class="callout-body">
-        <strong>Réputation IP ≠ réputation de domaine</strong><br/>
-        Les deux coexistent. La réputation IP concerne l'adresse IP du serveur d'envoi. La réputation de domaine concerne le domaine dans l'adresse From. Un bon SPF/DKIM/DMARC améliore la réputation de domaine, mais ne répare pas une mauvaise réputation IP.
+  <div class="lang-fr">
+    <header class="article-header">
+      <div class="article-meta">
+        <span class="article-tag">Email</span>
+        <span class="read-time">6 min de lecture</span>
+        <time datetime="2026-03-05">5 mars 2026</time>
       </div>
-    </div>
+      <h1>Réputation IP et délivrabilité email : tout comprendre</h1>
+      <p class="article-intro">
+        Vous avez configuré SPF, DKIM et DMARC à la perfection — et pourtant vos emails arrivent systématiquement en spam. Le problème vient probablement de la réputation IP de votre serveur d'envoi. Voici comment ce système fonctionne, comment diagnostiquer le problème, et comment l'améliorer.
+      </p>
+    </header>
 
-    <h2 id="facteurs">Les facteurs qui dégradent la réputation IP</h2>
+    <nav class="toc">
+      <strong>Sommaire</strong>
+      <ol>
+        <li><a href="#scoring">Comment fonctionne le scoring de réputation IP</a></li>
+        <li><a href="#facteurs">Les facteurs qui dégradent la réputation</a></li>
+        <li><a href="#blacklists">Les principales blacklists</a></li>
+        <li><a href="#verifier">Vérifier sa réputation IP</a></li>
+        <li><a href="#ameliorer">Améliorer sa délivrabilité</a></li>
+        <li><a href="#ip-partagee">IP partagée vs IP dédiée</a></li>
+      </ol>
+    </nav>
 
-    <h3>Taux de rebond élevé</h3>
-    <p>
-      Les <em>hard bounces</em> (adresses inexistantes) signalent une liste de contacts mal qualifiée. Un taux de rebond supérieur à 2% est un signal négatif fort. Nettoyez régulièrement vos listes.
-    </p>
+    <div class="article-body">
 
-    <h3>Taux de plaintes spam</h3>
-    <p>
-      Quand un destinataire clique "Signaler comme spam", les principaux FAI (Gmail, Outlook) le remontent à l'expéditeur via les boucles de rétroaction (FBL). Un taux de plainte supérieur à 0,1% commence à dégrader sérieusement la réputation.
-    </p>
+      <h2 id="scoring">Comment fonctionne le scoring de réputation IP</h2>
+      <p>
+        Quand un email arrive sur le serveur de Gmail, Outlook ou Yahoo, ces serveurs ne se contentent pas de vérifier SPF et DKIM. Ils consultent également des bases de données de réputation pour évaluer l'historique de l'IP expéditrice.
+      </p>
+      <p>
+        Ce score de réputation est calculé en temps réel à partir de nombreux signaux. Une IP avec un bon historique d'envois légitimes, peu de rebonds et peu de signalements spam passera en boîte de réception. Une IP avec un historique douteux sera filtrée, quelle que soit la qualité du contenu de l'email.
+      </p>
 
-    <h3>Envoi vers des spamtraps</h3>
-    <p>
-      Les spamtraps sont des adresses email créées spécifiquement pour détecter les spammeurs. Elles ne s'inscrivent jamais volontairement à des newsletters. Si vous envoyez à ces adresses, c'est un signal fort que votre liste est de mauvaise qualité.
-    </p>
-
-    <h3>Volume d'envoi erratique</h3>
-    <p>
-      Passer de 10 emails/jour à 10 000 emails en une nuit est suspect. Les filtres interprètent ce type de comportement comme caractéristique d'une IP compromise.
-    </p>
-
-    <h3>Contenu marqué comme spam</h3>
-    <p>
-      Certains mots, structures ou patterns dans le contenu de l'email (liens raccourcis suspects, excès de majuscules, pièces jointes .zip) contribuent négativement — même si l'email est légitime.
-    </p>
-
-    <h2 id="blacklists">Les principales blacklists</h2>
-    <p>
-      Une IP blacklistée voit ses emails refusés ou filtrés en spam par tous les serveurs qui consultent cette liste. Les principales listes utilisées par les serveurs de messagerie :
-    </p>
-    <ul>
-      <li><strong>Spamhaus ZEN</strong> — la référence, combinaison de plusieurs listes Spamhaus (SBL, CBL, PBL)</li>
-      <li><strong>Barracuda BRBL</strong> — très utilisée par les entreprises</li>
-      <li><strong>SORBS</strong> — utilisée par de nombreux hébergeurs</li>
-      <li><strong>SpamCop</strong> — basée sur les signalements des utilisateurs</li>
-      <li><strong>MXToolbox Blacklist</strong> — agrège plus de 100 listes</li>
-    </ul>
-
-    <div class="callout callout-warn">
-      <span class="callout-icon">WARN</span>
-      <div class="callout-body">
-        <strong>Être blacklisté ne veut pas dire que vous spammez</strong><br/>
-        Si vous utilisez un hébergeur cloud (AWS, OVH, Hetzner), votre IP peut avoir appartenu à un spammeur avant vous. Les IPs partagées sont souvent pré-blacklistées. Vérifiez dès le départ.
+      <div class="callout callout-info">
+        <span class="callout-icon">INFO</span>
+        <div class="callout-body">
+          <strong>Réputation IP ≠ réputation de domaine</strong><br/>
+          Les deux coexistent. La réputation IP concerne l'adresse IP du serveur d'envoi. La réputation de domaine concerne le domaine dans l'adresse From. Un bon SPF/DKIM/DMARC améliore la réputation de domaine, mais ne répare pas une mauvaise réputation IP.
+        </div>
       </div>
-    </div>
 
-    <h2 id="verifier">Vérifier sa réputation IP</h2>
+      <h2 id="facteurs">Les facteurs qui dégradent la réputation IP</h2>
 
-    <h3>Outils de vérification</h3>
-    <ul>
-      <li><strong>MXToolbox Blacklist Check</strong> — vérifie votre IP sur plus de 100 listes</li>
-      <li><strong>Sender Score (Validity)</strong> — score de 0 à 100 basé sur l'historique d'envoi</li>
-      <li><strong>Google Postmaster Tools</strong> — réputation spécifique pour les envois vers Gmail</li>
-      <li><strong>Microsoft SNDS</strong> — Smart Network Data Services, pour les envois vers Outlook/Hotmail</li>
-      <li><strong>Wezea</strong> — vérifie la présence de votre domaine sur les principales blacklists</li>
-    </ul>
+      <h3>Taux de rebond élevé</h3>
+      <p>
+        Les <em>hard bounces</em> (adresses inexistantes) signalent une liste de contacts mal qualifiée. Un taux de rebond supérieur à 2% est un signal négatif fort. Nettoyez régulièrement vos listes.
+      </p>
 
-    <h3>Identifier l'IP d'envoi concernée</h3>
-    <p>
-      Si vous utilisez un outil d'envoi comme Brevo, Mailchimp ou SendGrid, l'IP n'est pas la vôtre — c'est celle de leur serveur. En cas de problème, contactez leur support ou passez sur une IP dédiée.
-    </p>
+      <h3>Taux de plaintes spam</h3>
+      <p>
+        Quand un destinataire clique "Signaler comme spam", les principaux FAI (Gmail, Outlook) le remontent à l'expéditeur via les boucles de rétroaction (FBL). Un taux de plainte supérieur à 0,1% commence à dégrader sérieusement la réputation.
+      </p>
 
-    <h2 id="ameliorer">Améliorer sa délivrabilité</h2>
+      <h3>Envoi vers des spamtraps</h3>
+      <p>
+        Les spamtraps sont des adresses email créées spécifiquement pour détecter les spammeurs. Elles ne s'inscrivent jamais volontairement à des newsletters. Si vous envoyez à ces adresses, c'est un signal fort que votre liste est de mauvaise qualité.
+      </p>
 
-    <h3>Court terme — sortir d'une blacklist</h3>
-    <p>
-      La plupart des blacklists proposent un formulaire de délistage. Pour Spamhaus, le processus est automatique si la cause du listing est résolue. Pour Barracuda ou SORBS, vous soumettez une demande avec explication.
-    </p>
-    <p>
-      <strong>Important :</strong> résolvez d'abord le problème à l'origine du listing avant de demander le délistage. Sinon vous serez re-listé rapidement.
-    </p>
+      <h3>Volume d'envoi erratique</h3>
+      <p>
+        Passer de 10 emails/jour à 10 000 emails en une nuit est suspect. Les filtres interprètent ce type de comportement comme caractéristique d'une IP compromise.
+      </p>
 
-    <h3>Moyen terme — améliorer la qualité des envois</h3>
-    <ul>
-      <li>Implémenter le double opt-in pour toutes les nouvelles inscriptions</li>
-      <li>Nettoyer les listes : supprimer les hard bounces, les inactifs depuis 12+ mois</li>
-      <li>Gérer les désabonnements immédiatement (obligation légale et signal de réputation)</li>
-      <li>Envoyer uniquement à des contacts qui ont explicitement consenti</li>
-    </ul>
+      <h3>Contenu marqué comme spam</h3>
+      <p>
+        Certains mots, structures ou patterns dans le contenu de l'email (liens raccourcis suspects, excès de majuscules, pièces jointes .zip) contribuent négativement — même si l'email est légitime.
+      </p>
 
-    <h3>Long terme — surveillance continue</h3>
-    <ul>
-      <li>Monitorer le Sender Score mensuellement</li>
-      <li>Configurer les FBL (Feedback Loop) auprès des principaux FAI</li>
-      <li>Analyser les rapports DMARC pour détecter les usurpations</li>
-    </ul>
+      <h2 id="blacklists">Les principales blacklists</h2>
+      <p>
+        Une IP blacklistée voit ses emails refusés ou filtrés en spam par tous les serveurs qui consultent cette liste. Les principales listes utilisées par les serveurs de messagerie :
+      </p>
+      <ul>
+        <li><strong>Spamhaus ZEN</strong> — la référence, combinaison de plusieurs listes Spamhaus (SBL, CBL, PBL)</li>
+        <li><strong>Barracuda BRBL</strong> — très utilisée par les entreprises</li>
+        <li><strong>SORBS</strong> — utilisée par de nombreux hébergeurs</li>
+        <li><strong>SpamCop</strong> — basée sur les signalements des utilisateurs</li>
+        <li><strong>MXToolbox Blacklist</strong> — agrège plus de 100 listes</li>
+      </ul>
 
-    <h2 id="ip-partagee">IP partagée vs IP dédiée</h2>
-    <p>
-      Sur une IP partagée (cas de la plupart des outils d'envoi grand public), votre réputation dépend aussi du comportement des autres utilisateurs de la même IP. Sur une IP dédiée, vous êtes seul maître de votre réputation — mais vous devez la construire de zéro.
-    </p>
-
-    <div class="callout callout-ok">
-      <span class="callout-icon">OK</span>
-      <div class="callout-body">
-        <strong>IP dédiée : quand la choisir ?</strong><br/>
-        Une IP dédiée n'est pertinente qu'à partir de ~50 000 emails/mois. En dessous, une IP partagée de bonne réputation (Brevo, Mailchimp, Sendinblue) est préférable car le volume d'envoi régulier maintient naturellement la réputation.
+      <div class="callout callout-warn">
+        <span class="callout-icon">WARN</span>
+        <div class="callout-body">
+          <strong>Être blacklisté ne veut pas dire que vous spammez</strong><br/>
+          Si vous utilisez un hébergeur cloud (AWS, OVH, Hetzner), votre IP peut avoir appartenu à un spammeur avant vous. Les IPs partagées sont souvent pré-blacklistées. Vérifiez dès le départ.
+        </div>
       </div>
-    </div>
 
-    <div class="cta-block">
-      <p>Vérifiez si votre domaine est sur une liste noire :</p>
-      <a href="https://wezea.net" class="btn-cta">→ Analyser mon domaine gratuitement</a>
-    </div>
+      <h2 id="verifier">Vérifier sa réputation IP</h2>
+
+      <h3>Outils de vérification</h3>
+      <ul>
+        <li><strong>MXToolbox Blacklist Check</strong> — vérifie votre IP sur plus de 100 listes</li>
+        <li><strong>Sender Score (Validity)</strong> — score de 0 à 100 basé sur l'historique d'envoi</li>
+        <li><strong>Google Postmaster Tools</strong> — réputation spécifique pour les envois vers Gmail</li>
+        <li><strong>Microsoft SNDS</strong> — Smart Network Data Services, pour les envois vers Outlook/Hotmail</li>
+        <li><strong>Wezea</strong> — vérifie la présence de votre domaine sur les principales blacklists</li>
+      </ul>
+
+      <h3>Identifier l'IP d'envoi concernée</h3>
+      <p>
+        Si vous utilisez un outil d'envoi comme Brevo, Mailchimp ou SendGrid, l'IP n'est pas la vôtre — c'est celle de leur serveur. En cas de problème, contactez leur support ou passez sur une IP dédiée.
+      </p>
+
+      <h2 id="ameliorer">Améliorer sa délivrabilité</h2>
+
+      <h3>Court terme — sortir d'une blacklist</h3>
+      <p>
+        La plupart des blacklists proposent un formulaire de délistage. Pour Spamhaus, le processus est automatique si la cause du listing est résolue. Pour Barracuda ou SORBS, vous soumettez une demande avec explication.
+      </p>
+      <p>
+        <strong>Important :</strong> résolvez d'abord le problème à l'origine du listing avant de demander le délistage. Sinon vous serez re-listé rapidement.
+      </p>
+
+      <h3>Moyen terme — améliorer la qualité des envois</h3>
+      <ul>
+        <li>Implémenter le double opt-in pour toutes les nouvelles inscriptions</li>
+        <li>Nettoyer les listes : supprimer les hard bounces, les inactifs depuis 12+ mois</li>
+        <li>Gérer les désabonnements immédiatement (obligation légale et signal de réputation)</li>
+        <li>Envoyer uniquement à des contacts qui ont explicitement consenti</li>
+      </ul>
+
+      <h3>Long terme — surveillance continue</h3>
+      <ul>
+        <li>Monitorer le Sender Score mensuellement</li>
+        <li>Configurer les FBL (Feedback Loop) auprès des principaux FAI</li>
+        <li>Analyser les rapports DMARC pour détecter les usurpations</li>
+      </ul>
+
+      <h2 id="ip-partagee">IP partagée vs IP dédiée</h2>
+      <p>
+        Sur une IP partagée (cas de la plupart des outils d'envoi grand public), votre réputation dépend aussi du comportement des autres utilisateurs de la même IP. Sur une IP dédiée, vous êtes seul maître de votre réputation — mais vous devez la construire de zéro.
+      </p>
+
+      <div class="callout callout-ok">
+        <span class="callout-icon">OK</span>
+        <div class="callout-body">
+          <strong>IP dédiée : quand la choisir ?</strong><br/>
+          Une IP dédiée n'est pertinente qu'à partir de ~50 000 emails/mois. En dessous, une IP partagée de bonne réputation (Brevo, Mailchimp, Sendinblue) est préférable car le volume d'envoi régulier maintient naturellement la réputation.
+        </div>
+      </div>
+
+      <div class="cta-block">
+        <p>Vérifiez si votre domaine est sur une liste noire :</p>
+        <a href="https://wezea.net" class="btn-cta">→ Analyser mon domaine gratuitement</a>
+      </div>
 
 
-    <div class="related">
-      <p class="related-title">Lire aussi</p>
-      <div class="related-grid">
-      <a href="/blog/liste-noire-email-domaine/" class="related-card">Liste noire email : savoir si votre domaine est bloqué</a>
-      <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM et DMARC : le guide complet</a>
-      <a href="/blog/dmarc-rapports-analyse/" class="related-card">Lire et analyser ses rapports DMARC</a>
+      <div class="related">
+        <p class="related-title">Lire aussi</p>
+        <div class="related-grid">
+        <a href="/blog/liste-noire-email-domaine/" class="related-card">Liste noire email : savoir si votre domaine est bloqué</a>
+        <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM et DMARC : le guide complet</a>
+        <a href="/blog/dmarc-rapports-analyse/" class="related-card">Lire et analyser ses rapports DMARC</a>
+        </div>
       </div>
     </div>
   </div>
+
+  <div class="lang-en">
+    <header class="article-header">
+      <div class="article-meta">
+        <span class="article-tag">Email</span>
+        <span class="read-time">6-min read</span>
+        <time datetime="2026-03-05">March 5, 2026</time>
+      </div>
+      <h1>IP reputation and email deliverability: the full picture</h1>
+      <p class="article-intro">
+        You've configured SPF, DKIM, and DMARC perfectly — yet your emails consistently end up in spam. The problem likely comes from your sending server's IP reputation. Here's how this system works, how to diagnose the issue, and how to improve it.
+      </p>
+    </header>
+
+    <nav class="toc">
+      <strong>Table of Contents</strong>
+      <ol>
+        <li><a href="#scoring">How IP reputation scoring works</a></li>
+        <li><a href="#facteurs">Factors that degrade reputation</a></li>
+        <li><a href="#blacklists">Major blacklists</a></li>
+        <li><a href="#verifier">Check your IP reputation</a></li>
+        <li><a href="#ameliorer">Improve your deliverability</a></li>
+        <li><a href="#ip-partagee">Shared vs dedicated IP</a></li>
+      </ol>
+    </nav>
+
+    <div class="article-body">
+
+      <h2 id="scoring">How IP reputation scoring works</h2>
+      <p>
+        When an email arrives at Gmail, Outlook, or Yahoo servers, these services don't just check SPF and DKIM. They also consult reputation databases to evaluate the sender's IP history.
+      </p>
+      <p>
+        This reputation score is calculated in real-time from many signals. An IP with a good history of legitimate sends, few bounces, and few spam reports will reach the inbox. An IP with a questionable history will be filtered, regardless of email content quality.
+      </p>
+
+      <div class="callout callout-info">
+        <span class="callout-icon">INFO</span>
+        <div class="callout-body">
+          <strong>IP reputation ≠ domain reputation</strong><br/>
+          Both coexist. IP reputation concerns the sending server's IP address. Domain reputation concerns the domain in the From address. Good SPF/DKIM/DMARC improves domain reputation, but doesn't fix poor IP reputation.
+        </div>
+      </div>
+
+      <h2 id="facteurs">Factors that degrade IP reputation</h2>
+
+      <h3>High bounce rate</h3>
+      <p>
+        <em>Hard bounces</em> (non-existent addresses) signal a poorly qualified contact list. A bounce rate over 2% is a strong negative signal. Regularly clean your lists.
+      </p>
+
+      <h3>High spam complaint rate</h3>
+      <p>
+        When a recipient clicks "Report as spam," major ISPs (Gmail, Outlook) report it via feedback loops (FBL). A complaint rate over 0.1% seriously degrades reputation.
+      </p>
+
+      <h3>Sending to spamtraps</h3>
+      <p>
+        Spamtraps are email addresses created specifically to catch spammers. They never voluntarily sign up for newsletters. Sending to these addresses signals poor list quality.
+      </p>
+
+      <h3>Erratic sending volume</h3>
+      <p>
+        Going from 10 emails/day to 10,000 emails overnight is suspicious. Filters interpret this behavior as characteristic of a compromised IP.
+      </p>
+
+      <h3>Content marked as spam</h3>
+      <p>
+        Certain words, structures, or patterns in email content (suspicious shortened links, excessive capitals, .zip attachments) contribute negatively — even if the email is legitimate.
+      </p>
+
+      <h2 id="blacklists">Major blacklists</h2>
+      <p>
+        A blacklisted IP sees its emails refused or filtered as spam by all servers consulting that list. The main lists used by mail servers:
+      </p>
+      <ul>
+        <li><strong>Spamhaus ZEN</strong> — the gold standard, combines multiple Spamhaus lists (SBL, CBL, PBL)</li>
+        <li><strong>Barracuda BRBL</strong> — widely used by enterprises</li>
+        <li><strong>SORBS</strong> — used by many hosting providers</li>
+        <li><strong>SpamCop</strong> — based on user reports</li>
+        <li><strong>MXToolbox Blacklist</strong> — aggregates 100+ lists</li>
+      </ul>
+
+      <div class="callout callout-warn">
+        <span class="callout-icon">WARN</span>
+        <div class="callout-body">
+          <strong>Being blacklisted doesn't mean you spam</strong><br/>
+          If you use a cloud host (AWS, OVH, Hetzner), your IP may have belonged to a spammer before you. Shared IPs are often pre-blacklisted. Check from day one.
+        </div>
+      </div>
+
+      <h2 id="verifier">Check your IP reputation</h2>
+
+      <h3>Verification tools</h3>
+      <ul>
+        <li><strong>MXToolbox Blacklist Check</strong> — checks your IP against 100+ lists</li>
+        <li><strong>Sender Score (Validity)</strong> — 0-100 score based on sending history</li>
+        <li><strong>Google Postmaster Tools</strong> — reputation specific to Gmail sends</li>
+        <li><strong>Microsoft SNDS</strong> — Smart Network Data Services, for Outlook/Hotmail sends</li>
+        <li><strong>Wezea</strong> — checks if your domain appears on major blacklists</li>
+      </ul>
+
+      <h3>Identify your sending IP</h3>
+      <p>
+        If you use a sending tool like Brevo, Mailchimp, or SendGrid, the IP isn't yours — it's theirs. If you have issues, contact their support or switch to a dedicated IP.
+      </p>
+
+      <h2 id="ameliorer">Improve your deliverability</h2>
+
+      <h3>Short term — get off a blacklist</h3>
+      <p>
+        Most blacklists offer a delisting form. For Spamhaus, the process is automatic if the listing cause is resolved. For Barracuda or SORBS, you submit a request with explanation.
+      </p>
+      <p>
+        <strong>Important:</strong> fix the problem causing the listing first before requesting delisting. Otherwise you'll be relisted quickly.
+      </p>
+
+      <h3>Medium term — improve send quality</h3>
+      <ul>
+        <li>Implement double opt-in for all new signups</li>
+        <li>Clean lists: remove hard bounces, inactive for 12+ months</li>
+        <li>Handle unsubscribes immediately (legal requirement and reputation signal)</li>
+        <li>Send only to contacts who explicitly consented</li>
+      </ul>
+
+      <h3>Long term — continuous monitoring</h3>
+      <ul>
+        <li>Monitor Sender Score monthly</li>
+        <li>Set up FBLs (Feedback Loops) with major ISPs</li>
+        <li>Analyze DMARC reports to detect spoofing</li>
+      </ul>
+
+      <h2 id="ip-partagee">Shared vs dedicated IP</h2>
+      <p>
+        On a shared IP (most mainstream sending tools), your reputation also depends on other users' behavior. On a dedicated IP, you control your reputation — but must build it from scratch.
+      </p>
+
+      <div class="callout callout-ok">
+        <span class="callout-icon">OK</span>
+        <div class="callout-body">
+          <strong>Dedicated IP: when to choose it?</strong><br/>
+          A dedicated IP only makes sense at ~50,000+ emails/month. Below that, a good-reputation shared IP (Brevo, Mailchimp, Sendinblue) is better since regular send volume naturally maintains reputation.
+        </div>
+      </div>
+
+      <div class="cta-block">
+        <p>Check if your domain is on a blacklist:</p>
+        <a href="https://wezea.net" class="btn-cta">→ Scan my domain for free</a>
+      </div>
+
+
+      <div class="related">
+        <p class="related-title">Read also</p>
+        <div class="related-grid">
+        <a href="/blog/liste-noire-email-domaine/" class="related-card">Email blacklist: know if your domain is blocked</a>
+        <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM and DMARC: the complete guide</a>
+        <a href="/blog/dmarc-rapports-analyse/" class="related-card">Reading and analyzing DMARC reports</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </main>
 <script src="/footer.js"></script>
 </body>

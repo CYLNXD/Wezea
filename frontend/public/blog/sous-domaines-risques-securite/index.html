@@ -17,6 +17,21 @@
   <meta property="og:site_name"   content="Wezea Security Scanner" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+
+  <script>
+  window.WZ_T = {
+    fr: {
+      title: "Sous-domaines oubliés : un vecteur d'attaque méconnu (2026) | Wezea",
+      description: "Les sous-domaines abandonnés ou mal configurés sont une faille de sécurité fréquente. Subdomain takeover, DNS dangling, shadow IT : découvrez les risques et comment les éliminer.",
+      og_title: "Sous-domaines oubliés : un vecteur d'attaque méconnu"
+    },
+    en: {
+      title: "Forgotten subdomains: an overlooked attack vector | Wezea",
+      description: "Subdomain takeover, dangling DNS, shadow IT — abandoned subdomains are backdoors for attackers you can't see.",
+      og_title: "Forgotten subdomains: an overlooked attack vector"
+    }
+  };
+  </script>
   <link rel="stylesheet" href="../blog.css" />
 
   <script type="application/ld+json">
@@ -37,6 +52,7 @@
 <script src="/nav.js"></script>
 <main class="page">
 
+  <div class="lang-fr">
   <header class="article-header">
     <div class="article-meta">
       <span class="article-tag">DNS</span>
@@ -168,7 +184,6 @@ subfinder -d votredomaine.com -silent</code></pre>
       <a href="https://wezea.net" class="btn-cta">→ Auditer mon domaine gratuitement</a>
     </div>
 
-
     <div class="related">
       <p class="related-title">Lire aussi</p>
       <div class="related-grid">
@@ -177,6 +192,150 @@ subfinder -d votredomaine.com -silent</code></pre>
       <a href="/blog/audit-securite-domaine/" class="related-card">Audit de sécurité de domaine : ce que ça vérifie vraiment</a>
       </div>
     </div>
+  </div>
+  </div>
+
+  <div class="lang-en">
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">DNS</span>
+      <span class="read-time">6-min read</span>
+      <time datetime="2026-03-05">March 5, 2026</time>
+    </div>
+    <h1>Forgotten subdomains: an overlooked attack vector</h1>
+    <p class="article-intro">
+      You probably manage a dozen active subdomains — but how many have you created and forgotten over the past 5 years? <code>staging.yourdomain.com</code>, <code>old.yourdomain.com</code>, <code>app-test.yourdomain.com</code>... These abandoned subdomains are an open invitation for hackers.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Table of Contents</strong>
+    <ol>
+      <li><a href="#subdomain-takeover">Subdomain takeover</a></li>
+      <li><a href="#dns-dangling">DNS dangling: the CNAME pointing to nothing</a></li>
+      <li><a href="#shadow-it">Shadow IT and unknown subdomains</a></li>
+      <li><a href="#impact">Real impact on your main domain</a></li>
+      <li><a href="#inventaire">How to inventory your subdomains</a></li>
+      <li><a href="#nettoyage">Clean up and secure</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="subdomain-takeover">Subdomain takeover: how it works</h2>
+    <p>
+      Subdomain takeover is an attack that allows a third party to take control of a legitimate subdomain of your organization. The classic scenario:
+    </p>
+    <ol>
+      <li>Your company used a third-party service (Heroku, GitHub Pages, AWS S3, Zendesk…) via a CNAME like <code>support.yourdomain.com → yourcompany.zendesk.com</code></li>
+      <li>You cancelled your Zendesk subscription but <strong>forgot to remove the DNS entry</strong></li>
+      <li>The subdomain <code>yourcompany.zendesk.com</code> is no longer reserved — anyone can claim it</li>
+      <li>A hacker creates a Zendesk account with that name and now controls <code>support.yourdomain.com</code></li>
+    </ol>
+    <p>
+      Result: a perfectly credible phishing page under your own domain, with a valid SSL certificate shown in the browser.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Real documented cases</strong><br/>
+        Subdomains of Microsoft, Uber, Shopify, and hundreds of companies have been victims of subdomain takeover. It is a classic bug bounty — and a real production risk.
+      </div>
+    </div>
+
+    <h2 id="dns-dangling">DNS dangling: the CNAME pointing to nothing</h2>
+    <p>
+      A <em>dangling DNS record</em> is a DNS entry pointing to a resource that no longer exists. It is the condition necessary for subdomain takeover.
+    </p>
+    <p>
+      Services most exposed to this risk are those with ephemeral, shareable resources:
+    </p>
+    <ul>
+      <li><strong>Heroku</strong> — deleted apps but CNAME retained</li>
+      <li><strong>GitHub Pages</strong> — deleted or renamed repo</li>
+      <li><strong>AWS S3</strong> — deleted bucket in a region</li>
+      <li><strong>Azure / GCP</strong> — temporary cloud services</li>
+      <li><strong>Netlify / Vercel</strong> — disabled projects</li>
+      <li><strong>Zendesk / Freshdesk</strong> — abandoned support subdomains</li>
+    </ul>
+
+    <h2 id="shadow-it">Shadow IT and unknown subdomains</h2>
+    <p>
+      In SMEs and agencies, subdomains proliferate without central inventory: a developer creates <code>api-v2.domain.com</code>, a salesperson sets up a demo tool on <code>demo.domain.com</code>, a pilot project uses <code>beta.domain.com</code>. Months later, projects stop but DNS entries remain.
+    </p>
+    <p>
+      This phenomenon is aggravated by teams using cloud services in self-service mode without IT involvement. This is called <strong>shadow IT</strong>.
+    </p>
+
+    <h2 id="impact">Real impact on your main domain</h2>
+    <p>
+      A compromised subdomain directly harms your root domain:
+    </p>
+    <ul>
+      <li><strong>Credible phishing</strong> — a login page under <code>login.yourdomain.com</code> is indistinguishable from the real thing to your users</li>
+      <li><strong>Email reputation</strong> — emails sent from a taken-over subdomain can get your entire domain blacklisted</li>
+      <li><strong>Negative SEO</strong> — spam content indexed under your domain degrades your SEO profile</li>
+      <li><strong>GDPR violation</strong> — if customer data passes through a fake form under your domain, you are liable</li>
+    </ul>
+
+    <h2 id="inventaire">How to inventory your subdomains</h2>
+
+    <h3>Via passive reconnaissance tools</h3>
+    <div class="code-block">
+      <pre><code># Enumeration via Certificate Transparency logs
+curl "https://crt.sh/?q=%.yourdomain.com&output=json" | jq '.[].name_value' | sort -u
+
+# Via subfinder (open source tool)
+subfinder -d yourdomain.com -silent</code></pre>
+    </div>
+
+    <h3>Via your registrar / DNS host</h3>
+    <p>Export the complete DNS zone from your management panel. List all CNAME and A records. For each CNAME, verify the target is still active and belongs to you.</p>
+
+    <h3>Via your server access logs</h3>
+    <p>Your web logs can reveal active subdomains you forgot about, as bots regularly scan them.</p>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">INFO</span>
+      <div class="callout-body">
+        <strong>Certificate Transparency (CT)</strong><br/>
+        Every issued SSL certificate is publicly logged in CT logs. This is a reliable source to discover all subdomains that have had a certificate — including old ones.
+      </div>
+    </div>
+
+    <h2 id="nettoyage">Clean up and secure your subdomains</h2>
+
+    <h3>Cleanup process</h3>
+    <ol>
+      <li>Create a complete inventory (see previous section)</li>
+      <li>For each DNS entry, verify the target is active and belongs to you</li>
+      <li>Immediately delete records pointing to non-existent targets</li>
+      <li>For active but unmaintained subdomains, decide: keep or delete</li>
+    </ol>
+
+    <h3>Best practices going forward</h3>
+    <ul>
+      <li>Maintain a subdomain register with: owner, associated service, creation date, review date</li>
+      <li>Include DNS removal in the offboarding process of any external service</li>
+      <li>Audit DNS quarterly</li>
+      <li>Use automatic monitoring to detect unauthorized DNS changes</li>
+    </ul>
+
+    <div class="cta-block">
+      <p>Analyze your domain's DNS exposure:</p>
+      <a href="https://wezea.net" class="btn-cta">→ Audit my domain for free</a>
+    </div>
+
+    <div class="related">
+      <p class="related-title">Read also</p>
+      <div class="related-grid">
+      <a href="/blog/dns-hijacking/" class="related-card">DNS Hijacking: how your domain can be diverted</a>
+      <a href="/blog/protection-phishing-domaine/" class="related-card">Protect your domain against phishing</a>
+      <a href="/blog/audit-securite-domaine/" class="related-card">Domain security audit: what it really checks</a>
+      </div>
+    </div>
+  </div>
   </div>
 </main>
 <script src="/footer.js"></script>

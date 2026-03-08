@@ -17,6 +17,21 @@
   <meta property="og:site_name"   content="Wezea Security Scanner" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+
+  <script>
+  window.WZ_T = {
+    fr: {
+      title: "Liste noire email (blacklist) : comment savoir si votre domaine est bloqué (2026) | Wezea",
+      description: "Si votre domaine ou IP est sur une liste noire email, vos messages arrivent en spam ou sont rejetés. Découvrez comment détecter une blacklist, comprendre les causes et vous en sortir.",
+      og_title: "Liste noire email : comment savoir si votre domaine est bloqué"
+    },
+    en: {
+      title: "Email blacklist: how to tell if your domain is blocked (2026) | Wezea",
+      description: "A blacklisted domain means emails silently disappearing. Causes, detection on major blacklists (Spamhaus, Barracuda), and removal procedures.",
+      og_title: "Email blacklist: how to tell if your domain is blocked"
+    }
+  };
+  </script>
   <link rel="stylesheet" href="../blog.css" />
 
   <script type="application/ld+json">
@@ -37,6 +52,7 @@
 <script src="/nav.js"></script>
 <main class="page">
 
+  <div class="lang-fr">
   <header class="article-header">
     <div class="article-meta">
       <span class="article-tag">Réputation email</span>
@@ -213,7 +229,6 @@
       <a href="https://wezea.net" class="btn-cta">→ Auditer mon domaine</a>
     </div>
 
-
     <div class="related">
       <p class="related-title">Lire aussi</p>
       <div class="related-grid">
@@ -222,6 +237,195 @@
       <a href="/blog/dmarc-rapports-analyse/" class="related-card">Lire et analyser ses rapports DMARC</a>
       </div>
     </div>
+  </div>
+  </div>
+
+  <div class="lang-en">
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">Email reputation</span>
+      <span class="read-time">6-min read</span>
+      <time datetime="2026-03-05">March 5, 2026</time>
+    </div>
+    <h1>Email blacklist: how to tell if your domain is blocked</h1>
+    <p class="article-intro">
+      Your business emails are no longer reaching your clients. Your quotes land in spam. Your responses to RFPs disappear. The cause is often invisible: your domain or sending IP is listed on an email blacklist. Here's how to detect it and fix it.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Table of Contents</strong>
+    <ol>
+      <li><a href="#cest-quoi">What is an email blacklist?</a></li>
+      <li><a href="#symptomes">Signs of a blacklisted domain</a></li>
+      <li><a href="#causes">Why end up on a blacklist?</a></li>
+      <li><a href="#blacklists">Major blacklists to know</a></li>
+      <li><a href="#verifier">How to check if you're blacklisted</a></li>
+      <li><a href="#delister">How to request removal</a></li>
+      <li><a href="#prevenir">Prevent future blacklistings</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="cest-quoi">What is an email blacklist?</h2>
+    <p>
+      An email blacklist (also called DNSBL — DNS-based Blackhole List or RBL — Real-time Blackhole List) is a database that lists IP addresses and domains known for sending spam, phishing, or malicious emails. Mail servers consult these lists in real time to decide whether to accept, mark as spam, or reject incoming emails.
+    </p>
+    <p>
+      There are dozens of independent blacklists managed by different organizations. Each email provider (Gmail, Outlook, OVH...) chooses which lists to consult. Being listed on a single major list can be enough to block 30 to 70% of your outbound messages.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Domain vs IP address</strong><br/>
+        Your domain (<code>yourcompany.com</code>) and your sending server's IP address can be blacklisted separately. Both should be checked. If you use a third-party sending service (Brevo, Mailchimp, SendGrid), their IP is at stake — but your domain can be independently blacklisted.
+      </div>
+    </div>
+
+    <h2 id="symptomes">Signs of a blacklisted domain</h2>
+    <p>
+      Warning signs are often subtle at first:
+    </p>
+    <ul>
+      <li>Sudden drop in your email campaign open rates</li>
+      <li>Bounce messages with error codes <code>550</code>, <code>554</code>, or <code>521</code></li>
+      <li>Clients saying they didn't receive your replies</li>
+      <li>Emails landing directly in spam for no apparent reason</li>
+      <li>Unusually long delivery delays (several hours)</li>
+    </ul>
+    <p>
+      In the most severe cases, rejection is silent: the sender gets no error message, and the recipient sees nothing. The email simply disappears.
+    </p>
+
+    <h2 id="causes">Why end up on a blacklist?</h2>
+
+    <h3>Spam or phishing sent from your domain</h3>
+    <p>
+      If your email account is compromised and used to send mass spam, your domain will be flagged very quickly. Even a poorly targeted marketing campaign with a high complaint rate can trigger blacklisting.
+    </p>
+
+    <h3>Missing or misconfigured SPF, DKIM, or DMARC</h3>
+    <p>
+      The absence of SPF, DKIM, or DMARC is a strong negative signal for spam filters. Without these records, anyone can send emails impersonating your domain — and when those fake emails are reported as spam, your domain takes the hit.
+    </p>
+
+    <h3>Shared hosting on an IP with poor reputation</h3>
+    <p>
+      On shared hosting, you share an IP address with other sites. If one of them sends spam, the entire IP can be blacklisted — including you, through no fault of your own.
+    </p>
+
+    <h3>Spam trap</h3>
+    <p>
+      Email providers maintain "trap" email addresses that belong to no one but are harvested by spammers. If you send an email to one of these addresses, you are immediately flagged as a spammer. This typically happens with old or purchased contact lists.
+    </p>
+
+    <h3>Abnormal sending volume</h3>
+    <p>
+      A sudden spike in sends — for example, when launching a marketing campaign from a new domain — can trigger preventive suspension by some blacklists.
+    </p>
+
+    <div class="cta-block">
+      <p>Check your domain's reputation in 60 seconds:</p>
+      <a href="https://wezea.net" class="btn-cta">→ Analyze my domain for free</a>
+    </div>
+
+    <h2 id="blacklists">Major blacklists to know</h2>
+
+    <div class="card">
+      <h4>Spamhaus (ZEN, DBL)</h4>
+      <p>The absolute reference. Used by nearly all email providers. A listing on Spamhaus blocks a large portion of your sends. The DBL (Domain Block List) specifically targets domains.</p>
+    </div>
+
+    <div class="card">
+      <h4>Barracuda (BRBL)</h4>
+      <p>Widely used in companies that use Barracuda appliances. Listing here primarily affects corporate environments.</p>
+    </div>
+
+    <div class="card">
+      <h4>SURBL / URIBL</h4>
+      <p>These lists target domains appearing in the body of spam emails. If your domain is mentioned in spam even if you're not the sender, you can be listed.</p>
+    </div>
+
+    <div class="card">
+      <h4>Microsoft SNDS</h4>
+      <p>Microsoft's Smart Network Data Services monitors the reputation of IPs sending to Outlook and Hotmail. A red score here means direct blocking for millions of users.</p>
+    </div>
+
+    <h2 id="verifier">How to check if you're blacklisted</h2>
+
+    <h3>Using an online tool</h3>
+    <p>
+      Wezea automatically checks your domain against major blacklists as part of its reputation audit. You get a consolidated result in seconds, without having to check each list manually.
+    </p>
+
+    <h3>Manually via MXToolbox</h3>
+    <p>
+      MXToolbox offers a free checker that queries a hundred blacklists simultaneously for a given IP address or domain. Go to <code>mxtoolbox.com/blacklists.aspx</code> and enter your domain or IP.
+    </p>
+
+    <h3>Analyze a rejected email's headers</h3>
+    <p>
+      When an email is rejected with a <code>550</code> code, the bounce message often contains the name of the blacklist involved. Look for mentions of "blacklist", "blocklist", "RBL", or names like "spamhaus", "barracuda" in the error message.
+    </p>
+
+    <h2 id="delister">How to request removal (delisting)</h2>
+    <p>
+      Each blacklist has its own procedure. The general principle is always the same: identify the cause, fix it, then submit a removal request.
+    </p>
+
+    <h3>Step 1: Identify and fix the cause</h3>
+    <p>
+      There is no point requesting removal if the problem persists. Depending on the identified cause: change compromised passwords, set up SPF/DKIM/DMARC, clean your contact lists, or contact your hosting provider to change IP addresses.
+    </p>
+
+    <h3>Step 2: Submit the removal request</h3>
+    <p>
+      Most blacklists offer a removal request form on their site:
+    </p>
+    <ul>
+      <li><strong>Spamhaus:</strong> <code>check.spamhaus.org</code> → removal form</li>
+      <li><strong>Barracuda:</strong> <code>www.barracudacentral.org/rbl/removal-request</code></li>
+      <li><strong>Microsoft:</strong> <code>sender.office.com</code></li>
+    </ul>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">INFO</span>
+      <div class="callout-body">
+        <strong>Removal timeline</strong><br/>
+        Removal can take anywhere from a few hours to several days depending on the blacklist. Spamhaus typically processes requests within 24-48 hours if the cause is properly fixed. Some lists perform removal automatically after a period without suspicious activity.
+      </div>
+    </div>
+
+    <h2 id="prevenir">Prevent future blacklistings</h2>
+    <p>
+      Prevention is based on three pillars:
+    </p>
+    <p>
+      <strong>1. Proper email configuration</strong> — Strict SPF, signed DKIM, DMARC in <code>reject</code> or <code>quarantine</code> mode. These three DNS records drastically reduce spoofing risks and improve your reputation with spam filters.
+    </p>
+    <p>
+      <strong>2. Contact list hygiene</strong> — Use only opt-in lists, regularly clean invalid addresses (hard bounces), and honor unsubscribe requests immediately.
+    </p>
+    <p>
+      <strong>3. Continuous monitoring</strong> — Regularly check your domain's reputation. A blacklisting detected quickly can be resolved in hours; a blacklisting discovered after three weeks can take much longer to fix and leaves lasting marks.
+    </p>
+
+    <div class="cta-block">
+      <p>Check your domain's reputation and email configuration right now:</p>
+      <a href="https://wezea.net" class="btn-cta">→ Audit my domain</a>
+    </div>
+
+    <div class="related">
+      <p class="related-title">Read also</p>
+      <div class="related-grid">
+      <a href="/blog/reputation-ip-delivrabilite-email/" class="related-card">IP reputation and email deliverability</a>
+      <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">SPF, DKIM and DMARC: the complete guide</a>
+      <a href="/blog/dmarc-rapports-analyse/" class="related-card">Reading and analyzing DMARC reports</a>
+      </div>
+    </div>
+  </div>
   </div>
 </main>
 <script src="/footer.js"></script>

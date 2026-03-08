@@ -17,6 +17,21 @@
   <meta property="og:site_name"   content="Wezea Security Scanner" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+
+  <script>
+  window.WZ_T = {
+    fr: {
+      title: "Ports réseau dangereux : lesquels fermer pour sécuriser votre serveur (2026) | Wezea",
+      description: "Certains ports réseau ouverts exposent directement votre serveur aux attaques. Voici quels ports fermer en priorité, pourquoi ils sont dangereux, et comment vérifier votre exposition.",
+      og_title: "Ports réseau dangereux : lesquels fermer pour sécuriser votre serveur"
+    },
+    en: {
+      title: "Dangerous network ports: which ones to close to secure your server (2026) | Wezea",
+      description: "Bots constantly scan your open ports. RDP, Telnet, SMB, exposed databases — which ports to close first and how to check your exposure.",
+      og_title: "Dangerous network ports: which ones to close to secure your server"
+    }
+  };
+  </script>
   <link rel="stylesheet" href="../blog.css" />
 
   <script type="application/ld+json">
@@ -37,6 +52,7 @@
 <script src="/nav.js"></script>
 <main class="page">
 
+  <div class="lang-fr">
   <header class="article-header">
     <div class="article-meta">
       <span class="article-tag">Sécurité réseau</span>
@@ -198,7 +214,6 @@ sudo apt remove telnetd -y</code></pre>
       <a href="https://wezea.net" class="btn-cta">→ Analyser mon domaine</a>
     </div>
 
-
     <div class="related">
       <p class="related-title">Lire aussi</p>
       <div class="related-grid">
@@ -207,6 +222,180 @@ sudo apt remove telnetd -y</code></pre>
       <a href="/blog/securite-wordpress-checklist/" class="related-card">Sécuriser WordPress : checklist complète 2026</a>
       </div>
     </div>
+  </div>
+  </div>
+
+  <div class="lang-en">
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">Network security</span>
+      <span class="read-time">7-min read</span>
+      <time datetime="2026-03-05">March 5, 2026</time>
+    </div>
+    <h1>Dangerous network ports: which ones to close to secure your server</h1>
+    <p class="article-intro">
+      Bots constantly scan the open ports of servers across the internet. A misconfigured or unnecessarily exposed port can give attackers access to your entire infrastructure. Here are the riskiest ports and how to manage them.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Table of Contents</strong>
+    <ol>
+      <li><a href="#cest-quoi">Network port: a quick reminder</a></li>
+      <li><a href="#scan-constant">Your ports are scanned constantly</a></li>
+      <li><a href="#ports-dangereux">The most dangerous ports</a></li>
+      <li><a href="#ports-a-surveiller">Ports to watch based on your use case</a></li>
+      <li><a href="#fermer">How to close a port</a></li>
+      <li><a href="#verifier">Check your exposed ports</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="cest-quoi">Network port: a quick reminder</h2>
+    <p>
+      A port is a numerical entry point on your server. Each network service listens on a specific port: port 80 for HTTP, port 443 for HTTPS, port 22 for SSH, and so on. An "open" port means an active service is waiting for connections on it. A "closed" or "filtered" port refuses or ignores incoming connections.
+    </p>
+    <p>
+      There are 65,535 possible ports. Most are closed by default. But every service you install — intentionally or not — can open a new one.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Bots scan the entire internet in less than 45 minutes</strong><br/>
+        Tools like Shodan and Masscan can scan all 4 billion public IPv4 addresses very quickly. Your server is scanned multiple times a day, whether you know it or not.
+      </div>
+    </div>
+
+    <h2 id="scan-constant">Your ports are scanned constantly</h2>
+    <p>
+      Within minutes of launching a server, automated connections already try to access SSH, RDP, Telnet, and common admin interfaces. This is not paranoia — it is documented reality from security honeypots.
+    </p>
+    <p>
+      These bots look for default credentials, vulnerable software versions, or simply misconfigured services accessible without authentication.
+    </p>
+
+    <h2 id="ports-dangereux">The most dangerous ports</h2>
+
+    <h3>Port 23 — Telnet</h3>
+    <p>
+      Telnet transmits everything in plain text, including passwords. There is no legitimate reason to expose Telnet on the internet in 2026. If this port is open on your server, close it immediately and replace it with SSH.
+    </p>
+
+    <h3>Port 3389 — RDP (Remote Desktop Protocol)</h3>
+    <p>
+      Windows Remote Desktop is one of the favorite targets of ransomware campaigns. Massive attack campaigns constantly scan this port for servers with weak credentials or vulnerable RDP versions (BlueKeep, DejaBlue). If you must use RDP, place it behind a VPN and change the default port.
+    </p>
+
+    <h3>Port 22 — SSH exposed without restriction</h3>
+    <p>
+      SSH itself is secure, but exposed without protection, it suffers constant brute-force attacks. An SSH server without fail2ban, without password authentication disabled, and without IP restrictions is a daily target.
+    </p>
+
+    <h3>Ports 137, 138, 139, 445 — SMB (Windows file sharing)</h3>
+    <p>
+      The SMB protocol was the origin of the WannaCry (2017) and NotPetya attacks. These ports should never be exposed on the internet. If they appear in a scan of your public domain, that is a critical emergency.
+    </p>
+
+    <h3>Port 1433 — SQL Server / Port 3306 — MySQL / Port 5432 — PostgreSQL</h3>
+    <p>
+      Databases should never listen directly on the internet. An exposed database port allows injection and brute-force attempts directly on your data. Databases should only be accessible from the internal network or via a secure tunnel.
+    </p>
+
+    <h3>Port 21 — FTP</h3>
+    <p>
+      FTP transmits credentials in plain text, just like Telnet. Replace FTP with SFTP (which uses SSH, port 22) or FTPS (FTP over TLS). Classic FTP has no place on a production server anymore.
+    </p>
+
+    <h3>Port 8080, 8443, 9090 — Admin interfaces</h3>
+    <p>
+      Many tools (Tomcat, Jenkins, Portainer, phpMyAdmin) expose their admin interface on these alternative ports. These interfaces are heavily scanned. If exposed without strong authentication or IP restriction, they are a direct attack vector.
+    </p>
+
+    <div class="cta-block">
+      <p>Find out which ports are visible on your domain:</p>
+      <a href="https://wezea.net" class="btn-cta">→ Scan my exposed ports</a>
+    </div>
+
+    <h2 id="ports-a-surveiller">Ports to watch based on your use case</h2>
+
+    <div class="card">
+      <h4>Standard web server</h4>
+      <p><strong>Legitimate ports:</strong> 80 (HTTP → HTTPS redirect), 443 (HTTPS)<br/>
+      <strong>Close everything else</strong>, except 22 (SSH) with IP-based access restriction</p>
+    </div>
+
+    <div class="card">
+      <h4>Mail server</h4>
+      <p><strong>Legitimate ports:</strong> 25 (SMTP), 465/587 (Secure SMTP), 993 (IMAP SSL), 995 (POP3 SSL)<br/>
+      <strong>Avoid:</strong> 110 (unencrypted POP3), 143 (unencrypted IMAP)</p>
+    </div>
+
+    <div class="card">
+      <h4>Development / staging server</h4>
+      <p><strong>Common risk:</strong> debug ports (3000, 4000, 8000, 8080) accidentally exposed in production<br/>
+      <strong>Solution:</strong> expose these ports only on localhost or private network</p>
+    </div>
+
+    <h2 id="fermer">How to close a port</h2>
+
+    <h3>With UFW (Ubuntu/Debian)</h3>
+    <div class="code-block">
+      <pre><code># View active rules
+sudo ufw status verbose
+
+# Block a specific port
+sudo ufw deny 3389/tcp
+
+# Allow SSH only from a specific IP
+sudo ufw allow from 192.168.1.0/24 to any port 22
+
+# Enable the firewall if not already enabled
+sudo ufw enable</code></pre>
+    </div>
+
+    <h3>With iptables</h3>
+    <div class="code-block">
+      <pre><code># Block port 23 (Telnet) on inbound
+sudo iptables -A INPUT -p tcp --dport 23 -j DROP
+
+# Save the rules
+sudo iptables-save > /etc/iptables/rules.v4</code></pre>
+    </div>
+
+    <h3>Stop the unnecessary service</h3>
+    <p>
+      Closing a port at the firewall level is good, but you should also disable the service that opens it. If Telnet is installed, uninstall it:
+    </p>
+    <div class="code-block">
+      <pre><code>sudo systemctl stop telnet
+sudo systemctl disable telnet
+sudo apt remove telnetd -y</code></pre>
+    </div>
+
+    <h2 id="verifier">Check your exposed ports</h2>
+    <p>
+      Wezea scans your domain's critical ports from the outside — exactly as an attacker would. You get a list of detected open ports, their risk level, and remediation recommendations.
+    </p>
+    <p>
+      The scan covers the most frequently exploited ports: SSH, RDP, Telnet, SMB, databases, admin interfaces. Ideal for a quick audit before production launch or a client security audit.
+    </p>
+
+    <div class="cta-block">
+      <p>Complete audit of your exposed ports, free:</p>
+      <a href="https://wezea.net" class="btn-cta">→ Analyze my domain</a>
+    </div>
+
+    <div class="related">
+      <p class="related-title">Read also</p>
+      <div class="related-grid">
+      <a href="/blog/audit-securite-domaine/" class="related-card">Domain security audit: what it really checks</a>
+      <a href="/blog/audit-securite-site-web-checklist/" class="related-card">Website security audit checklist (2026)</a>
+      <a href="/blog/securite-wordpress-checklist/" class="related-card">Securing WordPress: complete checklist 2026</a>
+      </div>
+    </div>
+  </div>
   </div>
 </main>
 <script src="/footer.js"></script>
