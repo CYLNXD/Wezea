@@ -2698,17 +2698,24 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                         {user?.mfa_enabled && mfaStep === 'disabling' && (
                           <div className="flex flex-col gap-3">
                             <p className="text-slate-400 text-xs">
-                              {lang === 'fr'
-                                ? 'Confirmez avec votre mot de passe et votre code TOTP actuel.'
-                                : 'Confirm with your password and current TOTP code.'}
+                              {user?.google_id
+                                ? (lang === 'fr'
+                                    ? 'Confirmez avec votre code TOTP actuel.'
+                                    : 'Confirm with your current TOTP code.')
+                                : (lang === 'fr'
+                                    ? 'Confirmez avec votre mot de passe et votre code TOTP actuel.'
+                                    : 'Confirm with your password and current TOTP code.')}
                             </p>
-                            <input
-                              type="password"
-                              placeholder={lang === 'fr' ? 'Mot de passe' : 'Password'}
-                              value={mfaDisablePwd}
-                              onChange={e => setMfaDisablePwd(e.target.value)}
-                              className="w-full bg-slate-800/60 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-red-500/50 placeholder-slate-600"
-                            />
+                            {/* Mot de passe : seulement pour les comptes non-Google */}
+                            {!user?.google_id && (
+                              <input
+                                type="password"
+                                placeholder={lang === 'fr' ? 'Mot de passe' : 'Password'}
+                                value={mfaDisablePwd}
+                                onChange={e => setMfaDisablePwd(e.target.value)}
+                                className="w-full bg-slate-800/60 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-red-500/50 placeholder-slate-600"
+                              />
+                            )}
                             <input
                               type="text"
                               inputMode="numeric"
@@ -2721,7 +2728,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={handleMfaDisable}
-                                disabled={mfaLoading || !mfaDisablePwd || mfaCode.length !== 6}
+                                disabled={mfaLoading || (!user?.google_id && !mfaDisablePwd) || mfaCode.length !== 6}
                                 className="flex items-center gap-2 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 {mfaLoading ? <RefreshCw size={12} className="animate-spin" /> : <X size={12} />}

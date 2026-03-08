@@ -516,6 +516,11 @@ def google_auth(
             db.commit()
             db.refresh(user)
 
+    # ── 2FA : si activé sur ce compte Google, retourner un token intermédiaire ──
+    if user.mfa_enabled and user.mfa_secret:
+        mfa_token = create_access_token(user.id, user.email, user.plan, step="mfa")
+        return {"mfa_required": True, "mfa_token": mfa_token}
+
     token = create_access_token(user.id, user.email, user.plan)
     return TokenResponse(
         access_token=token,
@@ -524,6 +529,7 @@ def google_auth(
             "api_key": user.api_key, "first_name": user.first_name,
             "last_name": user.last_name, "google_id": user.google_id,
             "is_admin": bool(user.is_admin),
+            "mfa_enabled": bool(user.mfa_enabled),
         },
     )
 
@@ -844,8 +850,8 @@ class TotpVerifyRequest(BaseModel):
 
 
 class TotpDisableRequest(BaseModel):
-    code: str          # vérification avant désactivation
-    password: str      # double confirmation
+    code: str                    # vérification TOTP avant désactivation
+    password: Optional[str] = None  # double confirmation (non requis pour comptes Google)
 
 
 @router.post("/2fa/setup")
@@ -962,18 +968,20 @@ def disable_2fa(
     db: Session = Depends(get_db),
 ):
     """
-    Désactive la 2FA après vérification du code TOTP + mot de passe.
-    Interdit sur les comptes Google (pas de mot de passe local).
+    Désactive la 2FA après vérification du code TOTP.
+    Pour les comptes classiques, le mot de passe est également requis.
+    Pour les comptes Google (pas de mot de passe local), le code TOTP suffit.
     """
     import pyotp
 
-    # Bloquer les comptes Google (pas de mot de passe)
-    if current_user.password_hash.startswith("!google:"):
-        raise HTTPException(status_code=400, detail="Les comptes Google gèrent la 2FA via Google.")
+    is_google = current_user.password_hash.startswith("!google:")
 
-    # Vérifier le mot de passe
-    if not verify_password(body.password, current_user.password_hash):
-        raise HTTPException(status_code=401, detail="Mot de passe incorrect.")
+    # Vérifier le mot de passe uniquement pour les comptes non-Google
+    if not is_google:
+        if not body.password:
+            raise HTTPException(status_code=400, detail="Mot de passe requis.")
+        if not verify_password(body.password, current_user.password_hash):
+            raise HTTPException(status_code=401, detail="Mot de passe incorrect.")
 
     # Vérifier le code TOTP
     if not current_user.mfa_enabled or not current_user.mfa_secret:

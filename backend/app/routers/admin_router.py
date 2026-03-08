@@ -41,6 +41,7 @@ class UserAdminView(BaseModel):
     is_admin: bool
     scan_count: int
     created_at: str
+    mfa_enabled: bool = False
 
 
 class UpdateUserRequest(BaseModel):
@@ -70,6 +71,7 @@ def list_users(
             is_admin=bool(u.is_admin),
             scan_count=scan_count,
             created_at=u.created_at.isoformat(),
+            mfa_enabled=bool(u.mfa_enabled),
         ))
     return result
 
@@ -109,8 +111,26 @@ def update_user(
     return UserAdminView(
         id=user.id, email=user.email, plan=user.plan,
         is_active=user.is_active, is_admin=bool(user.is_admin), scan_count=scan_count,
-        created_at=user.created_at.isoformat(),
+        created_at=user.created_at.isoformat(), mfa_enabled=bool(user.mfa_enabled),
     )
+
+
+@router.post("/users/{user_id}/reset-2fa", status_code=200)
+def admin_reset_2fa(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Réinitialise (désactive) la 2FA d'un utilisateur — action admin uniquement."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    if not user.mfa_enabled:
+        raise HTTPException(status_code=400, detail="La 2FA n'est pas activée sur ce compte.")
+    user.mfa_enabled = False
+    user.mfa_secret  = None
+    db.commit()
+    return {"status": "ok", "message": f"2FA réinitialisée pour {user.email}"}
 
 
 @router.delete("/users/{user_id}", status_code=204)

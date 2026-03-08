@@ -20,6 +20,7 @@ interface UserAdmin {
   is_admin: boolean;
   scan_count: number;
   created_at: string;
+  mfa_enabled?: boolean;
 }
 
 interface Metrics {
@@ -536,6 +537,7 @@ function UsersTab({
   onUpdatePlan,
   onToggleActive,
   onDelete,
+  onReset2FA,
 }: {
   users: UserAdmin[];
   stats: Stats | null;
@@ -543,6 +545,7 @@ function UsersTab({
   onUpdatePlan: (id: number, plan: string) => void;
   onToggleActive: (id: number, active: boolean) => void;
   onDelete: (id: number, email: string) => void;
+  onReset2FA: (id: number, email: string) => void;
 }) {
   const { user } = useAuth();
   const [search, setSearch] = useState('');
@@ -601,6 +604,7 @@ function UsersTab({
               <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider hidden sm:table-cell">Scans</th>
               <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider hidden md:table-cell">Inscrit</th>
               <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider">Statut</th>
+              <th className="text-left px-4 py-3 text-[10px] text-slate-500 font-mono uppercase tracking-wider hidden lg:table-cell">2FA</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -676,18 +680,42 @@ function UsersTab({
                   </button>
                 </td>
 
-                {/* Delete */}
-                <td className="px-4 py-3">
-                  {u.id !== user?.id && !u.is_admin && (
-                    <button
-                      onClick={() => onDelete(u.id, u.email)}
-                      disabled={updating === u.id}
-                      className="text-slate-700 hover:text-red-400 transition disabled:cursor-not-allowed"
-                      title="Supprimer"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                {/* 2FA */}
+                <td className="px-4 py-3 hidden lg:table-cell">
+                  {u.mfa_enabled ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">
+                      <svg width="8" height="8" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      ON
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-mono text-slate-600">—</span>
                   )}
+                </td>
+
+                {/* Actions : reset 2FA + suppression */}
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    {u.mfa_enabled && (
+                      <button
+                        onClick={() => onReset2FA(u.id, u.email)}
+                        disabled={updating === u.id}
+                        className="text-slate-600 hover:text-amber-400 transition disabled:cursor-not-allowed"
+                        title="Réinitialiser la 2FA"
+                      >
+                        <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      </button>
+                    )}
+                    {u.id !== user?.id && !u.is_admin && (
+                      <button
+                        onClick={() => onDelete(u.id, u.email)}
+                        disabled={updating === u.id}
+                        className="text-slate-700 hover:text-red-400 transition disabled:cursor-not-allowed"
+                        title="Supprimer"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -978,6 +1006,19 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
     }
   };
 
+  const reset2FA = async (userId: number, email: string) => {
+    if (!confirm(`Réinitialiser la 2FA de ${email} ?`)) return;
+    setUpdating(userId);
+    try {
+      await apiClient.post(`/admin/users/${userId}/reset-2fa`);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, mfa_enabled: false } : u));
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Erreur');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   return (
     <div className="relative min-h-screen text-slate-100">
       {/* Grille cyber — identique au hero Dashboard */}
@@ -1063,6 +1104,7 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
                 onUpdatePlan={updatePlan}
                 onToggleActive={toggleActive}
                 onDelete={deleteUser}
+                onReset2FA={reset2FA}
               />
             )}
             {tab === 'blog' && (
