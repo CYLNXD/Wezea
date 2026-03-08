@@ -1732,7 +1732,9 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             {r.recommendations.map((rec, i) => {
                               const recLower = rec.toLowerCase();
                               const matchedLink = blogLinks.find(l =>
-                                recLower.includes(l.match_keyword.toLowerCase())
+                                l.match_keyword.split(',').some(kw =>
+                                  recLower.includes(kw.trim().toLowerCase())
+                                )
                               );
                               return (
                                 <div key={i} className="flex items-start gap-4 px-4 py-3.5 rounded-xl bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition-colors">

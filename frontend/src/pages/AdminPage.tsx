@@ -586,7 +586,7 @@ function BlogLinksTab({ links, onRefresh }: { links: BlogLink[]; onRefresh: () =
         <div>
           <h2 className="text-sm font-bold text-slate-100">Liens articles de blog</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Associez un mot-clé à un article — si la recommandation contient le mot-clé, un lien s'affiche automatiquement.
+            Associez un ou plusieurs mots-clés (séparés par des virgules) à un article. Si la recommandation contient l'un des mots-clés, le lien s'affiche automatiquement.
           </p>
         </div>
       </div>
@@ -603,7 +603,7 @@ function BlogLinksTab({ links, onRefresh }: { links: BlogLink[]; onRefresh: () =
             <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Mot-clé</label>
             <input
               className="sku-inset w-full rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600"
-              placeholder="ex: SPF, HSTS, RDP…"
+              placeholder="ex: SPF, DMARC, enregistrement DNS"
               value={form.match_keyword}
               onChange={e => setForm(f => ({ ...f, match_keyword: e.target.value }))}
             />
