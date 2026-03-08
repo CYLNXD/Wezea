@@ -13,9 +13,9 @@
     document.querySelectorAll('.wz-lang-btn').forEach(function(btn) {
       var isActive = btn.getAttribute('data-lang') === lang;
       btn.setAttribute('data-active', isActive ? '1' : '0');
-      btn.style.color     = isActive ? '#22d3ee' : '#475569';
-      btn.style.background= isActive ? 'linear-gradient(180deg,#1e2d3d,#162433)' : 'transparent';
-      btn.style.boxShadow = isActive ? '0 1px 0 rgba(255,255,255,0.06) inset' : 'none';
+      btn.style.color      = isActive ? '#22d3ee' : '#475569';
+      btn.style.background = isActive ? 'linear-gradient(180deg,#1e2d3d,#162433)' : 'transparent';
+      btn.style.boxShadow  = isActive ? '0 1px 0 rgba(255,255,255,.06) inset' : 'none';
     });
     /* Meta title + description per-page override */
     var t = window.WZ_T;
@@ -44,6 +44,12 @@
     '<path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>' +
     '</svg>';
 
+  var ICON_HOME =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>' +
+    '<polyline points="9 22 9 12 15 12 15 22"/>' +
+    '</svg>';
+
   /* ── CSS navbar + langue ────────────────────────────────────────────────── */
   var css =
     /* — Language visibility — */
@@ -61,13 +67,17 @@
     'display:flex;align-items:center;gap:.75rem;}' +
 
     /* — Logo — */
-    '.wz-nav-logo{font-size:20px;font-weight:900;color:#fff;letter-spacing:-.03em;' +
+    '.wz-nav-logo{display:flex;flex-direction:column;font-size:20px;font-weight:900;' +
+    'color:#fff;letter-spacing:-.03em;' +
     'font-family:-apple-system,"SF Pro Display","Inter",system-ui,sans-serif;' +
-    'text-decoration:none;flex-shrink:0;line-height:1;}' +
+    'text-decoration:none;flex-shrink:0;line-height:1;' +
+    'transition:color .15s;}' +
     '.wz-nav-logo:hover{color:#ecfeff;text-decoration:none;}' +
     '.wz-nav-logo span{color:#22d3ee;}' +
     '.wz-nav-logo small{display:block;font-size:9px;font-weight:500;color:#64748b;' +
-    'letter-spacing:.12em;text-transform:uppercase;margin-top:2px;}' +
+    'letter-spacing:.12em;text-transform:uppercase;margin-top:2px;' +
+    'transition:color .15s;}' +
+    '.wz-nav-logo:hover small{color:#475569;}' +
 
     /* — Nav links (centre) — */
     '.wz-nav-links{display:flex;align-items:center;gap:.25rem;margin-left:1.25rem;flex:1;}' +
@@ -85,22 +95,6 @@
     /* — Separator — */
     '.wz-nav-sep{width:1px;height:16px;background:rgba(255,255,255,.07);flex-shrink:0;}' +
 
-    /* — Connexion button (ghost) — */
-    '.wz-btn-login{display:inline-flex;align-items:center;font-size:12px;font-weight:500;' +
-    'font-family:"Inter",system-ui,sans-serif;' +
-    'color:#94a3b8;padding:.375rem .75rem;border-radius:8px;' +
-    'border:1px solid rgba(255,255,255,.08);' +
-    'transition:color .15s,background .15s;text-decoration:none;white-space:nowrap;}' +
-    '.wz-btn-login:hover{color:#e2e8f0;background:rgba(255,255,255,.05);text-decoration:none;}' +
-
-    /* — Sign up button (cyan) — */
-    '.wz-btn-signup{display:inline-flex;align-items:center;font-size:12px;font-weight:700;' +
-    'font-family:"Inter",system-ui,sans-serif;' +
-    'color:#020617;background:#22d3ee;padding:.375rem .9rem;border-radius:8px;' +
-    'transition:background .15s;white-space:nowrap;flex-shrink:0;' +
-    'text-decoration:none;}' +
-    '.wz-btn-signup:hover{background:#67e8f9;text-decoration:none;}' +
-
     /* — Language toggle (dark inset — same as React app) — */
     '.wz-lang-toggle{display:flex;overflow:hidden;border-radius:8px;' +
     'background:linear-gradient(180deg,#0f151e,#0b1018);' +
@@ -117,13 +111,25 @@
     'box-shadow:0 1px 0 rgba(255,255,255,.06) inset;}' +
     '.wz-lang-btn:hover:not([data-active="1"]){color:#e2e8f0;}' +
 
+    /* — Scan CTA button (primary, cyan) — */
+    '.wz-btn-scan{display:inline-flex;align-items:center;gap:.4rem;' +
+    'font-size:12px;font-weight:700;' +
+    'font-family:"Inter",system-ui,sans-serif;' +
+    'color:#020617;' +
+    'background:linear-gradient(135deg,#22d3ee,#3b82f6);' +
+    'padding:.375rem 1rem;border-radius:8px;' +
+    'box-shadow:0 2px 12px rgba(34,211,238,.2);' +
+    'transition:transform .15s,box-shadow .15s;white-space:nowrap;flex-shrink:0;' +
+    'text-decoration:none;}' +
+    '.wz-btn-scan:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(34,211,238,.3);text-decoration:none;}' +
+
     /* — Responsive — */
-    '@media(max-width:600px){' +
+    '@media(max-width:640px){' +
     '.wz-nav-logo small{display:none;}' +
-    '.wz-btn-login{display:none;}' +
+    '.wz-nav-links .wz-nav-link:not(:first-child){display:none;}' +
     '}' +
-    '@media(max-width:480px){' +
-    '.wz-btn-signup{display:none;}' +
+    '@media(max-width:400px){' +
+    '.wz-nav-links{display:none;}' +
     '}';
 
   var styleEl = document.createElement('style');
@@ -134,22 +140,36 @@
   var path = window.location.pathname;
   var isBlogIndex = path === '/blog/' || path === '/blog/index.html';
   var isAgences   = path.startsWith('/agences/');
+  var isBlogArticle = path.startsWith('/blog/') && !isBlogIndex;
 
-  /* ── Navbar ─────────────────────────────────────────────────────────────── */
-  var blogLabel    = '<span class="lang-fr">Blog</span><span class="lang-en">Blog</span>';
-  var agencesLabel = '<span class="lang-fr">Agences</span><span class="lang-en">Agencies</span>';
-  var loginLabel   = '<span class="lang-fr">Connexion</span><span class="lang-en">Sign in</span>';
-  var signupLabel  = '<span class="lang-fr">Créer un compte</span><span class="lang-en">Sign up</span>';
+  /* ── Labels bilingues ───────────────────────────────────────────────────── */
+  var homeLabel   = '<span class="lang-fr">Accueil</span><span class="lang-en">Home</span>';
+  var blogLabel   = '<span class="lang-fr">Blog</span><span class="lang-en">Blog</span>';
+  var agencesLabel= '<span class="lang-fr">Agences</span><span class="lang-en">Agencies</span>';
+  var scanLabel   = '<span class="lang-fr">Scanner mon domaine →</span><span class="lang-en">Scan my domain →</span>';
 
+  /* ── Nav links ──────────────────────────────────────────────────────────── */
   var links = '';
-  if (!isBlogIndex) {
+
+  /* Sur un article ou la page agences : lien Accueil + Blog */
+  if (isBlogArticle || isAgences) {
+    links += '<a href="https://wezea.net" class="wz-nav-link">' + ICON_HOME + ' ' + homeLabel + '</a>';
+  }
+  /* Sur un article : lien retour vers le Blog */
+  if (isBlogArticle) {
     links += '<a href="/blog/" class="wz-nav-link">' + ICON_BOOK + ' ' + blogLabel + '</a>';
   }
-  if (!isAgences) {
+  /* Sur la page blog index : lien Accueil */
+  if (isBlogIndex) {
+    links += '<a href="https://wezea.net" class="wz-nav-link">' + ICON_HOME + ' ' + homeLabel + '</a>';
     links += '<a href="/agences/" class="wz-nav-link">' + ICON_BUILDING + ' ' + agencesLabel + '</a>';
   }
+  /* Sur la page agences : lien Blog */
+  if (isAgences) {
+    links += '<a href="/blog/" class="wz-nav-link">' + ICON_BOOK + ' ' + blogLabel + '</a>';
+  }
 
-  /* Active state inline (applied at render + updated by setLang) */
+  /* ── Lang toggle ────────────────────────────────────────────────────────── */
   function langBtnStyle(l) {
     return LANG === l
       ? 'color:#22d3ee;background:linear-gradient(180deg,#1e2d3d,#162433);box-shadow:0 1px 0 rgba(255,255,255,.06) inset;'
@@ -162,11 +182,12 @@
       '<button class="wz-lang-btn" data-lang="en" data-active="' + (LANG==='en'?'1':'0') + '" style="' + langBtnStyle('en') + '">EN</button>' +
     '</div>';
 
+  /* ── Build nav ──────────────────────────────────────────────────────────── */
   var nav = document.createElement('nav');
   nav.className = 'wz-nav';
   nav.innerHTML =
     '<div class="wz-nav-inner">' +
-      '<a href="https://wezea.net" class="wz-nav-logo">' +
+      '<a href="https://wezea.net" class="wz-nav-logo" title="Wezea — Accueil / Home">' +
         'We<span>zea</span>' +
         '<small>Security Scanner</small>' +
       '</a>' +
@@ -174,8 +195,7 @@
       '<div class="wz-nav-right">' +
         langToggle +
         '<div class="wz-nav-sep"></div>' +
-        '<a href="https://wezea.net" class="wz-btn-login">' + loginLabel + '</a>' +
-        '<a href="https://wezea.net?register=1" class="wz-btn-signup">' + signupLabel + '</a>' +
+        '<a href="https://wezea.net" class="wz-btn-scan">' + scanLabel + '</a>' +
       '</div>' +
     '</div>';
 
