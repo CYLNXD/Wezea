@@ -11,7 +11,7 @@ Group=cyberhealth
 WorkingDirectory=/home/cyberhealth/app/backend
 
 # Démarrage du serveur Uvicorn
-ExecStart=/home/cyberhealth/app/backend/venv/bin/uvicorn \
+ExecStart=/home/cyberhealth/app/backend/.venv/bin/uvicorn \
     app.main:app \
     --host 127.0.0.1 \
     --port 8000 \

@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-07 (session 28)
+> Dernière mise à jour : 2026-03-08 (session 29)
 
 ---
 
@@ -50,8 +50,8 @@ cyberhealth-scanner/
 - **IP publique** : `83.228.217.154`
 - **Runner CI/CD** : GitHub Actions self-hosted runner (`/home/cyberhealth/actions-runner/`)
 - **Chemin serveur** : `/home/cyberhealth/app/`
-- **Virtualenv deploy** : `.venv/` (avec le point — NE PAS confondre avec `venv/`)
-- **Virtualenv service** : `venv/` (sans le point — tel que configuré dans cyberhealth-api.service)
+- **Virtualenv** : `.venv/` (avec le point) — utilisé à la fois par le CI/CD (`pip install`) ET par le service systemd
+  - ⚠️ Ancienne confusion : le service référençait `venv/` (sans le point) → packages manquants en prod → **corrigé le 2026-03-08**
 - **Process manager** : systemd + uvicorn (`--workers 2` — optimal pour 2 vCPU + SQLite)
 - **Frontend** : build Vite → servi par nginx (`/home/cyberhealth/app/frontend/dist/`)
 - **Backend** : FastAPI sur uvicorn, port 8000
