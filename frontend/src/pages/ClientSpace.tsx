@@ -13,7 +13,7 @@ import {
   BarChart2, Plus, Trash2, RefreshCw, X, Check,
   AlertTriangle, Clock, TrendingUp, TrendingDown, Minus,
   Settings, Mail, Key, CreditCard, Code, Webhook, Copy, ExternalLink,
-  AppWindow, ScanSearch, CheckCircle2, FileText, ChevronDown, ChevronUp,
+  AppWindow, ScanSearch, CheckCircle2, FileText, ChevronDown, ChevronUp, BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient, getWhiteLabel, updateWhiteLabel, uploadWhiteLabelLogo, deleteWhiteLabelLogo } from '../lib/api';
@@ -307,6 +307,9 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   const [scanModal, setScanModal]       = useState<ScanDetail | null>(null);
   const [scanModalLoading, setScanModalLoading] = useState<string | null>(null);
 
+  // Blog links (article recommendations)
+  const [blogLinks, setBlogLinks] = useState<Array<{ id: number; match_keyword: string; article_title: string; article_url: string }>>([]);
+
   // Checks config editing (per domain)
   const [pendingChecks, setPendingChecks] = useState<Record<string, Record<string, boolean>>>({});
   const [checksLoading, setChecksLoading] = useState<string | null>(null);
@@ -399,6 +402,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   useEffect(() => {
     setLoading(true);
     Promise.all([fetchDomains(), fetchHistory()]).finally(() => setLoading(false));
+    apiClient.get('/public/blog-links').then(r => setBlogLinks(r.data)).catch(() => {});
   }, [fetchDomains, fetchHistory]);
 
   // Charger les settings white-label si plan Pro
@@ -2678,9 +2682,28 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                       {f.plain_explanation && (
                         <p className="text-slate-300 text-xs leading-relaxed mb-2">{f.plain_explanation}</p>
                       )}
-                      {f.recommendation && (
-                        <p className="text-cyan-400/80 text-xs leading-relaxed">→ {f.recommendation}</p>
-                      )}
+                      {f.recommendation && (() => {
+                        const recLower = f.recommendation.toLowerCase();
+                        const matchedLink = blogLinks.find(l =>
+                          l.match_keyword.split(',').some(kw => recLower.includes(kw.trim().toLowerCase()))
+                        );
+                        return (
+                          <>
+                            <p className="text-cyan-400/80 text-xs leading-relaxed">→ {f.recommendation}</p>
+                            {matchedLink && (
+                              <a
+                                href={matchedLink.article_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors font-medium"
+                              >
+                                <BookOpen size={10} />
+                                {lang === 'fr' ? 'Lire l\'article : ' : 'Read article: '}{matchedLink.article_title}
+                              </a>
+                            )}
+                          </>
+                        );
+                      })()}
                       {f.technical_detail && (
                         <p className="text-slate-600 text-xs font-mono mt-1 leading-relaxed">{f.technical_detail}</p>
                       )}
