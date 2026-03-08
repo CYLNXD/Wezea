@@ -77,8 +77,8 @@ SSL_EXPIRY_WARNING_DAYS=30
 # Email — Brevo
 SMTP_HOST=smtp-relay.brevo.com
 SMTP_PORT=587
-SMTP_USER=a3aca2001@smtp-brevo.com
-SMTP_PASS=<depuis Brevo SMTP settings>
+SMTP_USER=<depuis Brevo SMTP settings — onglet "SMTP & API">
+SMTP_PASS=<depuis Brevo SMTP settings — onglet "SMTP & API">
 FROM_NAME=CyberHealth Scanner
 FROM_EMAIL=contact@wezea.net
 BREVO_API_KEY=<depuis Brevo API Keys>
