@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ransomware et PME : comment se protéger efficacement en 2026 | Wezea</title>
+  <meta name="description" content="Les PME sont la cible principale des ransomwares. Découvrez comment fonctionnent ces attaques, pourquoi elles visent les petites entreprises, et les mesures concrètes pour s'en protéger." />
+  <meta name="keywords" content="ransomware PME, protection ransomware, rançongiciel entreprise, prévention ransomware, sauvegarde 3-2-1, sécurité PME 2026" />
+  <link rel="canonical" href="https://wezea.net/blog/ransomware-pme-prevention/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type"        content="article" />
+  <meta property="og:title"       content="Ransomware et PME : comment se protéger efficacement en 2026" />
+  <meta property="og:description" content="Les PME sont la cible principale des ransomwares. Mesures concrètes et règle 3-2-1 pour protéger votre entreprise." />
+  <meta property="og:url"         content="https://wezea.net/blog/ransomware-pme-prevention/" />
+  <meta property="og:image"       content="https://wezea.net/og-image.png" />
+  <meta property="og:image:alt"   content="Wezea — Ransomware et PME : guide de prévention" />
+  <meta property="og:site_name"   content="Wezea Security Scanner" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+  <link rel="stylesheet" href="../blog.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Ransomware et PME : comment se protéger efficacement en 2026",
+    "description": "Les PME sont la cible principale des ransomwares. Découvrez les mesures concrètes pour protéger votre entreprise.",
+    "datePublished": "2026-03-08",
+    "dateModified": "2026-03-08",
+    "author": { "@type": "Organization", "name": "Wezea" },
+    "publisher": { "@type": "Organization", "name": "Wezea", "url": "https://wezea.net" },
+    "mainEntityOfPage": "https://wezea.net/blog/ransomware-pme-prevention/"
+  }
+  </script>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main class="page">
+
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">Menaces & attaques</span>
+      <span class="read-time">9 min de lecture</span>
+      <time datetime="2026-03-08">8 mars 2026</time>
+    </div>
+    <h1>Ransomware et PME : comment se protéger efficacement en 2026</h1>
+    <p class="article-intro">
+      En 2025, une PME sur cinq a été touchée par une attaque par rançongiciel en Europe. Le montant moyen des rançons payées dépasse 120 000 €, sans compter les jours d'arrêt d'activité. Voici pourquoi les petites structures sont ciblées en priorité — et les mesures concrètes pour s'en prémunir.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Sommaire</strong>
+    <ol>
+      <li><a href="#comment-ca-marche">Comment fonctionne un ransomware</a></li>
+      <li><a href="#pourquoi-pme">Pourquoi les PME sont ciblées</a></li>
+      <li><a href="#vecteurs">Les vecteurs d'entrée les plus fréquents</a></li>
+      <li><a href="#sauvegardes">La règle 3-2-1 pour les sauvegardes</a></li>
+      <li><a href="#hygiene">Hygiène informatique de base</a></li>
+      <li><a href="#plan-reprise">Plan de reprise d'activité</a></li>
+      <li><a href="#si-attaque">Si vous êtes attaqué : que faire</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="comment-ca-marche">Comment fonctionne un ransomware</h2>
+    <p>
+      Un ransomware est un logiciel malveillant qui chiffre l'intégralité des fichiers accessibles depuis un poste infecté — documents, bases de données, sauvegardes réseau — puis affiche une demande de rançon. La clé de déchiffrement n'est fournie qu'après paiement, souvent en cryptomonnaie.
+    </p>
+    <p>
+      Les attaquants passent en moyenne <strong>11 jours dans le réseau</strong> avant de déclencher le chiffrement. Durant cette période, ils cartographient l'infrastructure, compromettent les comptes administrateurs, et s'assurent de détruire les sauvegardes accessibles — pour maximiser la pression sur la victime.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Payer la rançon ne garantit pas la récupération des données</strong><br/>
+        Selon les statistiques, 30 % des entreprises qui paient ne récupèrent pas l'intégralité de leurs données. Et 80 % des entreprises qui paient sont ciblées à nouveau dans les 12 mois suivants.
+      </div>
+    </div>
+
+    <h2 id="pourquoi-pme">Pourquoi les PME sont ciblées</h2>
+    <p>
+      Les grandes entreprises ont des équipes de sécurité dédiées, des budgets cybersécurité conséquents et des systèmes de détection avancés. Les PME, elles, présentent un ratio attractivité/difficulté optimal pour les cybercriminels.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Facteur de vulnérabilité</th>
+          <th>Situation typique PME</th>
+          <th>Impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Pas de service IT dédié</td>
+          <td>Informatique gérée par un prestataire ou un employé</td>
+          <td class="tag-no">ÉLEVÉ</td>
+        </tr>
+        <tr>
+          <td>Sauvegardes insuffisantes</td>
+          <td>Backup sur disque local ou NAS non isolé</td>
+          <td class="tag-no">CRITIQUE</td>
+        </tr>
+        <tr>
+          <td>MFA non activé</td>
+          <td>Accès VPN ou RDP avec mot de passe seul</td>
+          <td class="tag-no">CRITIQUE</td>
+        </tr>
+        <tr>
+          <td>Mises à jour retardées</td>
+          <td>Systèmes en production non patchés</td>
+          <td class="tag-no">ÉLEVÉ</td>
+        </tr>
+        <tr>
+          <td>Formation insuffisante</td>
+          <td>Employés non sensibilisés au phishing</td>
+          <td class="tag-no">ÉLEVÉ</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="vecteurs">Les vecteurs d'entrée les plus fréquents</h2>
+
+    <h3>1. Phishing par email</h3>
+    <p>
+      Représente environ 40 % des infections ransomware. Un email d'apparence légitime contient une pièce jointe piégée (macro Office, PDF, exécutable) ou un lien vers une fausse page de connexion. Un clic d'un employé suffit.
+    </p>
+
+    <h3>2. RDP exposé sur Internet</h3>
+    <p>
+      Le Bureau à distance Windows (Remote Desktop Protocol) sur le port 3389 est l'une des portes d'entrée préférées des attaquants. Si votre serveur est accessible en RDP depuis Internet sans VPN ni MFA, des bots tentent des milliers de combinaisons identifiant/mot de passe chaque jour.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Ne jamais exposer RDP directement sur Internet</strong><br/>
+        Désactivez l'accès RDP direct ou placez-le derrière un VPN avec authentification double facteur. Wezea détecte le port 3389 ouvert comme une vulnérabilité CRITIQUE.
+      </div>
+    </div>
+
+    <h3>3. Exploitation de vulnérabilités connues</h3>
+    <p>
+      Les logiciels non mis à jour (VPN, firewall, serveurs web, CMS) contiennent des failles publiées dans des bases de données publiques (CVE). Les attaquants automatisent l'exploitation de ces failles dès leur publication.
+    </p>
+
+    <h3>4. Identifiants volés</h3>
+    <p>
+      Des millions d'identifiants circulent sur le dark web suite à des fuites de données. Si vos employés réutilisent des mots de passe, un attaquant peut se connecter légitimement à vos systèmes avec des credentials achetés pour quelques euros.
+    </p>
+
+    <h2 id="sauvegardes">La règle 3-2-1 pour les sauvegardes</h2>
+    <p>
+      La règle 3-2-1 est la référence en matière de sauvegardes. Correctement appliquée, elle garantit que vos données survivent à un ransomware même dans le pire des cas.
+    </p>
+
+    <div class="callout callout-ok">
+      <span class="callout-icon">OK</span>
+      <div class="callout-body">
+        <strong>La règle 3-2-1</strong><br/>
+        <strong>3</strong> copies de vos données — <strong>2</strong> supports différents (disque + cloud) — <strong>1</strong> copie hors-site et isolée du réseau (air-gapped).<br/>
+        La copie hors-site est la clé : un ransomware qui chiffre votre réseau ne peut pas atteindre un disque physiquement déconnecté ou un service cloud avec authentification indépendante.
+      </div>
+    </div>
+
+    <h3>Tester les sauvegardes régulièrement</h3>
+    <p>
+      Une sauvegarde non testée n'est pas une sauvegarde. Planifiez des tests de restauration trimestriels : restaurez un ensemble de fichiers depuis la sauvegarde et vérifiez leur intégrité. Documentez la procédure pour que n'importe quel employé puisse l'exécuter en situation de crise.
+    </p>
+
+    <h2 id="hygiene">Hygiène informatique de base</h2>
+    <p>
+      La plupart des ransomwares exploitent des failles basiques. Ces mesures préventives éliminent les vecteurs d'entrée les plus courants.
+    </p>
+
+    <div class="code-block">
+      <pre><span class="cm">Checklist anti-ransomware</span>
+
+<span class="ok">✓</span> Activer MFA sur tous les accès distants (VPN, mail, RDP)
+<span class="ok">✓</span> Désactiver RDP ou le placer derrière un VPN
+<span class="ok">✓</span> Appliquer les mises à jour sous 72h après publication critique
+<span class="ok">✓</span> Segmenter le réseau (les serveurs critiques isolés)
+<span class="ok">✓</span> Filtrer les macros Office reçues par email
+<span class="ok">✓</span> Sensibiliser les employés au phishing (exercices simulés)
+<span class="ok">✓</span> Utiliser un gestionnaire de mots de passe (fin de la réutilisation)
+<span class="ok">✓</span> Sauvegardes 3-2-1 testées tous les trimestres
+<span class="ok">✓</span> Principe du moindre privilège (chaque compte accède au minimum nécessaire)</pre>
+    </div>
+
+    <h2 id="plan-reprise">Plan de reprise d'activité</h2>
+    <p>
+      Le PRA (Plan de Reprise d'Activité) documente les étapes à suivre en cas d'incident. Il doit être rédigé à froid, imprimé (les systèmes seront peut-être hors ligne), et connu de plusieurs personnes dans l'entreprise.
+    </p>
+    <p>
+      Les éléments clés d'un PRA minimal : contacts de votre prestataire IT et de votre assurance cyber, procédure d'isolation du réseau infecté, accès aux sauvegardes hors-site, ordre de priorité des systèmes à restaurer, et communication clients/fournisseurs en cas d'indisponibilité prolongée.
+    </p>
+
+    <h2 id="si-attaque">Si vous êtes attaqué : que faire</h2>
+    <p>
+      En cas d'infection active, chaque seconde compte pour limiter la propagation. La séquence à suivre est contre-intuitive mais efficace.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Ne pas éteindre les machines infectées</strong><br/>
+        L'extinction détruit les traces forensiques en mémoire (clés de chiffrement, processus actifs) qui pourraient permettre la récupération. Déconnectez du réseau plutôt qu'éteignez.
+      </div>
+    </div>
+
+    <div class="code-block">
+      <pre><span class="cm">Séquence d'urgence en cas de ransomware</span>
+
+1. <span class="hl">Isoler immédiatement</span> les machines infectées du réseau (débrancher le câble réseau)
+2. <span class="hl">Ne pas payer</span> immédiatement — consulter un spécialiste d'abord
+3. <span class="hl">Contacter</span> votre assurance cyber et votre prestataire IT
+4. <span class="hl">Déposer plainte</span> (obligatoire pour les assurances, aide les enquêtes)
+5. <span class="hl">Vérifier</span> si des outils de déchiffrement existent sur NoMoreRansom.org
+6. <span class="hl">Restaurer</span> depuis la sauvegarde hors-site après nettoyage complet</pre>
+    </div>
+
+    <div class="cta-block">
+      <h3>Évaluez l'exposition de votre domaine</h3>
+      <p>Wezea détecte les ports dangereux ouverts (RDP, SMB), les vulnérabilités connues et les mauvaises configurations qui facilitent les ransomwares.</p>
+      <a href="https://wezea.net" class="btn-cta">Scanner mon domaine →</a>
+      <p class="cta-note">Gratuit · 60 secondes · Rapport détaillé</p>
+    </div>
+
+    <div class="related">
+      <p class="related-title">Lire aussi</p>
+      <div class="related-grid">
+        <a href="/blog/ports-reseau-dangereux/" class="related-card">Ports réseau dangereux : lesquels fermer en priorité</a>
+        <a href="/blog/mfa-authentification-double-facteur/" class="related-card">MFA : pourquoi le double facteur est indispensable</a>
+        <a href="/blog/vulnerabilites-cve-logiciels/" class="related-card">CVE et mises à jour : comprendre les vulnérabilités logicielles</a>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="/footer.js"></script>
+</body>
+</html>

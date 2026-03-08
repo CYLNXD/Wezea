@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DNSSEC : sécuriser votre DNS contre le cache poisoning et le hijacking (2026) | Wezea</title>
+  <meta name="description" content="DNSSEC protège les réponses DNS par des signatures cryptographiques. Comprendre pourquoi le DNS non sécurisé est dangereux, comment fonctionne DNSSEC et comment l'activer chez votre registrar." />
+  <meta name="keywords" content="DNSSEC, sécuriser DNS, DNS cache poisoning, DNS hijacking, registrar DNSSEC, validation DNSSEC, zone signing" />
+  <link rel="canonical" href="https://wezea.net/blog/dnssec-securiser-dns/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type"        content="article" />
+  <meta property="og:title"       content="DNSSEC : sécuriser votre DNS contre le cache poisoning et le hijacking" />
+  <meta property="og:description" content="DNSSEC protège les réponses DNS par des signatures cryptographiques. Pourquoi c'est critique et comment l'activer." />
+  <meta property="og:url"         content="https://wezea.net/blog/dnssec-securiser-dns/" />
+  <meta property="og:image"       content="https://wezea.net/og-image.png" />
+  <meta property="og:image:alt"   content="Wezea — DNSSEC : sécuriser son DNS" />
+  <meta property="og:site_name"   content="Wezea Security Scanner" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+  <link rel="stylesheet" href="../blog.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "DNSSEC : sécuriser votre DNS contre le cache poisoning et le hijacking",
+    "description": "DNSSEC protège les réponses DNS par des signatures cryptographiques. Comment l'activer et pourquoi c'est critique.",
+    "datePublished": "2026-03-08",
+    "dateModified": "2026-03-08",
+    "author": { "@type": "Organization", "name": "Wezea" },
+    "publisher": { "@type": "Organization", "name": "Wezea", "url": "https://wezea.net" },
+    "mainEntityOfPage": "https://wezea.net/blog/dnssec-securiser-dns/"
+  }
+  </script>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main class="page">
+
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">DNS & Infrastructure</span>
+      <span class="read-time">8 min de lecture</span>
+      <time datetime="2026-03-08">8 mars 2026</time>
+    </div>
+    <h1>DNSSEC : sécuriser votre DNS contre le cache poisoning et le hijacking</h1>
+    <p class="article-intro">
+      Le DNS est le bottin téléphonique d'Internet : il traduit votre nom de domaine en adresse IP. Sans protection, un attaquant peut empoisonner ce bottin et rediriger vos visiteurs vers un site malveillant — sans que personne ne le remarque. DNSSEC résout ce problème par des signatures cryptographiques.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Sommaire</strong>
+    <ol>
+      <li><a href="#dns-non-securise">Le problème : DNS sans sécurité</a></li>
+      <li><a href="#attaques-dns">Les attaques DNS les plus courantes</a></li>
+      <li><a href="#comment-dnssec">Comment DNSSEC sécurise les réponses</a></li>
+      <li><a href="#chaine-confiance">La chaîne de confiance DNSSEC</a></li>
+      <li><a href="#activer">Activer DNSSEC : étapes pratiques</a></li>
+      <li><a href="#limites">Limites de DNSSEC</a></li>
+      <li><a href="#verifier">Vérifier votre configuration DNSSEC</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="dns-non-securise">Le problème : DNS sans sécurité</h2>
+    <p>
+      Le protocole DNS a été conçu dans les années 1980, à une époque où Internet était un réseau académique fermé. La sécurité n'était pas une priorité. Les réponses DNS ne sont ni chiffrées, ni authentifiées : n'importe qui sur le réseau peut forger une réponse DNS et tromper le résolveur.
+    </p>
+    <p>
+      Conséquence : quand votre navigateur demande l'adresse IP de <code>votre-banque.com</code>, il reçoit une réponse — mais rien ne prouve que cette réponse est légitime. Elle pourrait venir d'un attaquant qui a empoisonné le cache du résolveur.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Le DNS non sécurisé expose vos visiteurs, pas seulement vous</strong><br/>
+        Une attaque DNS réussie redirige silencieusement tous vos utilisateurs vers un site frauduleux. Ils verront votre URL dans la barre d'adresse, mais seront sur un site contrôlé par l'attaquant. Même un certificat SSL ne protège pas contre cette attaque si le domaine pointé change.
+      </div>
+    </div>
+
+    <h2 id="attaques-dns">Les attaques DNS les plus courantes</h2>
+
+    <h3>Cache poisoning (empoisonnement de cache)</h3>
+    <p>
+      Un résolveur DNS mémorise (met en cache) les réponses pendant la durée définie par le TTL. Si un attaquant réussit à injecter une fausse réponse dans ce cache, tous les utilisateurs qui passent par ce résolveur seront redirigés vers l'IP malveillante — pendant toute la durée du TTL.
+    </p>
+
+    <h3>DNS hijacking</h3>
+    <p>
+      L'attaquant prend le contrôle des serveurs DNS de votre domaine en accédant à votre compte registrar (via phishing ou credential stuffing). Il modifie ensuite les enregistrements DNS pour rediriger votre trafic. Cette attaque est différente du cache poisoning car elle modifie les enregistrements officiels eux-mêmes.
+    </p>
+
+    <h3>Man-in-the-Middle DNS</h3>
+    <p>
+      Sur un réseau non sécurisé (Wi-Fi public, réseau compromis), un attaquant positionné entre l'utilisateur et le résolveur peut intercepter et modifier les réponses DNS en transit.
+    </p>
+
+    <h2 id="comment-dnssec">Comment DNSSEC sécurise les réponses</h2>
+    <p>
+      DNSSEC (DNS Security Extensions) ajoute des signatures cryptographiques à chaque enregistrement DNS. Lorsqu'un résolveur reçoit une réponse DNS signée, il peut vérifier mathématiquement que cette réponse provient bien du détenteur légitime de la zone DNS et n'a pas été modifiée en transit.
+    </p>
+
+    <div class="code-block">
+      <pre><span class="cm">Sans DNSSEC</span>
+Navigateur → Résolveur → "wezea.net pointe vers X.X.X.X"
+                          <span class="hl">← Impossible de vérifier si c'est vrai</span>
+
+<span class="cm">Avec DNSSEC</span>
+Navigateur → Résolveur → "wezea.net pointe vers X.X.X.X"
+                          + Signature cryptographique
+                          <span class="ok">← La signature est vérifiée ✓</span>
+                          <span class="ok">← Réponse authentique garantie</span></pre>
+    </div>
+
+    <p>
+      DNSSEC utilise un système de clés asymétriques : une clé privée signe les enregistrements, une clé publique (publiée dans le DNS) permet la vérification. Si la signature ne correspond pas, le résolveur rejette la réponse plutôt que de l'accepter.
+    </p>
+
+    <h2 id="chaine-confiance">La chaîne de confiance DNSSEC</h2>
+    <p>
+      DNSSEC fonctionne grâce à une chaîne de confiance hiérarchique qui remonte jusqu'à la racine DNS. Chaque niveau de la hiérarchie signe le niveau inférieur.
+    </p>
+
+    <div class="code-block">
+      <pre><span class="cm">Chaîne de confiance DNSSEC</span>
+
+<span class="ok">.</span> (racine)          → Zone signée par l'IANA (clé de racine)
+  <span class="ok">.fr</span>              → Clé signée par la racine
+    <span class="ok">wezea.fr</span>        → Clé signée par .fr (via registrar)
+      <span class="ok">www.wezea.fr</span>  → Enregistrement signé par la clé de zone</pre>
+    </div>
+
+    <p>
+      Pour que la chaîne fonctionne, vous devez enregistrer votre clé de zone auprès de votre registrar, qui la communique au TLD (.fr, .com…). Cette étape — le dépôt des DS records — est souvent automatisée par votre hébergeur DNS.
+    </p>
+
+    <h2 id="activer">Activer DNSSEC : étapes pratiques</h2>
+    <p>
+      La procédure varie selon votre hébergeur DNS, mais suit toujours la même logique.
+    </p>
+
+    <h3>Si votre hébergeur DNS gère tout (Cloudflare, OVH, Infomaniak…)</h3>
+    <p>
+      Ces prestataires signent automatiquement votre zone et gèrent la rotation des clés. Il vous suffit d'activer DNSSEC dans leur interface, puis de copier les DS records (Delegation Signer) fournis et de les coller dans l'interface de votre registrar.
+    </p>
+
+    <div class="code-block">
+      <pre><span class="cm"># Exemple de DS record à déclarer chez votre registrar</span>
+wezea.net. IN DS <span class="hl">12345 13 2 A1B2C3D4E5F6...</span>
+
+<span class="cm"># Ce record indique :</span>
+<span class="cm"># 12345  → Key Tag (identifiant de la clé)</span>
+<span class="cm"># 13     → Algorithme (ECDSA P-256 avec SHA-256)</span>
+<span class="cm"># 2      → Type de digest (SHA-256)</span>
+<span class="cm"># A1B2…  → Empreinte de la clé publique</span></pre>
+    </div>
+
+    <h3>Si vous gérez votre propre serveur DNS (BIND, PowerDNS…)</h3>
+    <p>
+      Vous devez générer une paire de clés (ZSK et KSK), configurer la signature automatique de votre zone, puis exporter les DS records pour les déclarer chez votre registrar. Cette procédure est plus technique mais bien documentée dans la documentation de BIND et PowerDNS.
+    </p>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">INFO</span>
+      <div class="callout-body">
+        <strong>Registrars supportant DNSSEC</strong><br/>
+        Gandi, OVH, Infomaniak, 1&amp;1, Cloudflare Registrar, et la plupart des grands registrars supportent DNSSEC. Si le vôtre ne le supporte pas, c'est un signal pour envisager un transfert de domaine.
+      </div>
+    </div>
+
+    <h2 id="limites">Limites de DNSSEC</h2>
+    <p>
+      DNSSEC est une mesure de sécurité importante mais partielle. Il est utile de comprendre ce qu'il ne fait pas.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Ce que DNSSEC protège</th>
+          <th>Ce que DNSSEC ne protège pas</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Authenticité des enregistrements DNS</td>
+          <td>Confidentialité des requêtes DNS (utiliser DoH/DoT)</td>
+        </tr>
+        <tr>
+          <td>Intégrité des réponses en transit</td>
+          <td>Compromission du compte registrar (utiliser 2FA)</td>
+        </tr>
+        <tr>
+          <td>Cache poisoning classique</td>
+          <td>Attaques sur le serveur web lui-même</td>
+        </tr>
+        <tr>
+          <td>DNS hijacking via résolveur compromis</td>
+          <td>Enregistrements légitimes pointant vers une IP malveillante</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      DNSSEC ne chiffre pas les requêtes DNS — il les signe uniquement. Pour la confidentialité, utilisez DNS over HTTPS (DoH) ou DNS over TLS (DoT) côté client. La complémentarité DNSSEC + DoH offre à la fois authenticité et confidentialité.
+    </p>
+
+    <h2 id="verifier">Vérifier votre configuration DNSSEC</h2>
+    <p>
+      Une fois DNSSEC activé, vérifiez que la chaîne de confiance est correctement établie.
+    </p>
+
+    <div class="code-block">
+      <pre><span class="cm"># Vérification en ligne de commande</span>
+dig +dnssec wezea.net A
+<span class="cm"># Chercher le flag "ad" (Authenticated Data) dans les flags</span>
+<span class="cm"># et les enregistrements RRSIG dans la réponse</span>
+
+<span class="cm"># Vérification via l'outil en ligne DNSViz</span>
+<span class="ok">dnsviz.net</span> → graphe visuel de la chaîne de confiance
+
+<span class="cm"># Test DNSSEC Analyzer de Verisign</span>
+<span class="ok">dnssec-analyzer.verisignlabs.com</span></pre>
+    </div>
+
+    <p>
+      Wezea vérifie automatiquement la présence de DNSSEC lors de chaque scan et signale son absence comme une vulnérabilité. Une configuration incorrecte — DNSSEC activé mais chaîne de confiance rompue — est pire que pas de DNSSEC : elle rend votre domaine inaccessible pour les résolveurs validant DNSSEC.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Surveiller les expirations de clés DNSSEC</strong><br/>
+        Les clés DNSSEC ont une durée de validité. Une clé expirée interrompt la validation et peut rendre votre domaine inaccessible. Activez les alertes de rotation de clés chez votre hébergeur DNS ou configurez un monitoring automatique.
+      </div>
+    </div>
+
+    <div class="cta-block">
+      <h3>Vérifiez votre configuration DNS et DNSSEC</h3>
+      <p>Wezea analyse en 60 secondes votre SPF, DMARC, DNSSEC et l'ensemble de votre configuration DNS pour identifier les failles.</p>
+      <a href="https://wezea.net" class="btn-cta">Scanner mon domaine →</a>
+      <p class="cta-note">Gratuit · Analyse DNS complète · Rapport PDF disponible</p>
+    </div>
+
+    <div class="related">
+      <p class="related-title">Lire aussi</p>
+      <div class="related-grid">
+        <a href="/blog/configurer-spf-dkim-dmarc/" class="related-card">Configurer SPF, DKIM et DMARC pour sécuriser vos emails</a>
+        <a href="/blog/dns-hijacking/" class="related-card">DNS Hijacking : comment les attaquants détournent votre domaine</a>
+        <a href="/blog/usurpation-domaine-email/" class="related-card">Usurpation de domaine par email : comment s'en protéger</a>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="/footer.js"></script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MFA et authentification double facteur : guide complet pour les PME (2026) | Wezea</title>
+  <meta name="description" content="L'authentification multi-facteurs (MFA) bloque 99 % des attaques par mot de passe. Comprendre les différents types de 2FA, comment les déployer et lesquels choisir selon votre contexte." />
+  <meta name="keywords" content="MFA authentification, double facteur 2FA, TOTP, clé FIDO2, authentification PME, sécurité compte, mot de passe volé" />
+  <link rel="canonical" href="https://wezea.net/blog/mfa-authentification-double-facteur/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type"        content="article" />
+  <meta property="og:title"       content="MFA : pourquoi le double facteur est indispensable pour votre entreprise" />
+  <meta property="og:description" content="L'authentification multi-facteurs bloque 99 % des attaques par credential. Types de MFA, déploiement et recommandations pour les PME." />
+  <meta property="og:url"         content="https://wezea.net/blog/mfa-authentification-double-facteur/" />
+  <meta property="og:image"       content="https://wezea.net/og-image.png" />
+  <meta property="og:image:alt"   content="Wezea — MFA et authentification double facteur" />
+  <meta property="og:site_name"   content="Wezea Security Scanner" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1117'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='900' font-size='19' fill='%2322d3ee'>W</text></svg>" />
+  <link rel="stylesheet" href="../blog.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "MFA et authentification double facteur : guide complet pour les PME",
+    "description": "L'authentification multi-facteurs bloque 99 % des attaques par credential. Types de MFA et comment les déployer.",
+    "datePublished": "2026-03-08",
+    "dateModified": "2026-03-08",
+    "author": { "@type": "Organization", "name": "Wezea" },
+    "publisher": { "@type": "Organization", "name": "Wezea", "url": "https://wezea.net" },
+    "mainEntityOfPage": "https://wezea.net/blog/mfa-authentification-double-facteur/"
+  }
+  </script>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main class="page">
+
+  <header class="article-header">
+    <div class="article-meta">
+      <span class="article-tag">Authentification</span>
+      <span class="read-time">7 min de lecture</span>
+      <time datetime="2026-03-08">8 mars 2026</time>
+    </div>
+    <h1>MFA et authentification double facteur : guide complet pour les PME</h1>
+    <p class="article-intro">
+      Selon Microsoft, l'activation du MFA bloque 99,9 % des attaques automatisées sur les comptes. Pourtant, moins de 30 % des entreprises françaises l'ont déployé sur l'ensemble de leurs accès critiques. Voici ce que vous devez savoir pour passer à l'action.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <strong>Sommaire</strong>
+    <ol>
+      <li><a href="#pourquoi-mdp-insuffisant">Pourquoi le mot de passe seul ne suffit plus</a></li>
+      <li><a href="#types-mfa">Les différents types de MFA</a></li>
+      <li><a href="#sms-risques">SMS : le MFA le plus risqué</a></li>
+      <li><a href="#totp">TOTP : applications d'authentification</a></li>
+      <li><a href="#passkeys">Passkeys et clés FIDO2 : le futur</a></li>
+      <li><a href="#deployer">Par où commencer le déploiement</a></li>
+      <li><a href="#accès-critiques">Accès critiques à prioriser</a></li>
+    </ol>
+  </nav>
+
+  <div class="article-body">
+
+    <h2 id="pourquoi-mdp-insuffisant">Pourquoi le mot de passe seul ne suffit plus</h2>
+    <p>
+      Des milliards d'identifiants ont été compromis dans des fuites de données ces dernières années. Ces données circulent librement sur des forums spécialisés. Des outils automatisés testent ces couples email/mot de passe contre des milliers de services en quelques heures — c'est le <em>credential stuffing</em>.
+    </p>
+    <p>
+      Même un mot de passe fort et unique peut être compromis via du phishing. Un employé qui clique sur un lien malveillant et saisit ses identifiants sur une fausse page de connexion transmet son mot de passe directement à l'attaquant. Avec le MFA, ce credential volé est inutilisable seul.
+    </p>
+
+    <div class="callout callout-ok">
+      <span class="callout-icon">OK</span>
+      <div class="callout-body">
+        <strong>Le MFA est la mesure la plus efficace par rapport à son coût</strong><br/>
+        Il existe des solutions MFA gratuites (Google Authenticator, Aegis) qui s'activent en quelques minutes sur la majorité des services cloud. Le rapport protection/effort est inégalé.
+      </div>
+    </div>
+
+    <h2 id="types-mfa">Les différents types de MFA</h2>
+    <p>
+      Le MFA repose sur la combinaison d'au moins deux facteurs parmi trois catégories : ce que vous <strong>savez</strong> (mot de passe, PIN), ce que vous <strong>avez</strong> (téléphone, clé physique), ce que vous <strong>êtes</strong> (empreinte digitale, visage).
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Type de MFA</th>
+          <th>Niveau de sécurité</th>
+          <th>Résistant au phishing</th>
+          <th>Facilité de déploiement</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>SMS (OTP par SMS)</td>
+          <td class="tag-no">FAIBLE</td>
+          <td class="tag-no">NON</td>
+          <td class="tag-ok">FACILE</td>
+        </tr>
+        <tr>
+          <td>Email OTP</td>
+          <td class="tag-no">FAIBLE</td>
+          <td class="tag-no">NON</td>
+          <td class="tag-ok">FACILE</td>
+        </tr>
+        <tr>
+          <td>TOTP (Google Authenticator…)</td>
+          <td class="tag-ok">MOYEN</td>
+          <td class="tag-no">NON</td>
+          <td class="tag-ok">FACILE</td>
+        </tr>
+        <tr>
+          <td>Push notification (Duo, Okta)</td>
+          <td class="tag-ok">BON</td>
+          <td class="tag-no">PARTIEL</td>
+          <td class="tag-ok">FACILE</td>
+        </tr>
+        <tr>
+          <td>FIDO2 / Passkeys</td>
+          <td class="tag-ok">TRÈS ÉLEVÉ</td>
+          <td class="tag-ok">OUI</td>
+          <td class="tag-no">MODÉRÉ</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="sms-risques">SMS : le MFA le plus risqué</h2>
+    <p>
+      Bien que meilleur qu'aucun MFA, l'OTP par SMS est vulnérable à plusieurs attaques : SIM swapping (l'attaquant convainc l'opérateur de transférer votre numéro sur sa carte SIM), SS7 interception (exploitation de failles du protocole téléphonique pour intercepter les SMS), et phishing en temps réel (la fausse page de connexion relaie immédiatement le code SMS vers le vrai service).
+    </p>
+    <p>
+      Si vous utilisez déjà le MFA par SMS, c'est un progrès. Mais planifiez la migration vers TOTP ou FIDO2 pour vos accès les plus critiques.
+    </p>
+
+    <h2 id="totp">TOTP : applications d'authentification</h2>
+    <p>
+      Le TOTP (Time-based One-Time Password) génère un code à 6 chiffres qui change toutes les 30 secondes, calculé à partir d'un secret partagé et de l'heure courante. Ces codes sont générés localement sur votre téléphone — aucune connexion réseau nécessaire.
+    </p>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">INFO</span>
+      <div class="callout-body">
+        <strong>Applications TOTP recommandées</strong><br/>
+        <strong>Aegis</strong> (Android, open source, sauvegarde chiffrée) · <strong>Raivo OTP</strong> (iOS, open source) · <strong>Google Authenticator</strong> (synchronisation Google Account depuis 2023) · <strong>Bitwarden Authenticator</strong> (intégré au gestionnaire de mots de passe).
+      </div>
+    </div>
+
+    <h3>Sauvegarder les secrets TOTP</h3>
+    <p>
+      Lors de l'activation du TOTP sur un service, vous recevez des codes de récupération à usage unique et parfois un QR code. Conservez ces codes dans un coffre-fort numérique ou un endroit physiquement sécurisé. La perte du téléphone sans sauvegarde des secrets = verrouillage définitif de vos comptes.
+    </p>
+
+    <h2 id="passkeys">Passkeys et clés FIDO2 : le futur</h2>
+    <p>
+      Les passkeys sont des identifiants cryptographiques stockés sur votre appareil (téléphone, ordinateur) ou une clé de sécurité physique (YubiKey, Google Titan). Lors de la connexion, votre appareil prouve cryptographiquement votre identité sans jamais envoyer de secret sur le réseau.
+    </p>
+    <p>
+      Les passkeys sont <strong>physiquement impossibles à phisher</strong> : ils sont liés au domaine pour lequel ils ont été créés. Une fausse page de connexion ne peut pas déclencher l'authentification passkey d'un autre domaine.
+    </p>
+
+    <div class="code-block">
+      <pre><span class="cm">Services majeurs supportant les Passkeys en 2026</span>
+<span class="ok">✓</span> Google, Apple, Microsoft
+<span class="ok">✓</span> GitHub, GitLab
+<span class="ok">✓</span> 1Password, Bitwarden
+<span class="ok">✓</span> Cloudflare, AWS
+<span class="ok">✓</span> La plupart des banques majeures</pre>
+    </div>
+
+    <h2 id="deployer">Par où commencer le déploiement</h2>
+    <p>
+      Déployer le MFA sur l'ensemble de l'entreprise en une journée est irréaliste et contre-productif. Une approche progressive par criticité garantit l'adhésion des équipes.
+    </p>
+
+    <div class="code-block">
+      <pre><span class="cm">Déploiement MFA par priorité</span>
+
+<span class="hl">Semaine 1 — Comptes administrateurs</span>
+→ Accès IT, hébergement, DNS, Azure/AWS/GCP, domaines
+
+<span class="hl">Semaine 2 — Email d'entreprise</span>
+→ Microsoft 365 / Google Workspace pour tous les employés
+
+<span class="hl">Semaine 3 — Accès distants</span>
+→ VPN, RDP, SSH, outils de support à distance
+
+<span class="hl">Mois 2 — Applications métier</span>
+→ CRM, ERP, comptabilité, outils de collaboration</pre>
+    </div>
+
+    <h2 id="accès-critiques">Accès critiques à prioriser absolument</h2>
+    <p>
+      Si vous ne pouvez pas déployer le MFA partout immédiatement, commencez par ces accès — leur compromission peut entraîner la prise de contrôle totale de votre entreprise.
+    </p>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">WARN</span>
+      <div class="callout-body">
+        <strong>Ces accès sans MFA sont une porte ouverte</strong><br/>
+        Compte de registrar de domaine (permet de rediriger votre site et vos emails) · Hébergeur / cloud (accès à toute l'infrastructure) · Email administrateur (permet la réinitialisation de tous les autres comptes) · VPN ou accès RDP (point d'entrée ransomware).
+      </div>
+    </div>
+
+    <div class="cta-block">
+      <h3>Identifiez vos vulnérabilités d'accès</h3>
+      <p>Wezea détecte les ports d'accès distant exposés (RDP, SSH) et les configurations susceptibles de contourner votre MFA.</p>
+      <a href="https://wezea.net" class="btn-cta">Scanner mon domaine →</a>
+      <p class="cta-note">Gratuit · 60 secondes · Résultat immédiat</p>
+    </div>
+
+    <div class="related">
+      <p class="related-title">Lire aussi</p>
+      <div class="related-grid">
+        <a href="/blog/ransomware-pme-prevention/" class="related-card">Ransomware et PME : comment se protéger efficacement</a>
+        <a href="/blog/ports-reseau-dangereux/" class="related-card">Ports réseau dangereux : lesquels fermer en priorité</a>
+        <a href="/blog/usurpation-domaine-email/" class="related-card">Usurpation de domaine par email : comment s'en protéger</a>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="/footer.js"></script>
+</body>
+</html>
