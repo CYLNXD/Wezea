@@ -50,6 +50,10 @@ stripe>=10.0.0
 # Scheduler (monitoring hebdomadaire)
 apscheduler==3.10.4
 
+# 2FA TOTP
+pyotp==2.9.0
+qrcode[pil]==8.1
+
 # Error tracking
 sentry-sdk[fastapi]==2.22.0
 
@@ -57,5 +61,3 @@ sentry-sdk[fastapi]==2.22.0
 pytest==8.3.4
 pytest-asyncio==0.24.0
 httpx==0.28.1
-pyotp==2.9.0
-qrcode[pil]==8.1

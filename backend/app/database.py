@@ -148,6 +148,12 @@ def _apply_migrations():
             _add_column_if_missing(conn, "users", "teams_webhook_url", "VARCHAR(512)")
             _mark_applied("013_user_integrations")
 
+        # ── 015 : 2FA TOTP ────────────────────────────────────────────────────
+        if not _applied("015_mfa"):
+            _add_column_if_missing(conn, "users", "mfa_enabled", "BOOLEAN DEFAULT 0 NOT NULL")
+            _add_column_if_missing(conn, "users", "mfa_secret",  "VARCHAR(64)")
+            _mark_applied("015_mfa")
+
         if not _applied("014_api_key_hash"):
             _add_column_if_missing(conn, "users", "api_key_hash", "VARCHAR(64)")
             _add_column_if_missing(conn, "users", "api_key_hint", "VARCHAR(24)")
