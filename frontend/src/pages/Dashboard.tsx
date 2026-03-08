@@ -432,26 +432,15 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
           {/* CENTER — Navigation principale */}
           <div className="hidden md:flex items-center gap-1 justify-start ml-6">
 
-            {/* Espace Client (Starter/Pro) ou Historique (Free connecté) */}
+            {/* Historique — tous les utilisateurs connectés */}
             {user && (
-              isPremium ? (
-                <button
-                  onClick={() => onGoClientSpace?.()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-cyan-300 bg-cyan-500/8 border border-cyan-500/22 hover:bg-cyan-500/15 hover:border-cyan-500/40 transition-all"
-                >
-                  <Shield size={11} />
-                  {lang === 'fr' ? 'Mon espace' : 'My space'}
-                  <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
-              ) : (
-                <button
-                  onClick={onGoHistory}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-white/4 transition-all"
-                >
-                  <ListChecks size={11} />
-                  {lang === 'fr' ? 'Historique' : 'History'}
-                </button>
-              )
+              <button
+                onClick={onGoHistory}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-white/4 transition-all"
+              >
+                <ListChecks size={11} />
+                {lang === 'fr' ? 'Historique' : 'History'}
+              </button>
             )}
 
             {/* CTA upgrade — Free connecté uniquement */}
