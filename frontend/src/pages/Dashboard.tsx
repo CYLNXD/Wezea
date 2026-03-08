@@ -1445,7 +1445,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     </div>
                     <button
                       onClick={() => goRegister('results_save')}
-                      className="shrink-0 sku-btn-primary text-xs px-3 py-1.5 whitespace-nowrap"
+                      className="shrink-0 sku-btn-primary text-xs px-3 py-1.5 rounded-lg whitespace-nowrap"
                     >
                       {lang === 'fr' ? 'Sauvegarder →' : 'Save →'}
                     </button>
@@ -1720,7 +1720,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                   </div>
                                   <button
                                     onClick={() => goRegister('low_findings_gate')}
-                                    className="sku-btn-primary text-sm px-4 py-2 flex items-center gap-2"
+                                    className="sku-btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-2"
                                   >
                                     <UserPlus size={14} />
                                     {lang === 'fr' ? 'Créer un compte gratuit' : 'Create free account'}
@@ -2973,7 +2973,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => goRegister('sticky_bar')}
-                  className="sku-btn-primary text-sm px-4 py-2 flex items-center gap-2"
+                  className="sku-btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-2"
                 >
                   <UserPlus size={14} />
                   {lang === 'fr' ? 'Créer mon compte →' : 'Create account →'}
