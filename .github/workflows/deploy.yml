@@ -35,7 +35,23 @@ jobs:
           npm ci --silent
           npm run build
 
-      # ── 4. Tests backend (bloquants — échoue le déploiement si un test plante) ─
+      # ── 4. Dépendances système pour WeasyPrint (avant les tests) ────────────
+      - name: 🖨️ Install WeasyPrint system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 \
+            libpangocairo-1.0-0 \
+            libpangoft2-1.0-0 \
+            libharfbuzz0b \
+            libcairo2 \
+            libgdk-pixbuf2.0-0 \
+            shared-mime-info
+          sudo apt-get install -y libffi8 || sudo apt-get install -y libffi7 || true
+          sudo apt-get install -y fonts-liberation || sudo apt-get install -y fonts-liberation2 || true
+          echo "✓ Dépendances système WeasyPrint OK"
+
+      # ── 5. Tests backend (bloquants — échoue le déploiement si un test plante) ─
       - name: 🧪 Run backend tests
         working-directory: backend
         env:
@@ -52,12 +68,12 @@ jobs:
           rm -rf /tmp/cyberhealth-test-venv
           echo "✓ Tests backend OK"
 
-      # ── 5. Déployer le frontend (nginx) ───────────────────────────────────
+      # ── 6. Déployer le frontend (nginx) ───────────────────────────────────
       - name: 🌐 Deploy frontend
         run: |
-          sudo rm -rf /var/www/cyberhealth/*
-          sudo cp -r frontend/dist/* /var/www/cyberhealth/
-          sudo chown -R www-data:www-data /var/www/cyberhealth/
+          sudo rm -rf /home/cyberhealth/app/frontend/dist/*
+          sudo cp -r frontend/dist/* /home/cyberhealth/app/frontend/dist/
+          sudo chown -R cyberhealth:cyberhealth /home/cyberhealth/app/frontend/dist/
           echo "✓ Frontend déployé"
 
       # ── 5. Déployer le backend ────────────────────────────────────────────
@@ -76,26 +92,7 @@ jobs:
           sudo chown -R cyberhealth:cyberhealth /home/cyberhealth/app/backend/
           echo "✓ Backend déployé"
 
-      # ── 6a. Dépendances système pour WeasyPrint ─────────────────────────────
-      - name: 🖨️ Install WeasyPrint system dependencies
-        run: |
-          # Paquets requis — noms stables sur Ubuntu 20.04 et 22.04
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            libpango-1.0-0 \
-            libpangocairo-1.0-0 \
-            libpangoft2-1.0-0 \
-            libharfbuzz0b \
-            libcairo2 \
-            libgdk-pixbuf2.0-0 \
-            shared-mime-info
-          # libffi : le nom varie selon la version Ubuntu — on installe ce qui existe
-          sudo apt-get install -y libffi8 || sudo apt-get install -y libffi7 || true
-          # Polices de base pour le rendu PDF
-          sudo apt-get install -y fonts-liberation || sudo apt-get install -y fonts-liberation2 || true
-          echo "✓ Dépendances système WeasyPrint OK"
-
-      # ── 6b. Mise à jour des dépendances Python ───────────────────────────────
+      # ── 7. Mise à jour des dépendances Python ───────────────────────────────
       - name: 📚 Update Python dependencies
         run: |
           sudo -u cyberhealth /home/cyberhealth/app/backend/.venv/bin/pip install \
