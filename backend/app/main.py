@@ -22,7 +22,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-logger = logging.getLogger(__name__)
+# ── Logs JSON structurés — doit être appelé avant tout getLogger() ────────────
+from app.logging_config import setup_logging
+setup_logging()
+
+logger = logging.getLogger("cyberhealth.main")
 
 import json
 import asyncio
@@ -295,19 +299,34 @@ class ScanResponse(BaseModel):
 # Middleware de logging des requêtes
 # ─────────────────────────────────────────────────────────────────────────────
 
+_SKIP_LOG_PATHS = frozenset({"/health", "/docs", "/openapi.json", "/redoc", "/favicon.ico"})
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    start = time.perf_counter()
+    start    = time.perf_counter()
     response = await call_next(request)
-    elapsed = round((time.perf_counter() - start) * 1000, 2)
-    print(
-        f"[{datetime.now(timezone.utc).isoformat()}] "
-        f"{request.method} {request.url.path} "
-        f"→ {response.status_code} ({elapsed} ms)"
-    )
+    elapsed  = round((time.perf_counter() - start) * 1000, 2)
+
+    path = request.url.path
+
+    # Pas de log pour les endpoints de santé/doc (réduire le bruit)
+    if path not in _SKIP_LOG_PATHS:
+        ip = _get_real_ip(request)
+        logger.info(
+            "%s %s → %s",
+            request.method, path, response.status_code,
+            extra={
+                "method":      request.method,
+                "path":        path,
+                "status":      response.status_code,
+                "duration_ms": elapsed,
+                "ip":          ip,
+            },
+        )
+
     # Enregistrement dans le buffer de métriques de performance
     record_request(
-        path        = request.url.path,
+        path        = path,
         method      = request.method,
         status_code = response.status_code,
         duration_ms = elapsed,

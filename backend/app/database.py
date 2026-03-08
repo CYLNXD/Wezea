@@ -3,10 +3,13 @@ Database setup — SQLAlchemy + SQLite
 """
 from __future__ import annotations
 
+import logging
 import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+
+logger = logging.getLogger("cyberhealth.database")
 
 DB_PATH = os.getenv("DATABASE_URL", "sqlite:///./cyberhealth.db")
 
@@ -163,9 +166,9 @@ def _apply_migrations():
                     )
                 if rows:
                     conn.commit()
-                    print(f"✅ Migration 014 : {len(rows)} clé(s) API hachée(s).")
+                    logger.info("Migration 014 : %d clé(s) API hachée(s).", len(rows))
             except Exception as exc:  # pragma: no cover
-                print(f"⚠️  Migration 014 backfill échouée : {exc}")
+                logger.warning("Migration 014 backfill échouée : %s", exc)
             _mark_applied("014_api_key_hash")
 
 
@@ -180,4 +183,4 @@ def _add_column_if_missing(conn, table: str, column: str, column_def: str):
     if column not in existing:
         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {column_def}"))
         conn.commit()
-        print(f"✅ Migration : colonne '{column}' ajoutée à la table '{table}'")
+        logger.info("Migration : colonne '%s' ajoutée à la table '%s'", column, table)

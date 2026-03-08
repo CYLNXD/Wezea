@@ -14,6 +14,7 @@ Plans :
     dev      → 29,90 €/mois  — tout Pro + API key + Application Scanning
 """
 
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -31,6 +32,8 @@ import asyncio as _asyncio
 
 _DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
+logger = logging.getLogger("cyberhealth.payment")
+
 router = APIRouter(prefix="/payment", tags=["payment"])
 
 # ─── Configuration ────────────────────────────────────────────────────────────
@@ -42,13 +45,10 @@ STRIPE_DEV_PRICE_ID        = os.getenv("STRIPE_DEV_PRICE_ID",     "price_1T8MpWK
 STRIPE_WEBHOOK_SECRET      = os.getenv("STRIPE_WEBHOOK_SECRET",   "")
 
 if not STRIPE_WEBHOOK_SECRET:
-    import sys
-    print(
-        "⚠  AVERTISSEMENT SÉCURITÉ : STRIPE_WEBHOOK_SECRET absent.\n"
-        "   L'endpoint /payment/webhook refusera toutes les requêtes Stripe.\n"
-        "   Récupérez-le dans le Dashboard Stripe → Webhooks → Signing secret.\n"
-        "   Ajoutez STRIPE_WEBHOOK_SECRET=whsec_... dans le fichier .env du backend.",
-        file=sys.stderr,
+    logger.warning(
+        "STRIPE_WEBHOOK_SECRET absent — "
+        "l'endpoint /payment/webhook refusera toutes les requêtes Stripe. "
+        "Ajoutez STRIPE_WEBHOOK_SECRET=whsec_... dans backend/.env"
     )
     # Pas de sys.exit — les autres endpoints (scan, login, etc.) continuent de fonctionner
 
