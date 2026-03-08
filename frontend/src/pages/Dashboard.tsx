@@ -529,7 +529,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                 </button>
                 <button
                   onClick={() => goRegister('nav')}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-900 bg-cyan-400 hover:bg-cyan-300 transition-all hidden sm:block"
+                  className="sku-btn-primary px-3 py-1.5 rounded-lg text-xs hidden sm:block"
                 >
                   {lang === 'fr' ? 'Créer un compte' : 'Sign up'}
                 </button>
