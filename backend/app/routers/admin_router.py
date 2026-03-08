@@ -271,8 +271,7 @@ class BlogLinkView(BaseModel):
     article_title: str
     article_url:   str
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 @router.get("/blog-links", response_model=List[BlogLinkView])
@@ -310,7 +309,7 @@ def update_blog_link(
     link = db.query(BlogLink).filter(BlogLink.id == link_id).first()
     if not link:
         raise HTTPException(status_code=404, detail="Lien introuvable")
-    for field, value in body.dict(exclude_none=True).items():
+    for field, value in body.model_dump(exclude_none=True).items():
         setattr(link, field, value.strip() if isinstance(value, str) else value)
     db.commit()
     db.refresh(link)
