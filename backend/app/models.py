@@ -228,6 +228,21 @@ class VerifiedApp(Base):
         return {}
 
 
+class BlogLink(Base):
+    """
+    Liens articles de blog associés à des mots-clés de recommandations.
+    Géré par l'admin — affiché dans l'onglet Recommandations du Dashboard.
+    Le matching est fait côté frontend (contains insensible à la casse).
+    """
+    __tablename__ = "blog_links"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    match_keyword = Column(String(100), nullable=False, index=True)  # ex: "SPF", "HSTS", "RDP"
+    article_title = Column(String(200), nullable=False)
+    article_url   = Column(String(500), nullable=False)
+    created_at    = Column(DateTime(timezone=True), default=utcnow)
+
+
 class ContactMessage(Base):
     """Stocke les demandes de support des utilisateurs."""
     __tablename__ = "contact_messages"

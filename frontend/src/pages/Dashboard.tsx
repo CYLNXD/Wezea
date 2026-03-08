@@ -130,6 +130,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [newsletterConfirmed, setNewsletterConfirmed] = useState(false);
   const [previousScore,  setPreviousScore]  = useState<number | null>(null);
   const [domainHistory,  setDomainHistory]  = useState<number[]>([]);
+  const [blogLinks,      setBlogLinks]      = useState<Array<{ id: number; match_keyword: string; article_title: string; article_url: string }>>([]);
   const inputRef                    = useRef<HTMLInputElement>(null);
   const resultsRef                  = useRef<HTMLDivElement>(null);
 
@@ -167,6 +168,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
 
   useEffect(() => {
     apiClient.get('/public/stats').then(r => setPublicStats(r.data)).catch(() => {});
+    apiClient.get('/public/blog-links').then(r => setBlogLinks(r.data)).catch(() => {});
   }, []);
 
   // ── Chargement d'un scan historique (depuis HistoryPage) ───────────────────
@@ -1727,14 +1729,33 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 ? 'Actions correctives classées par ordre de priorité, issues de l\'analyse complète du domaine.'
                                 : 'Corrective actions ranked by priority, derived from the full domain analysis.'}
                             </p>
-                            {r.recommendations.map((rec, i) => (
-                              <div key={i} className="flex items-start gap-4 px-4 py-3.5 rounded-xl bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition-colors">
-                                <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold flex items-center justify-center">
-                                  {i + 1}
-                                </span>
-                                <p className="text-slate-200 text-sm leading-relaxed">{rec}</p>
-                              </div>
-                            ))}
+                            {r.recommendations.map((rec, i) => {
+                              const recLower = rec.toLowerCase();
+                              const matchedLink = blogLinks.find(l =>
+                                recLower.includes(l.match_keyword.toLowerCase())
+                              );
+                              return (
+                                <div key={i} className="flex items-start gap-4 px-4 py-3.5 rounded-xl bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition-colors">
+                                  <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold flex items-center justify-center">
+                                    {i + 1}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-slate-200 text-sm leading-relaxed">{rec}</p>
+                                    {matchedLink && (
+                                      <a
+                                        href={matchedLink.article_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 mt-2 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors font-medium"
+                                      >
+                                        <BookOpen size={11} />
+                                        {lang === 'fr' ? 'Lire l\'article : ' : 'Read article: '}{matchedLink.article_title}
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </>
                         ) : (
                           <div className="flex flex-col items-center gap-3 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">

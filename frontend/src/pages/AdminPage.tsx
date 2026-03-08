@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import {
   Shield, Users, Trash2, RefreshCw, CheckCircle, XCircle,
   TrendingUp, DollarSign, UserPlus, ArrowUpRight, Zap, BarChart3,
+  BookOpen, Plus, Pencil, X, ExternalLink,
 } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,6 +43,13 @@ interface Stats {
   total_scans: number;
 }
 
+interface BlogLink {
+  id: number;
+  match_keyword: string;
+  article_title: string;
+  article_url: string;
+}
+
 interface Props {
   onBack?: () => void;
   onGoHistory?: () => void;
@@ -49,7 +57,7 @@ interface Props {
   onGoContact?: () => void;
 }
 
-type Tab = 'metrics' | 'users';
+type Tab = 'metrics' | 'users' | 'blog';
 
 // ─── Plan config ──────────────────────────────────────────────────────────────
 
@@ -518,34 +526,230 @@ function UsersTab({
   );
 }
 
+// ─── Blog Links Tab ───────────────────────────────────────────────────────────
+
+function BlogLinksTab({ links, onRefresh }: { links: BlogLink[]; onRefresh: () => void }) {
+  const [form, setForm]       = useState({ match_keyword: '', article_title: '', article_url: '' });
+  const [editId, setEditId]   = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ match_keyword: '', article_title: '', article_url: '' });
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState('');
+
+  const resetForm = () => setForm({ match_keyword: '', article_title: '', article_url: '' });
+
+  const handleCreate = async () => {
+    if (!form.match_keyword.trim() || !form.article_title.trim() || !form.article_url.trim()) return;
+    setSaving(true); setError('');
+    try {
+      await apiClient.post('/admin/blog-links', form);
+      resetForm();
+      onRefresh();
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Erreur');
+    } finally { setSaving(false); }
+  };
+
+  const handleEdit = (link: BlogLink) => {
+    setEditId(link.id);
+    setEditForm({ match_keyword: link.match_keyword, article_title: link.article_title, article_url: link.article_url });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editId) return;
+    setSaving(true); setError('');
+    try {
+      await apiClient.put(`/admin/blog-links/${editId}`, editForm);
+      setEditId(null);
+      onRefresh();
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Erreur');
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Supprimer ce lien ?')) return;
+    try {
+      await apiClient.delete(`/admin/blog-links/${id}`);
+      onRefresh();
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Erreur');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <SkuIcon color="#a78bfa" size={36}>
+          <BookOpen size={16} className="text-violet-300" />
+        </SkuIcon>
+        <div>
+          <h2 className="text-sm font-bold text-slate-100">Liens articles de blog</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Associez un mot-clé à un article — si la recommandation contient le mot-clé, un lien s'affiche automatiquement.
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-xs">{error}</div>
+      )}
+
+      {/* Formulaire d'ajout */}
+      <div className="sku-card rounded-xl p-5 space-y-3">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Ajouter un lien</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Mot-clé</label>
+            <input
+              className="sku-inset w-full rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600"
+              placeholder="ex: SPF, HSTS, RDP…"
+              value={form.match_keyword}
+              onChange={e => setForm(f => ({ ...f, match_keyword: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Titre de l'article</label>
+            <input
+              className="sku-inset w-full rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600"
+              placeholder="Comment configurer SPF"
+              value={form.article_title}
+              onChange={e => setForm(f => ({ ...f, article_title: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">URL de l'article</label>
+            <input
+              className="sku-inset w-full rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600"
+              placeholder="https://wezea.net/blog/…"
+              value={form.article_url}
+              onChange={e => setForm(f => ({ ...f, article_url: e.target.value }))}
+            />
+          </div>
+        </div>
+        <button
+          onClick={handleCreate}
+          disabled={saving || !form.match_keyword.trim() || !form.article_title.trim() || !form.article_url.trim()}
+          className="sku-btn-primary flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium disabled:opacity-40"
+        >
+          <Plus size={12} />
+          Ajouter
+        </button>
+      </div>
+
+      {/* Liste */}
+      {links.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-12 text-center sku-card rounded-xl">
+          <BookOpen size={28} className="text-slate-700" />
+          <p className="text-slate-500 text-sm">Aucun lien configuré</p>
+          <p className="text-slate-600 text-xs max-w-xs">Ajoutez un lien ci-dessus pour qu'il apparaisse dans l'onglet Recommandations des scans.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {links.map(link => (
+            <div key={link.id} className="sku-card rounded-xl p-4">
+              {editId === link.id ? (
+                /* Mode édition */
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input
+                      className="sku-inset rounded-lg px-3 py-2 text-xs text-slate-200"
+                      value={editForm.match_keyword}
+                      onChange={e => setEditForm(f => ({ ...f, match_keyword: e.target.value }))}
+                      placeholder="Mot-clé"
+                    />
+                    <input
+                      className="sku-inset rounded-lg px-3 py-2 text-xs text-slate-200"
+                      value={editForm.article_title}
+                      onChange={e => setEditForm(f => ({ ...f, article_title: e.target.value }))}
+                      placeholder="Titre"
+                    />
+                    <input
+                      className="sku-inset rounded-lg px-3 py-2 text-xs text-slate-200"
+                      value={editForm.article_url}
+                      onChange={e => setEditForm(f => ({ ...f, article_url: e.target.value }))}
+                      placeholder="URL"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleSaveEdit} disabled={saving} className="sku-btn-primary px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40">
+                      Enregistrer
+                    </button>
+                    <button onClick={() => setEditId(null)} className="sku-btn-ghost px-3 py-1.5 rounded-lg text-xs">
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Mode lecture */
+                <div className="flex items-center gap-3">
+                  <span className="shrink-0 px-2 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/25 text-violet-300 text-[10px] font-mono font-bold">
+                    {link.match_keyword}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-200 text-xs font-medium truncate">{link.article_title}</p>
+                    <a href={link.article_url} target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] text-slate-500 hover:text-cyan-400 transition truncate flex items-center gap-1 mt-0.5">
+                      <ExternalLink size={9} />
+                      {link.article_url}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => handleEdit(link)} className="text-slate-600 hover:text-slate-300 transition" title="Modifier">
+                      <Pencil size={13} />
+                    </button>
+                    <button onClick={() => handleDelete(link.id)} className="text-slate-600 hover:text-red-400 transition" title="Supprimer">
+                      <X size={13} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main AdminPage ───────────────────────────────────────────────────────────
 
 export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoContact }: Props) {
-  const [tab,      setTab]      = useState<Tab>('metrics');
-  const [metrics,  setMetrics]  = useState<Metrics | null>(null);
-  const [users,    setUsers]    = useState<UserAdmin[]>([]);
-  const [stats,    setStats]    = useState<Stats | null>(null);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState('');
-  const [updating, setUpdating] = useState<number | null>(null);
+  const [tab,        setTab]        = useState<Tab>('metrics');
+  const [metrics,    setMetrics]    = useState<Metrics | null>(null);
+  const [users,      setUsers]      = useState<UserAdmin[]>([]);
+  const [stats,      setStats]      = useState<Stats | null>(null);
+  const [blogLinks,  setBlogLinks]  = useState<BlogLink[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState('');
+  const [updating,   setUpdating]   = useState<number | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
     setError('');
     try {
-      const [usersRes, statsRes, metricsRes] = await Promise.all([
+      const [usersRes, statsRes, metricsRes, blogRes] = await Promise.all([
         apiClient.get('/admin/users'),
         apiClient.get('/admin/stats'),
         apiClient.get('/admin/metrics'),
+        apiClient.get('/admin/blog-links'),
       ]);
       setUsers(usersRes.data);
       setStats(statsRes.data);
       setMetrics(metricsRes.data);
+      setBlogLinks(blogRes.data);
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Erreur de chargement');
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchBlogLinks = async () => {
+    try {
+      const res = await apiClient.get('/admin/blog-links');
+      setBlogLinks(res.data);
+    } catch { /* silencieux */ }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -621,8 +825,9 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
         {/* Tab bar */}
         <div className="flex gap-1 mb-6 sku-panel rounded-xl p-1 w-fit">
           {([
-            { key: 'metrics', label: 'Métriques', icon: TrendingUp },
-            { key: 'users',   label: 'Utilisateurs', icon: Users },
+            { key: 'metrics', label: 'Métriques',     icon: TrendingUp },
+            { key: 'users',   label: 'Utilisateurs',  icon: Users },
+            { key: 'blog',    label: 'Blog',           icon: BookOpen },
           ] as { key: Tab; label: string; icon: React.ElementType }[]).map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -673,6 +878,9 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
                 onToggleActive={toggleActive}
                 onDelete={deleteUser}
               />
+            )}
+            {tab === 'blog' && (
+              <BlogLinksTab links={blogLinks} onRefresh={fetchBlogLinks} />
             )}
           </>
         )}

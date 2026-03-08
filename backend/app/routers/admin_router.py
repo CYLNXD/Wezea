@@ -11,7 +11,7 @@ from sqlalchemy import func, distinct
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User, ScanHistory, Payment
+from app.models import User, ScanHistory, Payment, BlogLink
 from app.routers.auth_router import get_current_user
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -249,3 +249,82 @@ def admin_metrics(
         "signups_last_30d": [{"date": str(r.d), "count": r.n} for r in signups_rows],
         "scans_last_14d":   [{"date": str(r.d), "count": r.n} for r in scans_rows],
     }
+
+
+# ─── Blog Links ───────────────────────────────────────────────────────────────
+
+class BlogLinkCreate(BaseModel):
+    match_keyword: str
+    article_title: str
+    article_url:   str
+
+
+class BlogLinkUpdate(BaseModel):
+    match_keyword: Optional[str] = None
+    article_title: Optional[str] = None
+    article_url:   Optional[str] = None
+
+
+class BlogLinkView(BaseModel):
+    id:            int
+    match_keyword: str
+    article_title: str
+    article_url:   str
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/blog-links", response_model=List[BlogLinkView])
+def list_blog_links(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return db.query(BlogLink).order_by(BlogLink.created_at.desc()).all()
+
+
+@router.post("/blog-links", response_model=BlogLinkView, status_code=201)
+def create_blog_link(
+    body: BlogLinkCreate,
+    db:   Session = Depends(get_db),
+    _:    User = Depends(require_admin),
+):
+    link = BlogLink(
+        match_keyword=body.match_keyword.strip(),
+        article_title=body.article_title.strip(),
+        article_url=body.article_url.strip(),
+    )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    return link
+
+
+@router.put("/blog-links/{link_id}", response_model=BlogLinkView)
+def update_blog_link(
+    link_id: int,
+    body: BlogLinkUpdate,
+    db:   Session = Depends(get_db),
+    _:    User = Depends(require_admin),
+):
+    link = db.query(BlogLink).filter(BlogLink.id == link_id).first()
+    if not link:
+        raise HTTPException(status_code=404, detail="Lien introuvable")
+    for field, value in body.dict(exclude_none=True).items():
+        setattr(link, field, value.strip() if isinstance(value, str) else value)
+    db.commit()
+    db.refresh(link)
+    return link
+
+
+@router.delete("/blog-links/{link_id}", status_code=204)
+def delete_blog_link(
+    link_id: int,
+    db:   Session = Depends(get_db),
+    _:    User = Depends(require_admin),
+):
+    link = db.query(BlogLink).filter(BlogLink.id == link_id).first()
+    if not link:
+        raise HTTPException(status_code=404, detail="Lien introuvable")
+    db.delete(link)
+    db.commit()

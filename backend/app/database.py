@@ -128,6 +128,11 @@ def _apply_migrations():
             # La table est gérée par SQLAlchemy ORM (Base.metadata.create_all)
             _mark_applied("010_verified_apps")
 
+        # ── 011 : Blog links — table blog_links ───────────────────────────────
+        if not _applied("011_blog_links"):
+            # La table est gérée par SQLAlchemy ORM (Base.metadata.create_all)
+            _mark_applied("011_blog_links")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente

@@ -6,7 +6,7 @@ from sqlalchemy import func
 
 from app.database import get_db
 from app.limiter import limiter
-from app.models import ScanHistory
+from app.models import ScanHistory, BlogLink
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -177,3 +177,23 @@ def public_stats(request: Request, db: Session = Depends(get_db)):
         "industry_avg":     industry_avg,   # score moyen des entreprises scannées
         "avg_source":       avg_source,     # "real" | "baseline"
     }
+
+
+@router.get("/blog-links", summary="Liens articles de blog")
+@limiter.limit("60/minute")
+def public_blog_links(request: Request, db: Session = Depends(get_db)):
+    """
+    Retourne tous les liens d'articles de blog configurés par l'admin.
+    Utilisé par le frontend pour associer des articles aux recommandations.
+    Aucune authentification requise.
+    """
+    links = db.query(BlogLink).all()
+    return [
+        {
+            "id":            lnk.id,
+            "match_keyword": lnk.match_keyword,
+            "article_title": lnk.article_title,
+            "article_url":   lnk.article_url,
+        }
+        for lnk in links
+    ]
