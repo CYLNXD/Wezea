@@ -229,7 +229,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     setPdfLoading(true);
     setPdfError(null);
     try {
-      const { data } = await apiClient.post('/generate-pdf', scanner.result, { responseType: 'blob' });
+      const { data } = await apiClient.post('/generate-pdf', { ...scanner.result, lang }, { responseType: 'blob' });
       const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
       const a   = document.createElement('a');
       a.href    = url;

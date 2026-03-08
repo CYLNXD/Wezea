@@ -313,7 +313,7 @@ def _build_context(
         "domain":           data.get("domain", ""),
         "scan_id":          scan_id,
         "scanned_at":       scanned_at_display,
-        "report_date":      datetime.now().strftime("%d/%m/%Y"),
+        "report_date":      datetime.now().strftime("%m/%d/%Y" if lang == "en" else "%d/%m/%Y"),
 
         # Langue & strings UI
         "lang":             lang,
