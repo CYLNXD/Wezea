@@ -438,7 +438,7 @@ def change_email(
 
 # ─── Google OAuth ───────────────────────────────────────────────────────────────
 
-@router.post("/google", response_model=TokenResponse, status_code=200)
+@router.post("/google", status_code=200)
 @limiter.limit("20/hour")
 def google_auth(
     request: Request,
