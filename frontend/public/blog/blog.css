@@ -353,3 +353,45 @@ a:hover { text-decoration: underline; }
   .related-grid { grid-template-columns: 1fr; }
   .related-card { transform: none !important; }
 }
+
+/* ── Agency banner (maillage interne → /agences/) ───────────────────────── */
+.agency-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: linear-gradient(135deg, rgba(129,140,248,0.07), rgba(99,102,241,0.03));
+  border: 1px solid rgba(129,140,248,0.18);
+  border-radius: var(--radius);
+  padding: 1rem 1.5rem;
+  margin: 2rem 0 0;
+  flex-wrap: wrap;
+}
+.agency-banner p {
+  font-size: 13.5px;
+  color: var(--muted2);
+  margin: 0;
+  line-height: 1.5;
+}
+.agency-banner p strong { color: #c7d2fe; }
+.agency-banner a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 12px;
+  font-weight: 700;
+  color: #818cf8;
+  background: rgba(129,140,248,0.1);
+  border: 1px solid rgba(129,140,248,0.25);
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.agency-banner a:hover {
+  background: rgba(129,140,248,0.18);
+  border-color: rgba(129,140,248,0.4);
+  text-decoration: none;
+}
