@@ -1246,3 +1246,103 @@ class TestAuthRouterResetEmailException:
                     task.func(*task.args, **task.kwargs)
                 except Exception:
                     pass  # exception silencieuse dans _send_reset_email
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET/PATCH /auth/integrations
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestIntegrations:
+    """Tests pour l'endpoint GET/PATCH /auth/integrations."""
+
+    def test_get_integrations_empty(self, client, db_session):
+        """GET /auth/integrations sans config → slack_configured=False, teams_configured=False."""
+        user = _make_user(db_session, plan="pro")
+        resp = client.get("/auth/integrations", headers={"Authorization": f"Bearer {user['token']}"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["slack_configured"] is False
+        assert data["teams_configured"] is False
+
+    def test_get_integrations_free_user(self, client, db_session):
+        """GET /auth/integrations est accessible à tous (lecture seule)."""
+        user = _make_user(db_session, plan="free")
+        resp = client.get("/auth/integrations", headers={"Authorization": f"Bearer {user['token']}"})
+        assert resp.status_code == 200
+
+    def test_patch_integrations_free_user_forbidden(self, client, db_session):
+        """PATCH /auth/integrations → 403 pour plan free."""
+        user = _make_user(db_session, plan="free")
+        resp = client.patch(
+            "/auth/integrations",
+            json={"slack_webhook_url": "https://hooks.slack.com/services/T/B/xxxxxxxxxxxxx"},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 403
+
+    def test_patch_slack_url_valid(self, client, db_session):
+        """PATCH avec URL Slack valide → slack_configured=True."""
+        user = _make_user(db_session, plan="pro")
+        resp = client.patch(
+            "/auth/integrations",
+            json={"slack_webhook_url": "https://hooks.slack.com/services/TABC/BABC/abcdefghij12345"},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["slack_configured"] is True
+
+    def test_patch_slack_url_invalid(self, client, db_session):
+        """PATCH avec URL Slack invalide → 422."""
+        user = _make_user(db_session, plan="pro")
+        resp = client.patch(
+            "/auth/integrations",
+            json={"slack_webhook_url": "https://evil.example.com/hook"},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 422
+
+    def test_patch_teams_url_valid(self, client, db_session):
+        """PATCH avec URL Teams valide → teams_configured=True."""
+        user = _make_user(db_session, plan="dev")
+        resp = client.patch(
+            "/auth/integrations",
+            json={"teams_webhook_url": "https://mycompany.webhook.office.com/webhookb2/abc123"},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["teams_configured"] is True
+
+    def test_patch_delete_slack_url(self, client, db_session):
+        """Passer une chaîne vide supprime l'intégration."""
+        user = _make_user(db_session, plan="pro")
+        # D'abord enregistrer
+        client.patch(
+            "/auth/integrations",
+            json={"slack_webhook_url": "https://hooks.slack.com/services/T/B/abcde12345678"},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        # Puis supprimer
+        resp = client.patch(
+            "/auth/integrations",
+            json={"slack_webhook_url": ""},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["slack_configured"] is False
+
+    def test_patch_masked_url_in_get(self, client, db_session):
+        """GET après PATCH retourne l'URL masquée (tronquée à 30 chars + …)."""
+        user = _make_user(db_session, plan="pro")
+        long_url = "https://hooks.slack.com/services/T123/B456/very-long-secret-token-here"
+        client.patch(
+            "/auth/integrations",
+            json={"slack_webhook_url": long_url},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        resp = client.get("/auth/integrations", headers={"Authorization": f"Bearer {user['token']}"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["slack_configured"] is True
+        # L'URL masquée ne révèle pas le token complet
+        masked = data.get("slack_webhook_url") or ""
+        assert len(masked) <= 35  # 30 chars + "…"

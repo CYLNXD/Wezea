@@ -932,3 +932,144 @@ class TestSendWeeklyMonitoringDigest:
         html = mock_send.call_args[0][0]["htmlContent"]
         assert "5j" in html
         assert "#ef4444" in html  # couleur d'alerte rouge
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# send_slack_alert / send_teams_alert
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSendSlackAlert:
+    """Tests pour send_slack_alert()."""
+
+    @pytest.mark.asyncio
+    async def test_slack_alert_returns_true_on_200(self):
+        """HTTP 200 de Slack → True."""
+        from app.services.brevo_service import send_slack_alert
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_ctx = AsyncMock()
+            mock_ctx.__aenter__ = AsyncMock(return_value=AsyncMock(post=AsyncMock(return_value=mock_resp)))
+            mock_ctx.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_ctx
+            result = await send_slack_alert("https://hooks.slack.com/services/T/B/abc", "example.com", 45, "HIGH", ["SSL expiré"])
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_slack_alert_returns_false_on_non_200(self):
+        """HTTP 400 de Slack → False."""
+        from app.services.brevo_service import send_slack_alert
+        mock_resp = MagicMock()
+        mock_resp.status_code = 400
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_ctx = AsyncMock()
+            mock_ctx.__aenter__ = AsyncMock(return_value=AsyncMock(post=AsyncMock(return_value=mock_resp)))
+            mock_ctx.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_ctx
+            result = await send_slack_alert("https://hooks.slack.com/services/T/B/abc", "example.com", 45, "HIGH", [])
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_slack_alert_returns_false_on_exception(self):
+        """Exception réseau → False (silencieux)."""
+        from app.services.brevo_service import send_slack_alert
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_ctx = AsyncMock()
+            mock_ctx.__aenter__ = AsyncMock(return_value=AsyncMock(post=AsyncMock(side_effect=Exception("timeout"))))
+            mock_ctx.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_ctx
+            result = await send_slack_alert("https://hooks.slack.com/services/T/B/abc", "example.com", 45, "CRITICAL", [])
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_slack_alert_empty_url_returns_false(self):
+        """URL vide → False sans appel réseau."""
+        from app.services.brevo_service import send_slack_alert
+        result = await send_slack_alert("", "example.com", 45, "HIGH", [])
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_slack_alert_payload_contains_domain(self):
+        """Le payload envoyé à Slack contient le domaine."""
+        from app.services.brevo_service import send_slack_alert
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        captured_payload = {}
+
+        async def capture_post(url, json=None, **kwargs):
+            captured_payload.update(json or {})
+            return mock_resp
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_ctx = AsyncMock()
+            mock_ctx.__aenter__ = AsyncMock(return_value=AsyncMock(post=capture_post))
+            mock_ctx.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_ctx
+            await send_slack_alert("https://hooks.slack.com/services/T/B/abc", "test-domain.com", 55, "MEDIUM", ["Score bas"])
+
+        payload_str = str(captured_payload)
+        assert "test-domain.com" in payload_str
+
+
+class TestSendTeamsAlert:
+    """Tests pour send_teams_alert()."""
+
+    @pytest.mark.asyncio
+    async def test_teams_alert_returns_true_on_202(self):
+        """HTTP 202 de Teams → True."""
+        from app.services.brevo_service import send_teams_alert
+        mock_resp = MagicMock()
+        mock_resp.status_code = 202
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_ctx = AsyncMock()
+            mock_ctx.__aenter__ = AsyncMock(return_value=AsyncMock(post=AsyncMock(return_value=mock_resp)))
+            mock_ctx.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_ctx
+            result = await send_teams_alert("https://myco.webhook.office.com/webhookb2/abc", "example.com", 30, "CRITICAL", ["RDP exposé"])
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_teams_alert_empty_url_returns_false(self):
+        """URL vide → False sans appel réseau."""
+        from app.services.brevo_service import send_teams_alert
+        result = await send_teams_alert("", "example.com", 30, "CRITICAL", [])
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_teams_alert_returns_false_on_exception(self):
+        """Exception réseau → False (silencieux)."""
+        from app.services.brevo_service import send_teams_alert
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_ctx = AsyncMock()
+            mock_ctx.__aenter__ = AsyncMock(return_value=AsyncMock(post=AsyncMock(side_effect=Exception("conn refused"))))
+            mock_ctx.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_ctx
+            result = await send_teams_alert("https://myco.webhook.office.com/webhookb2/abc", "example.com", 30, "HIGH", [])
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_teams_alert_payload_contains_domain(self):
+        """Le payload envoyé à Teams contient le domaine."""
+        from app.services.brevo_service import send_teams_alert
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        captured_payload = {}
+
+        async def capture_post(url, json=None, **kwargs):
+            captured_payload.update(json or {})
+            return mock_resp
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_ctx = AsyncMock()
+            mock_ctx.__aenter__ = AsyncMock(return_value=AsyncMock(post=capture_post))
+            mock_ctx.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_ctx
+            await send_teams_alert("https://myco.webhook.office.com/webhookb2/abc", "teams-test.com", 40, "HIGH", ["Port ouvert"])
+
+        payload_str = str(captured_payload)
+        assert "teams-test.com" in payload_str

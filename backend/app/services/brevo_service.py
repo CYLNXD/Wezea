@@ -954,3 +954,144 @@ async def send_weekly_monitoring_digest(
         "subject":     f"[Wezea] Résumé hebdomadaire — {len(domains)} domaine(s) surveillé(s)",
         "htmlContent": html_content,
     })
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Intégrations Slack / Teams — alertes de monitoring
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def send_slack_alert(
+    webhook_url: str,
+    domain: str,
+    score: int,
+    risk_level: str,
+    reasons: list[str],
+) -> bool:
+    """Envoie une alerte de monitoring dans Slack via Block Kit."""
+    if not webhook_url:
+        return False
+
+    _RISK_EMOJI = {
+        "CRITICAL": "🔴",
+        "HIGH":     "🟠",
+        "MEDIUM":   "🟡",
+        "LOW":      "🟢",
+    }
+    emoji = _RISK_EMOJI.get(risk_level, "⚠️")
+    reasons_text = "\n".join(f"• {r}" for r in reasons) if reasons else "Anomalie détectée"
+
+    payload = {
+        "blocks": [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"{emoji} Alerte sécurité — {domain}",
+                    "emoji": True,
+                },
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {"type": "mrkdwn", "text": f"*Domaine*\n{_esc(domain)}"},
+                    {"type": "mrkdwn", "text": f"*Score*\n{score}/100"},
+                    {"type": "mrkdwn", "text": f"*Niveau de risque*\n{_esc(risk_level)}"},
+                ],
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Raisons de l'alerte :*\n{_esc(reasons_text)}",
+                },
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Voir le dashboard →"},
+                        "url": FRONTEND_URL,
+                        "style": "primary",
+                    }
+                ],
+            },
+        ]
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(webhook_url, json=payload)
+            return resp.status_code == 200
+    except Exception:
+        return False
+
+
+async def send_teams_alert(
+    webhook_url: str,
+    domain: str,
+    score: int,
+    risk_level: str,
+    reasons: list[str],
+) -> bool:
+    """Envoie une alerte de monitoring dans Microsoft Teams via Adaptive Card."""
+    if not webhook_url:
+        return False
+
+    _RISK_COLOR = {
+        "CRITICAL": "attention",
+        "HIGH":     "warning",
+        "MEDIUM":   "accent",
+        "LOW":      "good",
+    }
+    color = _RISK_COLOR.get(risk_level, "warning")
+    reasons_text = "\n\n".join(f"- {r}" for r in reasons) if reasons else "Anomalie détectée"
+
+    payload = {
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.4",
+                    "body": [
+                        {
+                            "type": "TextBlock",
+                            "text": f"⚠️ Alerte sécurité — {_esc(domain)}",
+                            "weight": "Bolder",
+                            "size": "Medium",
+                            "color": color,
+                        },
+                        {
+                            "type": "FactSet",
+                            "facts": [
+                                {"title": "Domaine",           "value": _esc(domain)},
+                                {"title": "Score",             "value": f"{score}/100"},
+                                {"title": "Niveau de risque",  "value": _esc(risk_level)},
+                            ],
+                        },
+                        {
+                            "type": "TextBlock",
+                            "text": f"**Raisons :**\n{_esc(reasons_text)}",
+                            "wrap": True,
+                        },
+                    ],
+                    "actions": [
+                        {
+                            "type": "Action.OpenUrl",
+                            "title": "Voir le dashboard",
+                            "url": FRONTEND_URL,
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(webhook_url, json=payload)
+            return resp.status_code in (200, 202)
+    except Exception:
+        return False

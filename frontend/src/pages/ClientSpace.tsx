@@ -14,6 +14,7 @@ import {
   AlertTriangle, Clock, TrendingUp, TrendingDown, Minus,
   Settings, Mail, Key, CreditCard, Code, Webhook, Copy, ExternalLink,
   AppWindow, ScanSearch, CheckCircle2, FileText, ChevronDown, ChevronUp, BookOpen,
+  Link2, MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient, getWhiteLabel, updateWhiteLabel, uploadWhiteLabelLogo, deleteWhiteLabelLogo } from '../lib/api';
@@ -356,6 +357,13 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   const [deletePassword, setDeletePassword]   = useState('');
   const [deleteLoading, setDeleteLoading]     = useState(false);
   const [deleteError, setDeleteError]         = useState('');
+
+  // Integrations tab state (Slack / Teams)
+  const [slackUrl, setSlackUrl]               = useState('');
+  const [teamsUrl, setTeamsUrl]               = useState('');
+  const [integrLoading, setIntegrLoading]     = useState(false);
+  const [integrMsg, setIntegrMsg]             = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [integrConfigured, setIntegrConfigured] = useState<{ slack: boolean; teams: boolean }>({ slack: false, teams: false });
 
   // Developer tab state
   const [webhooks, setWebhooks]               = useState<WebhookItem[]>([]);
@@ -822,9 +830,17 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   }, [user?.plan, user?.is_admin]);
 
   useEffect(() => {
-    if (tab === 'developer') fetchWebhooks();
+    if (tab === 'developer') {
+      fetchWebhooks();
+      // Charger l'état actuel des intégrations
+      if (user?.plan === 'pro' || user?.plan === 'dev' || user?.is_admin) {
+        apiClient.get('/auth/integrations').then(({ data }) => {
+          setIntegrConfigured({ slack: data.slack_configured, teams: data.teams_configured });
+        }).catch(() => {});
+      }
+    }
     if (tab === 'apps') fetchApps();
-  }, [tab, fetchWebhooks, fetchApps]);
+  }, [tab, fetchWebhooks, fetchApps, user?.plan, user?.is_admin]);
 
   const ALLOWED_EVENTS = ['scan.completed', 'alert.triggered', 'score.dropped'];
 
@@ -2218,6 +2234,154 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  {/* ── Intégrations Slack / Teams ── */}
+                  <div className="sku-card rounded-xl p-5">
+                    <div className="flex items-center gap-3 mb-5">
+                      <SkuIcon color="#22d3ee" size={36}><Link2 size={16} className="text-cyan-300" /></SkuIcon>
+                      <div>
+                        <h3 className="font-semibold text-slate-100 text-sm">
+                          {lang === 'fr' ? 'Intégrations Slack & Teams' : 'Slack & Teams Integrations'}
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {lang === 'fr'
+                            ? 'Recevez vos alertes de monitoring directement dans vos channels.'
+                            : 'Receive monitoring alerts directly in your channels.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-4">
+                      {/* Slack */}
+                      <div className="sku-inset rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <MessageSquare size={14} className="text-cyan-400 shrink-0" />
+                          <span className="text-sm font-medium text-slate-200">Slack</span>
+                          {integrConfigured.slack && (
+                            <span className="ml-auto text-xs bg-green-500/15 text-green-400 px-2 py-0.5 rounded-full border border-green-500/20">
+                              ✓ {lang === 'fr' ? 'Configuré' : 'Configured'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mb-3">
+                          {lang === 'fr'
+                            ? 'URL Incoming Webhook depuis Slack → App directory → Incoming Webhooks'
+                            : 'Incoming Webhook URL from Slack → App directory → Incoming Webhooks'}
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            value={slackUrl}
+                            onChange={e => setSlackUrl(e.target.value)}
+                            placeholder="https://hooks.slack.com/services/T…/B…/…"
+                            className="sku-inset flex-1 rounded px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:ring-1 focus:ring-cyan-500/40"
+                          />
+                          <button
+                            onClick={async () => {
+                              setIntegrLoading(true); setIntegrMsg(null);
+                              try {
+                                await apiClient.patch('/auth/integrations', { slack_webhook_url: slackUrl });
+                                setIntegrConfigured(c => ({ ...c, slack: slackUrl.trim() !== '' }));
+                                setIntegrMsg({ type: 'ok', text: lang === 'fr' ? 'Slack enregistré ✓' : 'Slack saved ✓' });
+                                setSlackUrl('');
+                              } catch (e: unknown) {
+                                const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+                                setIntegrMsg({ type: 'err', text: msg || (lang === 'fr' ? 'URL invalide' : 'Invalid URL') });
+                              } finally { setIntegrLoading(false); }
+                            }}
+                            disabled={integrLoading || !slackUrl.trim()}
+                            className="sku-btn-primary px-3 py-2 rounded text-xs font-medium disabled:opacity-40 shrink-0"
+                          >
+                            {lang === 'fr' ? 'Enregistrer' : 'Save'}
+                          </button>
+                          {integrConfigured.slack && (
+                            <button
+                              onClick={async () => {
+                                setIntegrLoading(true); setIntegrMsg(null);
+                                try {
+                                  await apiClient.patch('/auth/integrations', { slack_webhook_url: '' });
+                                  setIntegrConfigured(c => ({ ...c, slack: false }));
+                                  setIntegrMsg({ type: 'ok', text: lang === 'fr' ? 'Slack supprimé' : 'Slack removed' });
+                                } catch { /* silencieux */ } finally { setIntegrLoading(false); }
+                              }}
+                              disabled={integrLoading}
+                              className="sku-btn-ghost px-3 py-2 rounded text-xs font-medium text-red-400 hover:text-red-300 shrink-0"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Teams */}
+                      <div className="sku-inset rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <MessageSquare size={14} className="text-violet-400 shrink-0" />
+                          <span className="text-sm font-medium text-slate-200">Microsoft Teams</span>
+                          {integrConfigured.teams && (
+                            <span className="ml-auto text-xs bg-green-500/15 text-green-400 px-2 py-0.5 rounded-full border border-green-500/20">
+                              ✓ {lang === 'fr' ? 'Configuré' : 'Configured'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mb-3">
+                          {lang === 'fr'
+                            ? 'URL Incoming Webhook depuis Teams → channel → Connecteurs → Incoming Webhook'
+                            : 'Incoming Webhook URL from Teams → channel → Connectors → Incoming Webhook'}
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            value={teamsUrl}
+                            onChange={e => setTeamsUrl(e.target.value)}
+                            placeholder="https://…webhook.office.com/webhookb2/…"
+                            className="sku-inset flex-1 rounded px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:ring-1 focus:ring-violet-500/40"
+                          />
+                          <button
+                            onClick={async () => {
+                              setIntegrLoading(true); setIntegrMsg(null);
+                              try {
+                                await apiClient.patch('/auth/integrations', { teams_webhook_url: teamsUrl });
+                                setIntegrConfigured(c => ({ ...c, teams: teamsUrl.trim() !== '' }));
+                                setIntegrMsg({ type: 'ok', text: lang === 'fr' ? 'Teams enregistré ✓' : 'Teams saved ✓' });
+                                setTeamsUrl('');
+                              } catch (e: unknown) {
+                                const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+                                setIntegrMsg({ type: 'err', text: msg || (lang === 'fr' ? 'URL invalide' : 'Invalid URL') });
+                              } finally { setIntegrLoading(false); }
+                            }}
+                            disabled={integrLoading || !teamsUrl.trim()}
+                            className="sku-btn-primary px-3 py-2 rounded text-xs font-medium disabled:opacity-40 shrink-0"
+                          >
+                            {lang === 'fr' ? 'Enregistrer' : 'Save'}
+                          </button>
+                          {integrConfigured.teams && (
+                            <button
+                              onClick={async () => {
+                                setIntegrLoading(true); setIntegrMsg(null);
+                                try {
+                                  await apiClient.patch('/auth/integrations', { teams_webhook_url: '' });
+                                  setIntegrConfigured(c => ({ ...c, teams: false }));
+                                  setIntegrMsg({ type: 'ok', text: lang === 'fr' ? 'Teams supprimé' : 'Teams removed' });
+                                } catch { /* silencieux */ } finally { setIntegrLoading(false); }
+                              }}
+                              disabled={integrLoading}
+                              className="sku-btn-ghost px-3 py-2 rounded text-xs font-medium text-red-400 hover:text-red-300 shrink-0"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Message retour */}
+                      {integrMsg && (
+                        <p className={`text-xs px-3 py-2 rounded ${integrMsg.type === 'ok' ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
+                          {integrMsg.text}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                 </div>

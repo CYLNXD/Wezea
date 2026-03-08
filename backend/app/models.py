@@ -48,6 +48,9 @@ class User(Base):
     # ── Réinitialisation du mot de passe ───────────────────────────────────────
     password_reset_token    = Column(String(64), nullable=True, index=True)
     password_reset_expires  = Column(DateTime(timezone=True), nullable=True)
+    # ── Intégrations (Slack / Teams) ───────────────────────────────────────────
+    slack_webhook_url  = Column(String(512), nullable=True)   # https://hooks.slack.com/...
+    teams_webhook_url  = Column(String(512), nullable=True)   # https://...webhook.office.com/...
     created_at    = Column(DateTime(timezone=True), default=utcnow)
     updated_at    = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

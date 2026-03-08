@@ -270,6 +270,33 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
             )
         except Exception as _wh_err:
             logger.error(f"Webhook alert.triggered {monitored.domain}: {_wh_err}")
+
+        # Intégrations Slack / Teams
+        _reasons = [r.strip() for r in alert_reason.split("|") if r.strip()] if alert_reason else []
+        if user.slack_webhook_url:
+            try:
+                from app.services.brevo_service import send_slack_alert
+                await send_slack_alert(
+                    webhook_url = user.slack_webhook_url,
+                    domain      = monitored.domain,
+                    score       = new_score,
+                    risk_level  = new_risk,
+                    reasons     = _reasons,
+                )
+            except Exception as _sl_err:
+                logger.error(f"Slack alert {monitored.domain}: {_sl_err}")
+        if user.teams_webhook_url:
+            try:
+                from app.services.brevo_service import send_teams_alert
+                await send_teams_alert(
+                    webhook_url = user.teams_webhook_url,
+                    domain      = monitored.domain,
+                    score       = new_score,
+                    risk_level  = new_risk,
+                    reasons     = _reasons,
+                )
+            except Exception as _tm_err:
+                logger.error(f"Teams alert {monitored.domain}: {_tm_err}")
     else:
         logger.info(f"Monitoring OK : {monitored.domain} — score {new_score} (stable)")
 

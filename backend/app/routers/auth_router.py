@@ -728,3 +728,84 @@ def delete_white_label_logo(
     current_user.wb_logo_b64 = None
     db.commit()
     return {"status": "ok", "has_logo": False}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Intégrations Slack / Teams
+# ─────────────────────────────────────────────────────────────────────────────
+
+_WEBHOOK_URL_RE = re.compile(
+    r"^https://(hooks\.slack\.com/|[a-z0-9-]+\.webhook\.office\.com/).{10,}",
+    re.IGNORECASE,
+)
+
+
+class IntegrationsRequest(BaseModel):
+    slack_webhook_url: Optional[str] = None   # "" pour effacer
+    teams_webhook_url: Optional[str] = None   # "" pour effacer
+
+
+@router.get("/integrations")
+def get_integrations(
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne les URLs de webhook configurées (masquées)."""
+    def _mask(url: Optional[str]) -> Optional[str]:
+        if not url:
+            return None
+        return url[:30] + "…" if len(url) > 30 else url
+
+    return {
+        "slack_webhook_url": _mask(current_user.slack_webhook_url),
+        "teams_webhook_url": _mask(current_user.teams_webhook_url),
+        "slack_configured": bool(current_user.slack_webhook_url),
+        "teams_configured": bool(current_user.teams_webhook_url),
+    }
+
+
+@router.patch("/integrations")
+def update_integrations(
+    body: IntegrationsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Met à jour les URLs de webhook Slack / Teams.
+    Passer une chaîne vide pour supprimer l'intégration.
+    Réservé aux plans Pro et Dev.
+    """
+    if current_user.plan not in ("pro", "dev"):
+        raise HTTPException(
+            status_code=403,
+            detail="Les intégrations Slack/Teams sont réservées aux plans Pro et Dev.",
+        )
+
+    if body.slack_webhook_url is not None:
+        url = body.slack_webhook_url.strip()
+        if url == "":
+            current_user.slack_webhook_url = None
+        elif not _WEBHOOK_URL_RE.match(url):
+            raise HTTPException(
+                status_code=422,
+                detail="L'URL Slack doit commencer par https://hooks.slack.com/",
+            )
+        else:
+            current_user.slack_webhook_url = url
+
+    if body.teams_webhook_url is not None:
+        url = body.teams_webhook_url.strip()
+        if url == "":
+            current_user.teams_webhook_url = None
+        elif not url.startswith("https://"):
+            raise HTTPException(
+                status_code=422,
+                detail="L'URL Teams doit commencer par https://",
+            )
+        else:
+            current_user.teams_webhook_url = url
+
+    db.commit()
+    return {
+        "status": "ok",
+        "slack_configured": bool(current_user.slack_webhook_url),
+        "teams_configured": bool(current_user.teams_webhook_url),
+    }

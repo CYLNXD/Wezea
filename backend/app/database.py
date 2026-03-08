@@ -139,6 +139,12 @@ def _apply_migrations():
             _add_column_if_missing(conn, "monitored_domains", "alert_config",   "TEXT")
             _mark_applied("012_monitoring_alert_config")
 
+        # ── 013 : Intégrations Slack / Teams ─────────────────────────────────
+        if not _applied("013_user_integrations"):
+            _add_column_if_missing(conn, "users", "slack_webhook_url", "VARCHAR(512)")
+            _add_column_if_missing(conn, "users", "teams_webhook_url", "VARCHAR(512)")
+            _mark_applied("013_user_integrations")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente
