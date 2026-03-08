@@ -1396,24 +1396,25 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                 {/* ── Onglets ─────────────────────────────────────────────── */}
                 <div>
                   {/* Barre de navigation */}
-                  <div className="flex items-center gap-1 border-b border-slate-800 mb-6">
+                  <div className="flex items-center gap-0 border-b border-slate-800 mb-6 overflow-x-auto scrollbar-hide">
                     {([
-                      { id: 'summary'  as const, label: lang === 'fr' ? 'Résumé'                              : 'Summary',                        icon: <ListChecks size={13} />,    dot: r.findings.some(f => f.severity === 'CRITICAL') },
-                      { id: 'findings' as const, label: lang === 'fr' ? `Vulnérabilités (${nonInfoCount})` : `Vulnerabilities (${nonInfoCount})`, icon: <AlertTriangle size={13} />, dot: false },
-                      { id: 'reco'     as const, label: lang === 'fr' ? 'Recommandations'                  : 'Recommendations',                  icon: <Zap size={13} />,           dot: (r.recommendations?.length ?? 0) > 0 },
-                      { id: 'advanced' as const, label: lang === 'fr' ? 'Avancé'                           : 'Advanced',                         icon: <Shield size={13} />,        dot: false },
+                      { id: 'summary'  as const, label: lang === 'fr' ? 'Résumé'            : 'Summary',         shortLabel: lang === 'fr' ? 'Résumé'   : 'Summary', icon: <ListChecks size={13} />,    dot: r.findings.some(f => f.severity === 'CRITICAL') },
+                      { id: 'findings' as const, label: lang === 'fr' ? `Vulnérabilités (${nonInfoCount})` : `Vulns (${nonInfoCount})`, shortLabel: lang === 'fr' ? `Vulnés (${nonInfoCount})` : `Vulns (${nonInfoCount})`, icon: <AlertTriangle size={13} />, dot: false },
+                      { id: 'reco'     as const, label: lang === 'fr' ? 'Recommandations'   : 'Recommendations', shortLabel: lang === 'fr' ? 'Reco.'  : 'Reco.',   icon: <Zap size={13} />,           dot: (r.recommendations?.length ?? 0) > 0 },
+                      { id: 'advanced' as const, label: lang === 'fr' ? 'Avancé'            : 'Advanced',        shortLabel: lang === 'fr' ? 'Avancé' : 'Advanced', icon: <Shield size={13} />,        dot: false },
                     ]).map(tab => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`
-                          relative flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold transition-all
+                          relative flex items-center gap-1.5 px-2 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap shrink-0
                           ${activeTab === tab.id ? 'text-white' : 'text-slate-500 hover:text-slate-300'}
                         `}
                       >
                         <span className={activeTab === tab.id ? 'text-cyan-400' : 'text-slate-600'}>{tab.icon}</span>
-                        {tab.label}
-                        {tab.dot && <span className="w-1.5 h-1.5 rounded-full bg-red-500 absolute top-2 right-1.5" />}
+                        <span className="hidden sm:inline">{tab.label}</span>
+                        <span className="sm:hidden">{tab.shortLabel}</span>
+                        {tab.dot && <span className="w-1.5 h-1.5 rounded-full bg-red-500 absolute top-2 right-1" />}
                         {activeTab === tab.id && (
                           <motion.span
                             layoutId="tab-underline"
