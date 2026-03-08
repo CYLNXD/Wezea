@@ -52,6 +52,7 @@ from app.routers.public_router import router as public_router
 from app.routers.newsletter_router import router as newsletter_router
 from app.routers.webhook_router import router as webhook_router
 from app.routers.app_router import router as app_router
+from app.metrics import record_request
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration
@@ -280,6 +281,13 @@ async def log_requests(request: Request, call_next):
         f"[{datetime.now(timezone.utc).isoformat()}] "
         f"{request.method} {request.url.path} "
         f"→ {response.status_code} ({elapsed} ms)"
+    )
+    # Enregistrement dans le buffer de métriques de performance
+    record_request(
+        path        = request.url.path,
+        method      = request.method,
+        status_code = response.status_code,
+        duration_ms = elapsed,
     )
     return response
 

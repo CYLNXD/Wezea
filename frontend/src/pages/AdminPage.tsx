@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   Shield, Users, Trash2, RefreshCw, CheckCircle, XCircle,
   TrendingUp, DollarSign, UserPlus, ArrowUpRight, Zap, BarChart3,
-  BookOpen, Plus, Pencil, X, ExternalLink,
+  BookOpen, Plus, Pencil, X, ExternalLink, Activity,
 } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -57,7 +57,38 @@ interface Props {
   onGoContact?: () => void;
 }
 
-type Tab = 'metrics' | 'users' | 'blog';
+type Tab = 'metrics' | 'performance' | 'users' | 'blog';
+
+// ─── Types Performance ─────────────────────────────────────────────────────────
+
+interface PerfEndpoint {
+  method:    string;
+  path:      string;
+  count:     number;
+  avg_ms:    number;
+  p50_ms:    number;
+  p95_ms:    number;
+  p99_ms:    number;
+  max_ms:    number;
+  error_5xx: number;
+  slow_pct:  number;
+}
+
+interface SlowRequest {
+  method:      string;
+  path:        string;
+  status_code: number;
+  duration_ms: number;
+  ts:          string;
+}
+
+interface PerfStats {
+  total_requests:    number;
+  buffer_size:       number;
+  slow_threshold_ms: number;
+  endpoints:         PerfEndpoint[];
+  slow_requests:     SlowRequest[];
+}
 
 // ─── Plan config ──────────────────────────────────────────────────────────────
 
@@ -205,6 +236,147 @@ function KpiCard({
 }
 
 // ─── Metrics Tab ──────────────────────────────────────────────────────────────
+
+// ─── PerformanceTab ────────────────────────────────────────────────────────────
+
+function PerformanceTab({ perf, onRefresh }: { perf: PerfStats | null; onRefresh: () => void }) {
+  const _msColor = (ms: number) => {
+    if (ms < 100)  return 'text-green-400';
+    if (ms < 300)  return 'text-yellow-400';
+    if (ms < 500)  return 'text-amber-400';
+    return 'text-red-400';
+  };
+  const _methodBadge = (m: string) => {
+    const colors: Record<string, string> = {
+      GET:    'bg-cyan-500/15 text-cyan-300',
+      POST:   'bg-violet-500/15 text-violet-300',
+      PATCH:  'bg-amber-500/15 text-amber-300',
+      DELETE: 'bg-red-500/15 text-red-300',
+    };
+    return colors[m] ?? 'bg-slate-500/15 text-slate-300';
+  };
+
+  if (!perf) return (
+    <div className="flex items-center justify-center py-20 text-slate-500 text-sm">
+      Chargement des métriques de performance…
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-5">
+
+      {/* Header + refresh */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
+            <Activity size={14} className="text-cyan-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-100">Performance API</p>
+            <p className="text-xs text-slate-400">
+              {perf.total_requests} requêtes dans le buffer ({perf.buffer_size} max) — seuil lent : {perf.slow_threshold_ms} ms
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={onRefresh}
+          className="sku-btn-ghost px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5"
+        >
+          <RefreshCw size={12} /> Rafraîchir
+        </button>
+      </div>
+
+      {perf.total_requests === 0 ? (
+        <div className="sku-card rounded-xl p-8 text-center text-slate-400 text-sm">
+          Aucune requête enregistrée. Le buffer se remplit au fil du trafic.
+        </div>
+      ) : (
+        <>
+          {/* Tableau endpoints */}
+          <div className="sku-card rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2">
+              <BarChart3 size={13} className="text-cyan-400" />
+              <span className="text-xs font-semibold text-slate-200">Endpoints (top {perf.endpoints.length})</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-white/5 text-slate-500">
+                    <th className="text-left px-4 py-2.5 font-medium">Endpoint</th>
+                    <th className="text-right px-3 py-2.5 font-medium">Req</th>
+                    <th className="text-right px-3 py-2.5 font-medium">Avg</th>
+                    <th className="text-right px-3 py-2.5 font-medium">p50</th>
+                    <th className="text-right px-3 py-2.5 font-medium">p95</th>
+                    <th className="text-right px-3 py-2.5 font-medium">p99</th>
+                    <th className="text-right px-3 py-2.5 font-medium">Max</th>
+                    <th className="text-right px-3 py-2.5 font-medium">5xx</th>
+                    <th className="text-right px-4 py-2.5 font-medium">Lent%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {perf.endpoints.map((ep, i) => (
+                    <tr key={i} className="border-b border-white/5 last:border-0 hover:bg-white/2">
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${_methodBadge(ep.method)}`}>
+                            {ep.method}
+                          </span>
+                          <span className="text-slate-200 font-mono truncate max-w-[220px]" title={ep.path}>
+                            {ep.path}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-slate-300 font-mono">{ep.count}</td>
+                      <td className={`px-3 py-2.5 text-right font-mono font-semibold ${_msColor(ep.avg_ms)}`}>{ep.avg_ms}ms</td>
+                      <td className={`px-3 py-2.5 text-right font-mono ${_msColor(ep.p50_ms)}`}>{ep.p50_ms}ms</td>
+                      <td className={`px-3 py-2.5 text-right font-mono ${_msColor(ep.p95_ms)}`}>{ep.p95_ms}ms</td>
+                      <td className={`px-3 py-2.5 text-right font-mono ${_msColor(ep.p99_ms)}`}>{ep.p99_ms}ms</td>
+                      <td className={`px-3 py-2.5 text-right font-mono ${_msColor(ep.max_ms)}`}>{ep.max_ms}ms</td>
+                      <td className={`px-3 py-2.5 text-right font-mono ${ep.error_5xx > 0 ? 'text-red-400 font-bold' : 'text-slate-500'}`}>
+                        {ep.error_5xx}
+                      </td>
+                      <td className={`px-4 py-2.5 text-right font-mono ${ep.slow_pct > 10 ? 'text-amber-400' : 'text-slate-500'}`}>
+                        {ep.slow_pct}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Top 5 requêtes les plus lentes */}
+          {perf.slow_requests.length > 0 && (
+            <div className="sku-card rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2">
+                <Zap size={13} className="text-amber-400" />
+                <span className="text-xs font-semibold text-slate-200">Top 5 requêtes les plus lentes</span>
+              </div>
+              <div className="divide-y divide-white/5">
+                {perf.slow_requests.map((r, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${_methodBadge(r.method)}`}>
+                      {r.method}
+                    </span>
+                    <span className="text-slate-200 font-mono text-xs flex-1 truncate">{r.path}</span>
+                    <span className={`text-xs font-mono font-bold ${r.status_code >= 500 ? 'text-red-400' : 'text-slate-400'}`}>
+                      {r.status_code}
+                    </span>
+                    <span className="text-red-400 font-mono text-xs font-bold">{r.duration_ms}ms</span>
+                    <span className="text-slate-500 text-[10px]">
+                      {new Date(r.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 
 function MetricsTab({ metrics, stats }: { metrics: Metrics | null; stats: Stats | null }) {
   if (!metrics || !stats) {
@@ -720,24 +892,34 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
   const [users,      setUsers]      = useState<UserAdmin[]>([]);
   const [stats,      setStats]      = useState<Stats | null>(null);
   const [blogLinks,  setBlogLinks]  = useState<BlogLink[]>([]);
+  const [perf,       setPerf]       = useState<PerfStats | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState('');
   const [updating,   setUpdating]   = useState<number | null>(null);
+
+  const fetchPerf = async () => {
+    try {
+      const res = await apiClient.get('/admin/metrics/performance');
+      setPerf(res.data);
+    } catch { /* silencieux */ }
+  };
 
   const fetchData = async () => {
     setLoading(true);
     setError('');
     try {
-      const [usersRes, statsRes, metricsRes, blogRes] = await Promise.all([
+      const [usersRes, statsRes, metricsRes, blogRes, perfRes] = await Promise.all([
         apiClient.get('/admin/users'),
         apiClient.get('/admin/stats'),
         apiClient.get('/admin/metrics'),
         apiClient.get('/admin/blog-links'),
+        apiClient.get('/admin/metrics/performance'),
       ]);
       setUsers(usersRes.data);
       setStats(statsRes.data);
       setMetrics(metricsRes.data);
       setBlogLinks(blogRes.data);
+      setPerf(perfRes.data);
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Erreur de chargement');
     } finally {
@@ -825,9 +1007,10 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
         {/* Tab bar */}
         <div className="flex gap-1 mb-6 sku-panel rounded-xl p-1 w-fit">
           {([
-            { key: 'metrics', label: 'Métriques',     icon: TrendingUp },
-            { key: 'users',   label: 'Utilisateurs',  icon: Users },
-            { key: 'blog',    label: 'Blog',           icon: BookOpen },
+            { key: 'metrics',     label: 'Métriques',     icon: TrendingUp },
+            { key: 'performance', label: 'Performance',   icon: Activity  },
+            { key: 'users',       label: 'Utilisateurs',  icon: Users     },
+            { key: 'blog',        label: 'Blog',          icon: BookOpen  },
           ] as { key: Tab; label: string; icon: React.ElementType }[]).map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -868,6 +1051,9 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
           <>
             {tab === 'metrics' && (
               <MetricsTab metrics={metrics} stats={stats} />
+            )}
+            {tab === 'performance' && (
+              <PerformanceTab perf={perf} onRefresh={fetchPerf} />
             )}
             {tab === 'users' && (
               <UsersTab

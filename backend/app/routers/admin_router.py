@@ -369,3 +369,18 @@ def purge_scans_execute(
         "retention_days": retention_days,
         "scans_deleted": deleted,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Métriques de performance API
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/metrics/performance")
+def get_api_performance(
+    _: User = Depends(require_admin),
+):
+    """Retourne les statistiques de performance par endpoint (p50/p95/p99/avg).
+    Basé sur un buffer rolling en mémoire (2000 dernières requêtes).
+    """
+    from app.metrics import get_performance_stats
+    return get_performance_stats()
