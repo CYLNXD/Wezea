@@ -279,7 +279,7 @@ interface Props {
 }
 
 export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContact }: Props) {
-  const { user, deleteAccount, getPortalUrl, logout } = useAuth();
+  const { user, deleteAccount, getPortalUrl, logout, refreshUser } = useAuth();
   const { lang } = useLanguage();
 
   const [tab, setTab]                   = useState<Tab>('overview');
@@ -364,6 +364,15 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   const [integrLoading, setIntegrLoading]     = useState(false);
   const [integrMsg, setIntegrMsg]             = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [integrConfigured, setIntegrConfigured] = useState<{ slack: boolean; teams: boolean }>({ slack: false, teams: false });
+
+  // 2FA state
+  const [mfaStep, setMfaStep]                 = useState<null | 'setup' | 'disabling'>(null);
+  const [mfaQrCode, setMfaQrCode]             = useState('');        // base64 PNG
+  const [mfaSecret, setMfaSecret]             = useState('');        // backup secret
+  const [mfaCode, setMfaCode]                 = useState('');        // 6-digit input
+  const [mfaDisablePwd, setMfaDisablePwd]     = useState('');
+  const [mfaLoading, setMfaLoading]           = useState(false);
+  const [mfaMsg, setMfaMsg]                   = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   // Developer tab state
   const [webhooks, setWebhooks]               = useState<WebhookItem[]>([]);
@@ -739,6 +748,56 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
       window.open(url, '_blank');
     } catch { /* silencieux */ }
     finally { setPortalLoading(false); }
+  };
+
+  // ── 2FA handlers ──
+  const handleMfaSetup = async () => {
+    setMfaLoading(true);
+    setMfaMsg(null);
+    try {
+      const { data } = await apiClient.get('/auth/2fa/setup');
+      setMfaQrCode(data.qr_base64);
+      setMfaSecret(data.secret);
+      setMfaCode('');
+      setMfaStep('setup');
+    } catch {
+      setMfaMsg({ type: 'err', text: lang === 'fr' ? 'Erreur lors de la configuration.' : 'Setup error.' });
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleMfaVerify = async () => {
+    setMfaLoading(true);
+    setMfaMsg(null);
+    try {
+      await apiClient.post('/auth/2fa/verify', { code: mfaCode });
+      await refreshUser();
+      setMfaStep(null);
+      setMfaCode('');
+      setMfaMsg({ type: 'ok', text: lang === 'fr' ? 'Double authentification activée ✓' : 'Two-factor authentication enabled ✓' });
+    } catch {
+      setMfaMsg({ type: 'err', text: lang === 'fr' ? 'Code invalide. Réessayez.' : 'Invalid code. Please try again.' });
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleMfaDisable = async () => {
+    setMfaLoading(true);
+    setMfaMsg(null);
+    try {
+      await apiClient.delete('/auth/2fa/disable', { data: { password: mfaDisablePwd, code: mfaCode } });
+      await refreshUser();
+      setMfaStep(null);
+      setMfaCode('');
+      setMfaDisablePwd('');
+      setMfaMsg({ type: 'ok', text: lang === 'fr' ? 'Double authentification désactivée.' : 'Two-factor authentication disabled.' });
+    } catch {
+      setMfaMsg({ type: 'err', text: lang === 'fr' ? 'Code ou mot de passe incorrect.' : 'Invalid code or password.' });
+    } finally {
+      setMfaLoading(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -2525,6 +2584,155 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                               </button>
                             </div>
                           </>
+                        )}
+                      </div>
+
+                      {/* ── 2FA ── */}
+                      <div className="sku-card rounded-xl p-5">
+                        <div className="flex items-center gap-3 mb-4">
+                          <SkuIcon color="#4ade80" size={32}><Shield size={13} className="text-green-300" /></SkuIcon>
+                          <div>
+                            <h3 className="text-white font-semibold text-sm">{lang === 'fr' ? 'Double authentification (2FA)' : 'Two-factor authentication (2FA)'}</h3>
+                            {user?.mfa_enabled && (
+                              <span className="inline-flex items-center gap-1 text-xs text-green-400 mt-0.5">
+                                <Check size={10} />{lang === 'fr' ? 'Activée' : 'Enabled'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {mfaMsg && (
+                          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-3 ${mfaMsg.type === 'ok' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                            {mfaMsg.type === 'ok' ? <Check size={12} /> : <AlertTriangle size={12} />}
+                            {mfaMsg.text}
+                          </div>
+                        )}
+
+                        {!user?.mfa_enabled && mfaStep === null && (
+                          <div>
+                            <p className="text-slate-400 text-xs mb-3">
+                              {lang === 'fr'
+                                ? 'Protégez votre compte avec une application d\'authentification (Google Authenticator, Authy…).'
+                                : 'Protect your account with an authenticator app (Google Authenticator, Authy…).'}
+                            </p>
+                            <button
+                              onClick={handleMfaSetup}
+                              disabled={mfaLoading}
+                              className="flex items-center gap-2 bg-green-500/15 hover:bg-green-500/25 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {mfaLoading ? <RefreshCw size={12} className="animate-spin" /> : <Shield size={12} />}
+                              {lang === 'fr' ? 'Configurer la 2FA' : 'Set up 2FA'}
+                            </button>
+                          </div>
+                        )}
+
+                        {!user?.mfa_enabled && mfaStep === 'setup' && (
+                          <div className="flex flex-col gap-4">
+                            <p className="text-slate-400 text-xs">
+                              {lang === 'fr'
+                                ? 'Scannez ce QR code avec votre application d\'authentification, puis entrez le code à 6 chiffres pour confirmer.'
+                                : 'Scan this QR code with your authenticator app, then enter the 6-digit code to confirm.'}
+                            </p>
+                            {mfaQrCode && (
+                              <div className="flex justify-center">
+                                <img
+                                  src={`data:image/png;base64,${mfaQrCode}`}
+                                  alt="QR 2FA"
+                                  className="w-36 h-36 rounded-lg border border-slate-700"
+                                />
+                              </div>
+                            )}
+                            {mfaSecret && (
+                              <div className="bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2">
+                                <p className="text-slate-500 text-xs mb-1">{lang === 'fr' ? 'Clé manuelle (si QR indisponible) :' : 'Manual key (if QR unavailable):'}</p>
+                                <code className="text-cyan-400 text-xs font-mono tracking-widest break-all">{mfaSecret}</code>
+                              </div>
+                            )}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={6}
+                              placeholder={lang === 'fr' ? 'Code à 6 chiffres' : '6-digit code'}
+                              value={mfaCode}
+                              onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                              className="w-full bg-slate-800/60 border border-slate-700 text-white text-center text-xl font-mono tracking-widest rounded-lg px-3 py-2 outline-none focus:border-green-500/50 placeholder-slate-600"
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={handleMfaVerify}
+                                disabled={mfaLoading || mfaCode.length !== 6}
+                                className="flex items-center gap-2 bg-green-500/15 hover:bg-green-500/25 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {mfaLoading ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                                {lang === 'fr' ? 'Confirmer' : 'Confirm'}
+                              </button>
+                              <button
+                                onClick={() => { setMfaStep(null); setMfaMsg(null); setMfaCode(''); }}
+                                className="text-slate-500 hover:text-slate-300 text-xs transition"
+                              >
+                                {lang === 'fr' ? 'Annuler' : 'Cancel'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {user?.mfa_enabled && mfaStep === null && (
+                          <div>
+                            <p className="text-slate-400 text-xs mb-3">
+                              {lang === 'fr'
+                                ? 'La double authentification est activée. Chaque connexion nécessite un code de votre application.'
+                                : 'Two-factor authentication is enabled. Every sign-in requires a code from your app.'}
+                            </p>
+                            <button
+                              onClick={() => { setMfaStep('disabling'); setMfaCode(''); setMfaDisablePwd(''); setMfaMsg(null); }}
+                              className="flex items-center gap-2 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-xs font-semibold transition"
+                            >
+                              <X size={12} />
+                              {lang === 'fr' ? 'Désactiver la 2FA' : 'Disable 2FA'}
+                            </button>
+                          </div>
+                        )}
+
+                        {user?.mfa_enabled && mfaStep === 'disabling' && (
+                          <div className="flex flex-col gap-3">
+                            <p className="text-slate-400 text-xs">
+                              {lang === 'fr'
+                                ? 'Confirmez avec votre mot de passe et votre code TOTP actuel.'
+                                : 'Confirm with your password and current TOTP code.'}
+                            </p>
+                            <input
+                              type="password"
+                              placeholder={lang === 'fr' ? 'Mot de passe' : 'Password'}
+                              value={mfaDisablePwd}
+                              onChange={e => setMfaDisablePwd(e.target.value)}
+                              className="w-full bg-slate-800/60 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-red-500/50 placeholder-slate-600"
+                            />
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={6}
+                              placeholder={lang === 'fr' ? 'Code TOTP (6 chiffres)' : 'TOTP code (6 digits)'}
+                              value={mfaCode}
+                              onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                              className="w-full bg-slate-800/60 border border-slate-700 text-white text-center text-xl font-mono tracking-widest rounded-lg px-3 py-2 outline-none focus:border-red-500/50 placeholder-slate-600"
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={handleMfaDisable}
+                                disabled={mfaLoading || !mfaDisablePwd || mfaCode.length !== 6}
+                                className="flex items-center gap-2 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {mfaLoading ? <RefreshCw size={12} className="animate-spin" /> : <X size={12} />}
+                                {lang === 'fr' ? 'Désactiver' : 'Disable'}
+                              </button>
+                              <button
+                                onClick={() => { setMfaStep(null); setMfaMsg(null); setMfaCode(''); setMfaDisablePwd(''); }}
+                                className="text-slate-500 hover:text-slate-300 text-xs transition"
+                              >
+                                {lang === 'fr' ? 'Annuler' : 'Cancel'}
+                              </button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>

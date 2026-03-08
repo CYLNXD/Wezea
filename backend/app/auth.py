@@ -87,14 +87,23 @@ def needs_rehash(hashed: str) -> bool:
 
 # ─── JWT ──────────────────────────────────────────────────────────────────────
 
-def create_access_token(user_id: int, email: str, plan: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {
+def create_access_token(user_id: int, email: str, plan: str, step: Optional[str] = None) -> str:
+    """
+    Génère un JWT.
+    step="mfa" → token intermédiaire (durée 5 min) pour l'étape TOTP.
+    """
+    if step == "mfa":
+        expire = datetime.now(timezone.utc) + timedelta(minutes=5)
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload: dict = {
         "sub": str(user_id),
         "email": email,
         "plan": plan,
         "exp": expire,
     }
+    if step:
+        payload["step"] = step
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 

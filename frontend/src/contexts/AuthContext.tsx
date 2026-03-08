@@ -15,22 +15,24 @@ export interface AuthUser {
   last_name: string | null;
   google_id: string | null;
   is_admin: boolean;
+  mfa_enabled: boolean;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
-  login:        (email: string, password: string) => Promise<void>;
-  register:     (email: string, password: string) => Promise<void>;
-  googleLogin:  (idToken: string) => Promise<void>;
-  logout:       () => void;
-  authHeaders:  () => Record<string, string>;
-  updateProfile: (first_name: string | null, last_name: string | null) => Promise<void>;
-  deleteAccount: (password: string) => Promise<void>;
-  upgradeToPlan: (plan: 'starter' | 'pro' | 'dev') => Promise<string>;  // retourne checkout_url Stripe
-  getPortalUrl:  () => Promise<string>;                          // retourne portal_url Stripe
-  refreshUser:   () => Promise<void>;
+  login:           (email: string, password: string) => Promise<void>;
+  loginWithToken:  (token: string, userData: Partial<AuthUser>) => void;
+  register:        (email: string, password: string) => Promise<void>;
+  googleLogin:     (idToken: string) => Promise<void>;
+  logout:          () => void;
+  authHeaders:     () => Record<string, string>;
+  updateProfile:   (first_name: string | null, last_name: string | null) => Promise<void>;
+  deleteAccount:   (password: string) => Promise<void>;
+  upgradeToPlan:   (plan: 'starter' | 'pro' | 'dev') => Promise<string>;  // retourne checkout_url Stripe
+  getPortalUrl:    () => Promise<string>;                          // retourne portal_url Stripe
+  refreshUser:     () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -56,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data } = await authApi.get('/auth/me', {
         headers: { Authorization: `Bearer ${t}` },
       });
-      const u: AuthUser = { id: data.id, email: data.email, plan: data.plan, api_key: data.api_key, first_name: data.first_name ?? null, last_name: data.last_name ?? null, google_id: data.google_id ?? null, is_admin: data.is_admin ?? false };
+      const u: AuthUser = { id: data.id, email: data.email, plan: data.plan, api_key: data.api_key, first_name: data.first_name ?? null, last_name: data.last_name ?? null, google_id: data.google_id ?? null, is_admin: data.is_admin ?? false, mfa_enabled: data.mfa_enabled ?? false };
       setUser(u);
       analyticsIdentify(u.id, u.email, u.plan);
     } catch {
@@ -73,9 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(email: string, password: string) {
     try {
       const { data } = await authApi.post('/auth/login', { email, password });
+      // Si mfa_required, laisser LoginPage gérer la suite
+      if (data.mfa_required) return;
       localStorage.setItem('wezea_token', data.access_token);
       setToken(data.access_token);
-      const u: AuthUser = { ...data.user, first_name: data.user.first_name ?? null, last_name: data.user.last_name ?? null, is_admin: data.user.is_admin ?? false };
+      const u: AuthUser = { ...data.user, first_name: data.user.first_name ?? null, last_name: data.user.last_name ?? null, is_admin: data.user.is_admin ?? false, mfa_enabled: data.user.mfa_enabled ?? false };
       setUser(u);
       analyticsIdentify(u.id, u.email, u.plan);
     } catch (err: any) {
@@ -84,12 +88,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function loginWithToken(accessToken: string, userData: Partial<AuthUser>) {
+    localStorage.setItem('wezea_token', accessToken);
+    setToken(accessToken);
+    const u: AuthUser = {
+      id: userData.id ?? 0,
+      email: userData.email ?? '',
+      plan: (userData.plan as AuthUser['plan']) ?? 'free',
+      api_key: userData.api_key ?? null,
+      first_name: userData.first_name ?? null,
+      last_name: userData.last_name ?? null,
+      google_id: userData.google_id ?? null,
+      is_admin: userData.is_admin ?? false,
+      mfa_enabled: userData.mfa_enabled ?? false,
+    };
+    setUser(u);
+    analyticsIdentify(u.id, u.email, u.plan);
+  }
+
   async function register(email: string, password: string) {
     try {
       const { data } = await authApi.post('/auth/register', { email, password });
       localStorage.setItem('wezea_token', data.access_token);
       setToken(data.access_token);
-      const u: AuthUser = { ...data.user, first_name: data.user.first_name ?? null, last_name: data.user.last_name ?? null, is_admin: data.user.is_admin ?? false };
+      const u: AuthUser = { ...data.user, first_name: data.user.first_name ?? null, last_name: data.user.last_name ?? null, is_admin: data.user.is_admin ?? false, mfa_enabled: data.user.mfa_enabled ?? false };
       setUser(u);
       analyticsIdentify(u.id, u.email, u.plan);
     } catch (err: any) {
@@ -122,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data } = await authApi.post('/auth/google', { id_token: idToken });
     localStorage.setItem('wezea_token', data.access_token);
     setToken(data.access_token);
-    const u: AuthUser = { ...data.user, first_name: data.user.first_name ?? null, last_name: data.user.last_name ?? null, google_id: data.user.google_id ?? null, is_admin: data.user.is_admin ?? false };
+    const u: AuthUser = { ...data.user, first_name: data.user.first_name ?? null, last_name: data.user.last_name ?? null, google_id: data.user.google_id ?? null, is_admin: data.user.is_admin ?? false, mfa_enabled: data.user.mfa_enabled ?? false };
     setUser(u);
     analyticsIdentify(u.id, u.email, u.plan);
   }
@@ -157,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, googleLogin, logout, authHeaders, updateProfile, deleteAccount, upgradeToPlan, getPortalUrl, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithToken, register, googleLogin, logout, authHeaders, updateProfile, deleteAccount, upgradeToPlan, getPortalUrl, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

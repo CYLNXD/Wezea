@@ -107,6 +107,7 @@ class UserResponse(BaseModel):
     google_id: Optional[str] = None
     created_at: str
     is_admin: bool = False
+    mfa_enabled: bool = False
 
 
 class GoogleAuthRequest(BaseModel):
@@ -231,7 +232,7 @@ def register(
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login")
 @limiter.limit("30/minute")
 def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
     ip = request.client.host if request.client else "unknown"
@@ -251,12 +252,17 @@ def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
         user.password_hash = hash_password(req.password)
         db.commit()
 
+    # ── 2FA : si activé, retourner un token intermédiaire (step=mfa) ──────────
+    if user.mfa_enabled and user.mfa_secret:
+        mfa_token = create_access_token(user.id, user.email, user.plan, step="mfa")
+        return {"mfa_required": True, "mfa_token": mfa_token}
+
     token = create_access_token(user.id, user.email, user.plan)
     return TokenResponse(
         access_token=token,
         user={"id": user.id, "email": user.email, "plan": user.plan, "api_key": user.api_key,
               "first_name": user.first_name, "last_name": user.last_name, "google_id": user.google_id,
-              "is_admin": bool(user.is_admin)},
+              "is_admin": bool(user.is_admin), "mfa_enabled": bool(user.mfa_enabled)},
     )
 
 
@@ -272,6 +278,7 @@ def me(current_user: User = Depends(get_current_user)):
         google_id=current_user.google_id,
         created_at=current_user.created_at.isoformat(),
         is_admin=bool(current_user.is_admin),
+        mfa_enabled=bool(current_user.mfa_enabled),
     )
 
 
@@ -308,6 +315,7 @@ def update_profile(
         google_id=current_user.google_id,
         created_at=current_user.created_at.isoformat(),
         is_admin=bool(current_user.is_admin),
+        mfa_enabled=bool(current_user.mfa_enabled),
     )
 
 
@@ -809,3 +817,159 @@ def update_integrations(
         "slack_configured": bool(current_user.slack_webhook_url),
         "teams_configured": bool(current_user.teams_webhook_url),
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2FA — TOTP (Google Authenticator / Authy / Bitwarden…)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TotpVerifyRequest(BaseModel):
+    code: str          # 6 chiffres
+    mfa_token: Optional[str] = None   # token intermédiaire (step=mfa) pour confirm-login
+
+
+class TotpDisableRequest(BaseModel):
+    code: str          # vérification avant désactivation
+    password: str      # double confirmation
+
+
+@router.post("/2fa/setup")
+def setup_2fa(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Génère un secret TOTP et retourne :
+    - l'URI otpauth:// pour scanner le QR code
+    - le secret brut (pour saisie manuelle)
+    - un QR code PNG en base64
+    La 2FA n'est PAS encore activée — il faut appeler /2fa/verify pour confirmer.
+    """
+    import pyotp, qrcode, io, base64 as _b64
+
+    # Générer un nouveau secret (32 chars base32)
+    secret = pyotp.random_base32()
+    # Stocker le secret temporairement (pas encore activé)
+    current_user.mfa_secret = secret
+    db.commit()
+
+    # URI pour l'authenticator
+    totp = pyotp.TOTP(secret)
+    display_name = current_user.first_name or current_user.email.split("@")[0]
+    uri = totp.provisioning_uri(name=current_user.email, issuer_name="Wezea CyberHealth")
+
+    # QR code PNG → base64
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    qr_b64 = _b64.b64encode(buf.getvalue()).decode()
+
+    return {
+        "secret": secret,
+        "uri": uri,
+        "qr_base64": qr_b64,    # data:image/png;base64,<qr_base64>
+        "display_name": display_name,
+    }
+
+
+@router.post("/2fa/verify")
+def verify_2fa(
+    body: TotpVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Vérifie le code TOTP et active la 2FA si elle ne l'est pas encore.
+    Fenêtre de 1 intervalle (±30s) pour la tolérance d'horloge.
+    """
+    import pyotp
+
+    if not current_user.mfa_secret:
+        raise HTTPException(status_code=400, detail="Aucun secret 2FA configuré. Appelez /2fa/setup d'abord.")
+
+    totp = pyotp.TOTP(current_user.mfa_secret)
+    if not totp.verify(body.code.strip(), valid_window=1):
+        raise HTTPException(status_code=400, detail="Code invalide ou expiré.")
+
+    # Activer la 2FA
+    current_user.mfa_enabled = True
+    db.commit()
+    return {"status": "ok", "mfa_enabled": True}
+
+
+@router.post("/2fa/confirm-login")
+def confirm_login_2fa(
+    body: TotpVerifyRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Valide le code TOTP pendant le login (step=mfa).
+    Le mfa_token est le JWT intermédiaire retourné par /auth/login quand mfa_required=True.
+    Retourne un TokenResponse complet si le code est correct.
+    """
+    import pyotp
+    from app.auth import decode_token, create_access_token
+
+    if not body.mfa_token:
+        raise HTTPException(status_code=400, detail="mfa_token manquant.")
+
+    payload = decode_token(body.mfa_token)
+    if not payload or payload.get("step") != "mfa":
+        raise HTTPException(status_code=401, detail="Token MFA invalide ou expiré.")
+
+    user = db.query(User).filter(User.id == int(payload["sub"])).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Utilisateur introuvable.")
+    if not user.mfa_enabled or not user.mfa_secret:
+        raise HTTPException(status_code=400, detail="2FA non activée sur ce compte.")
+
+    totp = pyotp.TOTP(user.mfa_secret)
+    if not totp.verify(body.code.strip(), valid_window=1):
+        raise HTTPException(status_code=400, detail="Code invalide ou expiré.")
+
+    # Émettre le vrai token d'accès
+    token = create_access_token(user.id, user.email, user.plan)
+    return TokenResponse(
+        access_token=token,
+        user={
+            "id": user.id, "email": user.email, "plan": user.plan,
+            "api_key": user.api_key, "first_name": user.first_name,
+            "last_name": user.last_name, "google_id": user.google_id,
+            "is_admin": bool(user.is_admin), "mfa_enabled": True,
+        },
+    )
+
+
+@router.delete("/2fa/disable")
+def disable_2fa(
+    body: TotpDisableRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Désactive la 2FA après vérification du code TOTP + mot de passe.
+    Interdit sur les comptes Google (pas de mot de passe local).
+    """
+    import pyotp
+
+    # Bloquer les comptes Google (pas de mot de passe)
+    if current_user.password_hash.startswith("!google:"):
+        raise HTTPException(status_code=400, detail="Les comptes Google gèrent la 2FA via Google.")
+
+    # Vérifier le mot de passe
+    if not verify_password(body.password, current_user.password_hash):
+        raise HTTPException(status_code=401, detail="Mot de passe incorrect.")
+
+    # Vérifier le code TOTP
+    if not current_user.mfa_enabled or not current_user.mfa_secret:
+        raise HTTPException(status_code=400, detail="La 2FA n'est pas activée.")
+
+    totp = pyotp.TOTP(current_user.mfa_secret)
+    if not totp.verify(body.code.strip(), valid_window=1):
+        raise HTTPException(status_code=400, detail="Code invalide ou expiré.")
+
+    # Désactiver
+    current_user.mfa_enabled = False
+    current_user.mfa_secret  = None
+    db.commit()
+    return {"status": "ok", "mfa_enabled": False}

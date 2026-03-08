@@ -1346,3 +1346,200 @@ class TestIntegrations:
         # L'URL masquée ne révèle pas le token complet
         masked = data.get("slack_webhook_url") or ""
         assert len(masked) <= 35  # 30 chars + "…"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2FA TOTP
+# ─────────────────────────────────────────────────────────────────────────────
+
+class Test2FA:
+    """Tests des endpoints /auth/2fa/* (setup, verify, confirm-login, disable)."""
+
+    def test_setup_returns_secret_and_qr(self, client, db_session):
+        """POST /auth/2fa/setup → secret + qr_base64 + uri."""
+        user = _make_user(db_session)
+        resp = client.post(
+            "/auth/2fa/setup",
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "secret" in data
+        assert "qr_base64" in data
+        assert "uri" in data
+        assert "otpauth://" in data["uri"]
+        # 2FA pas encore activée
+        db_session.refresh(user["user"])
+        assert not user["user"].mfa_enabled
+
+    def test_verify_activates_2fa(self, client, db_session):
+        """POST /auth/2fa/verify avec bon code → mfa_enabled=True."""
+        import pyotp
+        user = _make_user(db_session)
+        # Setup
+        client.post("/auth/2fa/setup", headers={"Authorization": f"Bearer {user['token']}"})
+        db_session.refresh(user["user"])
+        secret = user["user"].mfa_secret
+        # Verify avec bon code
+        code = pyotp.TOTP(secret).now()
+        resp = client.post(
+            "/auth/2fa/verify",
+            json={"code": code},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["mfa_enabled"] is True
+        db_session.refresh(user["user"])
+        assert user["user"].mfa_enabled
+
+    def test_verify_wrong_code_rejected(self, client, db_session):
+        """POST /auth/2fa/verify avec mauvais code → 400."""
+        user = _make_user(db_session)
+        client.post("/auth/2fa/setup", headers={"Authorization": f"Bearer {user['token']}"})
+        resp = client.post(
+            "/auth/2fa/verify",
+            json={"code": "000000"},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 400
+
+    def test_verify_without_setup_rejected(self, client, db_session):
+        """POST /auth/2fa/verify sans setup → 400."""
+        user = _make_user(db_session)
+        resp = client.post(
+            "/auth/2fa/verify",
+            json={"code": "123456"},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 400
+        assert "setup" in resp.json()["detail"].lower() or "secret" in resp.json()["detail"].lower()
+
+    def test_login_returns_mfa_required_when_enabled(self, client, db_session):
+        """POST /auth/login → mfa_required=True quand 2FA activée."""
+        import pyotp
+        user = _make_user(db_session)
+        # Activer manuellement la 2FA
+        import pyotp as _pyotp
+        user["user"].mfa_secret = _pyotp.random_base32()
+        user["user"].mfa_enabled = True
+        db_session.commit()
+        resp = client.post(
+            "/auth/login",
+            json={"email": user["email"], "password": user["password"]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("mfa_required") is True
+        assert "mfa_token" in data
+
+    def test_confirm_login_with_valid_code(self, client, db_session):
+        """POST /auth/2fa/confirm-login → token complet si code TOTP correct."""
+        import pyotp
+        user = _make_user(db_session)
+        secret = pyotp.random_base32()
+        user["user"].mfa_secret = secret
+        user["user"].mfa_enabled = True
+        db_session.commit()
+        # Obtenir le mfa_token
+        resp = client.post(
+            "/auth/login",
+            json={"email": user["email"], "password": user["password"]},
+        )
+        mfa_token = resp.json()["mfa_token"]
+        # Confirmer avec bon code
+        code = pyotp.TOTP(secret).now()
+        resp2 = client.post(
+            "/auth/2fa/confirm-login",
+            json={"code": code, "mfa_token": mfa_token},
+        )
+        assert resp2.status_code == 200
+        assert "access_token" in resp2.json()
+        assert resp2.json()["user"]["mfa_enabled"] is True
+
+    def test_confirm_login_wrong_code_rejected(self, client, db_session):
+        """POST /auth/2fa/confirm-login → 400 si mauvais code."""
+        import pyotp
+        user = _make_user(db_session)
+        secret = pyotp.random_base32()
+        user["user"].mfa_secret = secret
+        user["user"].mfa_enabled = True
+        db_session.commit()
+        resp = client.post(
+            "/auth/login",
+            json={"email": user["email"], "password": user["password"]},
+        )
+        mfa_token = resp.json()["mfa_token"]
+        resp2 = client.post(
+            "/auth/2fa/confirm-login",
+            json={"code": "000000", "mfa_token": mfa_token},
+        )
+        assert resp2.status_code == 400
+
+    def test_confirm_login_missing_mfa_token(self, client, db_session):
+        """POST /auth/2fa/confirm-login sans mfa_token → 400."""
+        resp = client.post(
+            "/auth/2fa/confirm-login",
+            json={"code": "123456"},
+        )
+        assert resp.status_code == 400
+        assert "mfa_token" in resp.json()["detail"].lower()
+
+    def test_disable_2fa_success(self, client, db_session):
+        """DELETE /auth/2fa/disable avec bon mdp + code → mfa_enabled=False."""
+        import pyotp
+        user = _make_user(db_session)
+        secret = pyotp.random_base32()
+        user["user"].mfa_secret = secret
+        user["user"].mfa_enabled = True
+        db_session.commit()
+        code = pyotp.TOTP(secret).now()
+        resp = client.request(
+            "DELETE",
+            "/auth/2fa/disable",
+            json={"password": user["password"], "code": code},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["mfa_enabled"] is False
+        db_session.refresh(user["user"])
+        assert not user["user"].mfa_enabled
+        assert user["user"].mfa_secret is None
+
+    def test_disable_2fa_wrong_password(self, client, db_session):
+        """DELETE /auth/2fa/disable avec mauvais mdp → 401."""
+        import pyotp
+        user = _make_user(db_session)
+        secret = pyotp.random_base32()
+        user["user"].mfa_secret = secret
+        user["user"].mfa_enabled = True
+        db_session.commit()
+        code = pyotp.TOTP(secret).now()
+        resp = client.request(
+            "DELETE",
+            "/auth/2fa/disable",
+            json={"password": "WrongPassword!", "code": code},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 401
+
+    def test_disable_2fa_not_enabled(self, client, db_session):
+        """DELETE /auth/2fa/disable quand 2FA non activée → 400."""
+        user = _make_user(db_session)
+        resp = client.request(
+            "DELETE",
+            "/auth/2fa/disable",
+            json={"password": user["password"], "code": "123456"},
+            headers={"Authorization": f"Bearer {user['token']}"},
+        )
+        assert resp.status_code == 400
+
+    def test_me_returns_mfa_enabled_field(self, client, db_session):
+        """GET /auth/me retourne mfa_enabled dans UserResponse."""
+        import pyotp
+        user = _make_user(db_session)
+        user["user"].mfa_enabled = True
+        user["user"].mfa_secret = pyotp.random_base32()
+        db_session.commit()
+        resp = client.get("/auth/me", headers={"Authorization": f"Bearer {user['token']}"})
+        assert resp.status_code == 200
+        assert resp.json().get("mfa_enabled") is True

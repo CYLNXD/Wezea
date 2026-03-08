@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
-  const { login, register, googleLogin } = useAuth();
+  const { login, register, googleLogin, loginWithToken } = useAuth();
   const { lang } = useLanguage();
 
   const [mode,     setMode]     = useState<'login' | 'register'>(initialMode ?? 'login');
@@ -23,7 +23,7 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
   const [error,    setError]    = useState('');
 
   // ── Sous-vues mot de passe oublié / réinitialisation ─────────────────────
-  type SubView = 'form' | 'forgot' | 'forgot-sent' | 'reset' | 'reset-done';
+  type SubView = 'form' | 'forgot' | 'forgot-sent' | 'reset' | 'reset-done' | 'mfa';
   const [subView,      setSubView]      = useState<SubView>('form');
   const [forgotEmail,  setForgotEmail]  = useState('');
   const [newPassword,  setNewPassword]  = useState('');
@@ -31,6 +31,9 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
   const [showNewPwd,   setShowNewPwd]   = useState(false);
   const [subError,     setSubError]     = useState('');
   const [subLoading,   setSubLoading]   = useState(false);
+  // 2FA state
+  const [mfaToken,     setMfaToken]     = useState('');
+  const [totpCode,     setTotpCode]     = useState('');
 
   // Si un reset_token est passé en prop → afficher directement la vue reset
   useEffect(() => {
@@ -115,6 +118,16 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
     setLoading(true);
     try {
       if (isLogin) {
+        // Appel direct pour détecter mfa_required avant de passer au contexte
+        const { data } = await apiClient.post('/auth/login', { email, password });
+        if (data.mfa_required) {
+          setMfaToken(data.mfa_token);
+          setTotpCode('');
+          setSubView('mfa');
+          setLoading(false);
+          return;
+        }
+        // Login normal — passer par le contexte
         await login(email, password);
       } else {
         await register(email, password);
@@ -124,6 +137,26 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
       setError(err.message || 'Une erreur est survenue');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // ── Handler : confirmation code TOTP ────────────────────────────────────
+  async function handleTotpSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSubError('');
+    setSubLoading(true);
+    try {
+      const { data } = await apiClient.post('/auth/2fa/confirm-login', {
+        code: totpCode.trim(),
+        mfa_token: mfaToken,
+      });
+      loginWithToken(data.access_token, data.user);
+      onBack();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      setSubError(detail || (lang === 'fr' ? 'Code invalide.' : 'Invalid code.'));
+    } finally {
+      setSubLoading(false);
     }
   }
 
@@ -365,6 +398,63 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
                 className="w-full flex items-center justify-center gap-2 sku-btn-primary py-2.5 rounded-xl transition-all text-sm">
                 {lang === 'fr' ? 'Se connecter' : 'Sign in'}<ArrowRight size={15}/>
               </button>
+            </motion.div>
+          )}
+          {/* ── Sous-vue : Code 2FA ──────────────────────────────────────── */}
+          {subView === 'mfa' && (
+            <motion.div key="mfa" initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="shrink-0 flex items-center justify-center relative overflow-hidden"
+                  style={{ width:36, height:36, borderRadius:10,
+                    background:'linear-gradient(150deg,#818cf830 0%,#818cf80d 100%)',
+                    border:'1px solid #818cf840',
+                    boxShadow:'0 4px 16px #818cf822,0 1px 3px rgba(0,0,0,0.4),inset 0 1px 0 #818cf830,inset 0 -1px 0 rgba(0,0,0,0.3)' }}>
+                  <div className="absolute inset-0 pointer-events-none" style={{ borderRadius:10, background:'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
+                  <KeyRound size={16} className="text-indigo-300 relative z-10" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-100 text-sm">
+                    {lang === 'fr' ? 'Vérification en deux étapes' : 'Two-factor verification'}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {lang === 'fr' ? 'Entrez le code de votre application d\'authentification.' : 'Enter the code from your authenticator app.'}
+                  </p>
+                </div>
+              </div>
+              <form onSubmit={handleTotpSubmit} className="space-y-4">
+                {subError && (
+                  <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">
+                    <AlertCircle size={13} className="shrink-0" />{subError}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                    {lang === 'fr' ? 'Code à 6 chiffres' : '6-digit code'}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    value={totpCode}
+                    onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="000000"
+                    className="sku-inset w-full rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 outline-none focus:ring-1 focus:ring-indigo-500/40 text-center text-2xl font-mono tracking-widest"
+                    autoFocus
+                    autoComplete="one-time-code"
+                  />
+                </div>
+                <button type="submit" disabled={subLoading || totpCode.length !== 6}
+                  className="w-full flex items-center justify-center gap-2 sku-btn-primary py-2.5 rounded-xl transition-all text-sm disabled:opacity-40">
+                  {subLoading
+                    ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <>{lang === 'fr' ? 'Vérifier' : 'Verify'}<ArrowRight size={15}/></>}
+                </button>
+                <button type="button" onClick={() => { setSubView('form'); setSubError(''); setTotpCode(''); }}
+                  className="w-full text-xs text-slate-500 hover:text-slate-300 transition py-1">
+                  {lang === 'fr' ? '← Retour à la connexion' : '← Back to sign in'}
+                </button>
+              </form>
             </motion.div>
           )}
           </AnimatePresence>
