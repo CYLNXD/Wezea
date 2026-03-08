@@ -108,7 +108,7 @@ class TestApplyMigrations:
         assert "db_migrations" in tables
 
     def test_apply_migrations_records_all_versions(self):
-        """Toutes les migrations 001-010 sont enregistrées."""
+        """Toutes les migrations 001-011 sont enregistrées."""
         eng = self._run_migrations_on_fresh_engine()
         with eng.connect() as conn:
             result = conn.execute(text("SELECT version FROM db_migrations ORDER BY version"))
@@ -118,7 +118,7 @@ class TestApplyMigrations:
             "001_is_admin", "002_stripe_customer_id", "003_monitoring_extended",
             "004_scan_schedule", "005_white_branding", "006_scan_details_json",
             "007_public_share", "008_login_attempts_table", "009_password_reset",
-            "010_verified_apps",
+            "010_verified_apps", "011_blog_links",
         }
         assert expected == versions
 
