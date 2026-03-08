@@ -66,7 +66,7 @@ export function ScanConsole({ logs, progress, domain }: Props) {
         </div>
 
         {/* Corps du terminal */}
-        <div className="h-72 overflow-y-auto p-4 font-mono text-xs leading-relaxed">
+        <div className="h-52 sm:h-72 overflow-y-auto overflow-x-hidden p-3 sm:p-4 font-mono text-xs leading-relaxed">
           <AnimatePresence initial={false}>
             {logs.map((log) => (
               <motion.div
@@ -79,7 +79,7 @@ export function ScanConsole({ logs, progress, domain }: Props) {
                 <span className="text-slate-600 select-none shrink-0">
                   {log.timestamp}
                 </span>
-                <span className={LOG_COLORS[log.type]}>
+                <span className={`${LOG_COLORS[log.type]} break-words min-w-0`}>
                   <span className="text-slate-500">{LOG_PREFIXES[log.type]}</span>
                   {log.message}
                 </span>

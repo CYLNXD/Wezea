@@ -742,7 +742,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   {t('hero_badge')}
                 </div>
 
-                <h1 className="text-4xl md:text-5xl font-black leading-tight mb-4"
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-black leading-tight mb-4"
                   style={{ background: 'linear-gradient(180deg,#f1f5f9 30%,#94a3b8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
                 >
                   {t('hero_title_1')}<br />
@@ -1155,7 +1155,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     </div>
                     {/* Stats + PDF + meta */}
                     <div className="flex-1 flex flex-col justify-between gap-4 p-6">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <StatCard
                           label={t('stat_vulns')}
                           value={nonInfoCount}
@@ -1222,7 +1222,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                   value={monitoringInput}
                                   onChange={e => setMonitoringInput(e.target.value)}
                                   onKeyDown={e => { if (e.key === 'Enter' && monitoringInput.trim()) { addToMonitoring(monitoringInput.trim()); setMonitoringInput(''); } }}
-                                  className="flex-1 min-w-[180px] bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-500 transition placeholder:text-slate-600"
+                                  className="flex-1 min-w-0 sm:min-w-[180px] bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-500 transition placeholder:text-slate-600"
                                 />
                                 <button
                                   onClick={() => { if (monitoringInput.trim()) { addToMonitoring(monitoringInput.trim()); setMonitoringInput(''); } }}
@@ -1466,7 +1466,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`
-                          relative flex items-center gap-1.5 px-2 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap shrink-0
+                          relative flex items-center gap-1.5 px-3 sm:px-4 py-3 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap shrink-0 min-h-[44px]
                           ${activeTab === tab.id ? 'text-white' : 'text-slate-500 hover:text-slate-300'}
                         `}
                       >
