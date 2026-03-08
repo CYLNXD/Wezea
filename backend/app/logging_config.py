@@ -29,37 +29,41 @@ import os
 import sys
 from typing import Optional
 
-from pythonjsonlogger import jsonlogger
+try:
+    from pythonjsonlogger import jsonlogger as _jsonlogger
+    _JSON_LOGGER_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _jsonlogger = None  # type: ignore[assignment]
+    _JSON_LOGGER_AVAILABLE = False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Formatter JSON
+# Formatter JSON (uniquement si python-json-logger est installé)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class _CyberHealthJsonFormatter(jsonlogger.JsonFormatter):
-    """
-    Formatter JSON avec :
-    - timestamp ISO 8601 UTC  (clé : timestamp)
-    - niveau en majuscules    (clé : level)
-    - nom du logger           (clé : logger)
-    - message                 (clé : message)
-    - tous les champs extra   (méthode, path, status, duration_ms, ip…)
-    """
+if _JSON_LOGGER_AVAILABLE:
+    class _CyberHealthJsonFormatter(_jsonlogger.JsonFormatter):  # type: ignore[misc]
+        """
+        Formatter JSON avec :
+        - timestamp ISO 8601 UTC  (clé : timestamp)
+        - niveau en majuscules    (clé : level)
+        - nom du logger           (clé : logger)
+        - message                 (clé : message)
+        - tous les champs extra   (méthode, path, status, duration_ms, ip…)
+        """
 
-    def add_fields(
-        self,
-        log_record: dict,
-        record: logging.LogRecord,
-        message_dict: dict,
-    ) -> None:
-        super().add_fields(log_record, record, message_dict)
-        # Renommages pour cohérence
-        log_record["timestamp"] = log_record.pop("asctime", record.created)
-        log_record["level"]     = record.levelname
-        log_record["logger"]    = record.name
-        # Supprimer les champs redondants de jsonlogger
-        log_record.pop("levelname", None)
-        log_record.pop("name",      None)
+        def add_fields(
+            self,
+            log_record: dict,
+            record: logging.LogRecord,
+            message_dict: dict,
+        ) -> None:
+            super().add_fields(log_record, record, message_dict)
+            log_record["timestamp"] = log_record.pop("asctime", record.created)
+            log_record["level"]     = record.levelname
+            log_record["logger"]    = record.name
+            log_record.pop("levelname", None)
+            log_record.pop("name",      None)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -68,24 +72,33 @@ class _CyberHealthJsonFormatter(jsonlogger.JsonFormatter):
 
 def setup_logging(log_level: Optional[str] = None) -> None:
     """
-    Configure le root logger avec un handler JSON sur stdout.
-    À appeler UNE SEULE FOIS, au démarrage de l'application (avant lifespan).
-
-    Args:
-        log_level: "DEBUG" | "INFO" | "WARNING" | "ERROR".
-                   Si None, lit LOG_LEVEL dans l'environnement (défaut : "INFO").
+    Configure le root logger.
+    - Si python-json-logger est installé → format JSON structuré
+    - Sinon → format texte classique (fallback, app démarre quand même)
+    À appeler UNE SEULE FOIS au démarrage (avant lifespan).
     """
     level_str = (log_level or os.getenv("LOG_LEVEL", "INFO")).upper()
     level     = getattr(logging, level_str, logging.INFO)
 
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(
-        _CyberHealthJsonFormatter(
-            fmt      = "%(asctime)s %(name)s %(levelname)s %(message)s",
-            datefmt  = "%Y-%m-%dT%H:%M:%S",
-            json_ensure_ascii = False,
+    if _JSON_LOGGER_AVAILABLE:
+        handler.setFormatter(
+            _CyberHealthJsonFormatter(
+                fmt      = "%(asctime)s %(name)s %(levelname)s %(message)s",
+                datefmt  = "%Y-%m-%dT%H:%M:%S",
+                json_ensure_ascii = False,
+            )
         )
-    )
+    else:  # pragma: no cover
+        # Fallback : format texte lisible — app démarre même sans la lib
+        logging.warning(
+            "python-json-logger non installé — logs en format texte. "
+            "Lancez : pip install python-json-logger==2.0.7"
+        )
+        handler.setFormatter(logging.Formatter(
+            fmt     = "%(asctime)s %(name)s %(levelname)s %(message)s",
+            datefmt = "%Y-%m-%dT%H:%M:%S",
+        ))
 
     root = logging.getLogger()
     root.setLevel(level)
