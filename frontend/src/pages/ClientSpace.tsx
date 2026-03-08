@@ -755,7 +755,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
     setMfaLoading(true);
     setMfaMsg(null);
     try {
-      const { data } = await apiClient.get('/auth/2fa/setup');
+      const { data } = await apiClient.post('/auth/2fa/setup');
       setMfaQrCode(data.qr_base64);
       setMfaSecret(data.secret);
       setMfaCode('');
