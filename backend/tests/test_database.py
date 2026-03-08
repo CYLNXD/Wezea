@@ -118,7 +118,7 @@ class TestApplyMigrations:
             "001_is_admin", "002_stripe_customer_id", "003_monitoring_extended",
             "004_scan_schedule", "005_white_branding", "006_scan_details_json",
             "007_public_share", "008_login_attempts_table", "009_password_reset",
-            "010_verified_apps", "011_blog_links",
+            "010_verified_apps", "011_blog_links", "012_monitoring_alert_config",
         }
         assert expected == versions
 

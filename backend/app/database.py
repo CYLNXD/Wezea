@@ -133,6 +133,12 @@ def _apply_migrations():
             # La table est gérée par SQLAlchemy ORM (Base.metadata.create_all)
             _mark_applied("011_blog_links")
 
+        # ── 012 : Monitoring alertes configurables ────────────────────────────
+        if not _applied("012_monitoring_alert_config"):
+            _add_column_if_missing(conn, "monitored_domains", "ssl_alert_days", "INTEGER DEFAULT 30")
+            _add_column_if_missing(conn, "monitored_domains", "alert_config",   "TEXT")
+            _mark_applied("012_monitoring_alert_config")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente

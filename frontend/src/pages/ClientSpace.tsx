@@ -63,6 +63,15 @@ interface MonitoredDomain {
   // Feature 3 — Scan programmé
   scan_frequency:       'weekly' | 'biweekly' | 'monthly';
   email_report:         boolean;
+  // Feature 4 — Alertes configurables
+  ssl_alert_days:       number;
+  alert_config_parsed:  {
+    score_drop:        boolean;
+    critical_findings: boolean;
+    ssl_expiry:        boolean;
+    port_changes:      boolean;
+    tech_changes:      boolean;
+  };
 }
 
 const CHECK_LABELS: { key: string; label: string }[] = [
@@ -1573,7 +1582,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                                   <p className="text-xs text-slate-500 mt-1.5">{lang === 'fr' ? 'Cliquer pour activer / désactiver' : 'Click to enable / disable'}</p>
                                 </td>
 
-                                {/* Planification — Feature 3 */}
+                                {/* Planification + Alertes — Feature 3 & 4 */}
                                 <td className="px-4 py-4">
                                   <div className="flex flex-col gap-2">
                                     {/* Fréquence de scan */}
@@ -1592,6 +1601,25 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                                       <option value="biweekly">{lang === 'fr' ? 'Bimensuel' : 'Biweekly'}</option>
                                       <option value="monthly">{lang === 'fr' ? 'Mensuel' : 'Monthly'}</option>
                                     </select>
+
+                                    {/* Seuil SSL — Feature 4 */}
+                                    <select
+                                      value={d.ssl_alert_days ?? 30}
+                                      onChange={async e => {
+                                        const days = Number(e.target.value);
+                                        setDomains(prev => prev.map(x => x.domain === d.domain ? { ...x, ssl_alert_days: days } : x));
+                                        try { await apiClient.patch(`/monitoring/domains/${d.domain}`, { ssl_alert_days: days }); }
+                                        catch { /* silently ignore */ }
+                                      }}
+                                      className="bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-mono rounded px-1.5 py-1 focus:outline-none focus:border-cyan-500/50 cursor-pointer hover:border-slate-600 transition"
+                                      title={lang === 'fr' ? 'Seuil d\'alerte SSL' : 'SSL alert threshold'}
+                                    >
+                                      <option value={7}>{lang === 'fr' ? 'SSL &lt; 7j' : 'SSL &lt; 7d'}</option>
+                                      <option value={14}>{lang === 'fr' ? 'SSL &lt; 14j' : 'SSL &lt; 14d'}</option>
+                                      <option value={30}>{lang === 'fr' ? 'SSL &lt; 30j' : 'SSL &lt; 30d'}</option>
+                                      <option value={60}>{lang === 'fr' ? 'SSL &lt; 60j' : 'SSL &lt; 60d'}</option>
+                                    </select>
+
                                     {/* Email rapport PDF */}
                                     <label className="flex items-center gap-1.5 cursor-pointer group/pdf">
                                       <input
@@ -1609,6 +1637,49 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                                         {lang === 'fr' ? 'PDF par email' : 'PDF by email'}
                                       </span>
                                     </label>
+
+                                    {/* Types d'alertes — Feature 4 */}
+                                    <details className="group/alerts">
+                                      <summary className="text-[10px] font-mono text-slate-600 hover:text-slate-400 cursor-pointer list-none flex items-center gap-1 transition">
+                                        <span className="group-open/alerts:rotate-90 transition-transform inline-block">▶</span>
+                                        {lang === 'fr' ? 'Types d\'alertes' : 'Alert types'}
+                                      </summary>
+                                      <div className="mt-1.5 flex flex-col gap-1 pl-2">
+                                        {([
+                                          { key: 'score_drop',        label: lang === 'fr' ? 'Chute de score'          : 'Score drop'        },
+                                          { key: 'critical_findings', label: lang === 'fr' ? 'Vulnérabilités critiques' : 'Critical findings'  },
+                                          { key: 'ssl_expiry',        label: lang === 'fr' ? 'Expiration SSL'          : 'SSL expiry'        },
+                                          { key: 'port_changes',      label: lang === 'fr' ? 'Nouveaux ports'         : 'Port changes'      },
+                                          { key: 'tech_changes',      label: lang === 'fr' ? 'Changements de version' : 'Version changes'   },
+                                        ] as const).map(({ key, label }) => {
+                                          const cfg = d.alert_config_parsed ?? {};
+                                          const enabled = (cfg as Record<string, boolean>)[key] !== false;
+                                          return (
+                                            <label key={key} className="flex items-center gap-1.5 cursor-pointer group/al">
+                                              <input
+                                                type="checkbox"
+                                                checked={enabled}
+                                                onChange={async e => {
+                                                  const val = e.target.checked;
+                                                  const newCfg = { ...cfg, [key]: val };
+                                                  setDomains(prev => prev.map(x =>
+                                                    x.domain === d.domain
+                                                      ? { ...x, alert_config_parsed: { ...x.alert_config_parsed, [key]: val } }
+                                                      : x
+                                                  ));
+                                                  try { await apiClient.patch(`/monitoring/domains/${d.domain}`, { alert_config: newCfg }); }
+                                                  catch { /* silently ignore */ }
+                                                }}
+                                                className="w-3 h-3 accent-cyan-400 cursor-pointer"
+                                              />
+                                              <span className="text-[10px] font-mono text-slate-500 group-hover/al:text-slate-400 transition">
+                                                {label}
+                                              </span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    </details>
                                   </div>
                                 </td>
 

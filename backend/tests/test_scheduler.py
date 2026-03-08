@@ -957,3 +957,109 @@ class TestOnboardingEmailExceptions:
              patch("app.services.brevo_service.send_winback_email",           AsyncMock()):
             from app.scheduler import _async_onboarding_emails
             await _async_onboarding_emails()  # ne doit pas lever
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Digest hebdomadaire
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+class TestWeeklyDigest:
+
+    def _make_premium_user(self, db_session, plan: str = "starter") -> User:
+        from app.models import User, MonitoredDomain
+        u = _make_user(db_session, plan=plan)
+        d = MonitoredDomain(
+            user_id=u.id, domain="digest-test.example.com", is_active=True,
+            last_score=75, last_risk_level="MEDIUM",
+        )
+        db_session.add(d)
+        db_session.commit()
+        return u
+
+    async def test_digest_calls_brevo_for_each_user(self, db_session):
+        """Un digest est envoyé pour chaque user avec au moins un domaine actif."""
+        u1 = self._make_premium_user(db_session, "starter")
+        u2 = self._make_premium_user(db_session, "pro")
+
+        mock_send = AsyncMock(return_value=True)
+        with patch("app.database.SessionLocal", return_value=db_session), \
+             patch("app.services.brevo_service.send_weekly_monitoring_digest", mock_send):
+            from app.scheduler import _async_weekly_digest
+            await _async_weekly_digest()
+
+        assert mock_send.call_count >= 2
+        called_emails = {c.kwargs["email"] for c in mock_send.call_args_list}
+        assert u1.email in called_emails
+        assert u2.email in called_emails
+
+    async def test_digest_domain_data_correct(self, db_session):
+        """Les données de domaine transmises à send_weekly_monitoring_digest sont correctes."""
+        from app.models import MonitoredDomain
+        u = self._make_premium_user(db_session, "pro")
+
+        # Enrichir le domaine avec des données connues
+        domain_obj = db_session.query(MonitoredDomain).filter(
+            MonitoredDomain.user_id == u.id
+        ).first()
+        domain_obj.last_ssl_expiry_days = 45
+        domain_obj.last_open_ports = '["443"]'
+        db_session.commit()
+
+        mock_send = AsyncMock(return_value=True)
+        with patch("app.database.SessionLocal", return_value=db_session), \
+             patch("app.services.brevo_service.send_weekly_monitoring_digest", mock_send):
+            from app.scheduler import _async_weekly_digest
+            await _async_weekly_digest()
+
+        calls = [c for c in mock_send.call_args_list if c.kwargs.get("email") == u.email]
+        assert calls
+        domains_arg = calls[0].kwargs["domains"]
+        assert len(domains_arg) >= 1
+        d_data = domains_arg[0]
+        assert d_data["domain"] == "digest-test.example.com"
+        assert d_data["score"] == 75
+        assert d_data["ssl_expiry_days"] == 45
+
+    async def test_digest_skips_users_with_no_active_domains(self, db_session):
+        """Un utilisateur sans domaine actif ne reçoit pas de digest."""
+        from app.models import MonitoredDomain
+        u = _make_user(db_session, plan="starter")
+        # Aucun domaine actif pour cet utilisateur
+
+        mock_send = AsyncMock(return_value=True)
+        with patch("app.database.SessionLocal", return_value=db_session), \
+             patch("app.services.brevo_service.send_weekly_monitoring_digest", mock_send):
+            from app.scheduler import _async_weekly_digest
+            await _async_weekly_digest()
+
+        called_emails = {c.kwargs.get("email") for c in mock_send.call_args_list}
+        assert u.email not in called_emails
+
+    async def test_digest_exception_per_user_does_not_abort_others(self, db_session):
+        """Une exception pour un user n'empêche pas l'envoi aux autres."""
+        u1 = self._make_premium_user(db_session, "starter")
+        u2 = self._make_premium_user(db_session, "pro")
+
+        call_emails = []
+
+        async def _mock_send(email, first_name, domains):
+            if email == u1.email:
+                raise RuntimeError("smtp error")
+            call_emails.append(email)
+            return True
+
+        with patch("app.database.SessionLocal", return_value=db_session), \
+             patch("app.services.brevo_service.send_weekly_monitoring_digest", _mock_send):
+            from app.scheduler import _async_weekly_digest
+            await _async_weekly_digest()  # ne doit pas lever
+
+        assert u2.email in call_emails
+
+    @pytest.mark.no_asyncio
+    def test_run_weekly_digest_calls_asyncio_run(self):
+        """run_weekly_digest() appelle asyncio.run avec _async_weekly_digest."""
+        with patch("asyncio.run") as mock_run:
+            from app.scheduler import run_weekly_digest
+            run_weekly_digest()
+        assert mock_run.called

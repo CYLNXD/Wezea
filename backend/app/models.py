@@ -127,6 +127,9 @@ class MonitoredDomain(Base):
     # ── Scan programmé ───────────────────────────────────────────────────
     scan_frequency       = Column(String(20), default="weekly")  # weekly|biweekly|monthly
     email_report         = Column(Boolean, default=False)        # envoyer PDF par email
+    # ── Alertes configurables ─────────────────────────────────────────────
+    ssl_alert_days       = Column(Integer, default=30)           # seuil SSL (jours) avant alerte
+    alert_config         = Column(Text, nullable=True)           # JSON: {"score_drop":bool,...}
 
     user = relationship("User", backref="monitored_domains")
 
@@ -141,12 +144,29 @@ class MonitoredDomain(Base):
         "reputation": True,
     }
 
+    DEFAULT_ALERT_CONFIG: dict = {
+        "score_drop":         True,
+        "critical_findings":  True,
+        "ssl_expiry":         True,
+        "port_changes":       True,
+        "tech_changes":       True,
+    }
+
     def get_checks_config(self) -> dict:
         """Retourne la config des checks, en fusionnant avec les défauts."""
         if self.checks_config:
             stored = json.loads(self.checks_config)
             return {**self.DEFAULT_CHECKS, **stored}
         return dict(self.DEFAULT_CHECKS)
+
+    def get_alert_config(self) -> dict:
+        """Retourne la config d'alertes avec fallback aux defaults."""
+        if not self.alert_config:
+            return dict(self.DEFAULT_ALERT_CONFIG)
+        try:
+            return {**self.DEFAULT_ALERT_CONFIG, **json.loads(self.alert_config)}
+        except Exception:
+            return dict(self.DEFAULT_ALERT_CONFIG)
 
     __table_args__ = (
         Index("ix_user_domain", "user_id", "domain", unique=True),

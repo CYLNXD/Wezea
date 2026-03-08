@@ -830,3 +830,105 @@ class TestSendLeadReportEmail:
             )
         payload = mock_send.call_args[0][0]
         assert "#94a3b8" in payload["htmlContent"]
+
+
+class TestSendWeeklyMonitoringDigest:
+    """Tests for send_weekly_monitoring_digest()."""
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_send(self):
+        """La fonction appelle _send avec le bon sujet."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            result = await _svc.send_weekly_monitoring_digest(
+                email="user@example.com",
+                first_name="Alice",
+                domains=[{
+                    "domain": "example.com",
+                    "score": 80,
+                    "risk_level": "LOW",
+                    "ssl_expiry_days": 45,
+                    "last_scan_at": "01/03/2026",
+                    "open_ports": ["443"],
+                }],
+            )
+        assert result is True
+        assert mock_send.called
+        payload = mock_send.call_args[0][0]
+        assert "Résumé hebdomadaire" in payload["subject"]
+
+    @pytest.mark.asyncio
+    async def test_subject_contains_domain_count(self):
+        """Le sujet mentionne le nombre de domaines."""
+        mock_send = AsyncMock(return_value=True)
+        domains = [
+            {"domain": "a.com", "score": 70, "risk_level": "MEDIUM",
+             "ssl_expiry_days": None, "last_scan_at": "01/03/2026", "open_ports": []},
+            {"domain": "b.com", "score": 50, "risk_level": "HIGH",
+             "ssl_expiry_days": 7, "last_scan_at": "02/03/2026", "open_ports": ["80", "443"]},
+        ]
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_weekly_monitoring_digest(
+                email="user@example.com",
+                first_name="Bob",
+                domains=domains,
+            )
+        payload = mock_send.call_args[0][0]
+        assert "2" in payload["subject"]
+
+    @pytest.mark.asyncio
+    async def test_no_api_key_returns_false(self):
+        """Pas de clé API → False sans appel réseau."""
+        original_key = _svc.BREVO_API_KEY
+        try:
+            _svc.BREVO_API_KEY = ""
+            result = await _svc.send_weekly_monitoring_digest(
+                email="user@example.com",
+                first_name="Test",
+                domains=[],
+            )
+        finally:
+            _svc.BREVO_API_KEY = original_key
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_critical_domain_appears_first(self):
+        """Les domaines CRITICAL/HIGH sont triés en premier."""
+        mock_send = AsyncMock(return_value=True)
+        domains = [
+            {"domain": "good.com",     "score": 90, "risk_level": "LOW",
+             "ssl_expiry_days": None, "last_scan_at": "01/03/2026", "open_ports": []},
+            {"domain": "bad.com",      "score": 20, "risk_level": "CRITICAL",
+             "ssl_expiry_days": None, "last_scan_at": "01/03/2026", "open_ports": []},
+        ]
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_weekly_monitoring_digest(
+                email="user@example.com",
+                first_name="User",
+                domains=domains,
+            )
+        payload = mock_send.call_args[0][0]
+        html = payload["htmlContent"]
+        # CRITICAL domain should appear before the LOW domain in the HTML
+        assert html.index("bad.com") < html.index("good.com")
+
+    @pytest.mark.asyncio
+    async def test_ssl_warning_shown_for_expiring_certs(self):
+        """Un SSL expirant dans moins de 14j affiche un avertissement."""
+        mock_send = AsyncMock(return_value=True)
+        with patch.object(_svc, "_send", mock_send):
+            await _svc.send_weekly_monitoring_digest(
+                email="user@example.com",
+                first_name="User",
+                domains=[{
+                    "domain": "expiring.com",
+                    "score": 60,
+                    "risk_level": "MEDIUM",
+                    "ssl_expiry_days": 5,
+                    "last_scan_at": "01/03/2026",
+                    "open_ports": [],
+                }],
+            )
+        html = mock_send.call_args[0][0]["htmlContent"]
+        assert "5j" in html
+        assert "#ef4444" in html  # couleur d'alerte rouge

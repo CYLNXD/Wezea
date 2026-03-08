@@ -490,6 +490,97 @@ class TestUpdateDomain:
         ).first()
         assert d.email_report is False
 
+    def test_patch_ssl_alert_days(self, client, db_session):
+        """Mettre à jour le seuil SSL (Feature 4)."""
+        creds = _make_user(db_session, "starter")
+        self._add_domain(db_session, creds["user"].id, "ssl-threshold.example.com")
+
+        resp = client.patch(
+            "/monitoring/domains/ssl-threshold.example.com",
+            json={"ssl_alert_days": 14},
+            headers=_headers(creds["token"]),
+        )
+        assert resp.status_code == 200
+
+        db_session.expire_all()
+        d = db_session.query(MonitoredDomain).filter(
+            MonitoredDomain.domain == "ssl-threshold.example.com"
+        ).first()
+        assert d.ssl_alert_days == 14
+
+    def test_patch_ssl_alert_days_clamped(self, client, db_session):
+        """Les valeurs hors [7, 90] sont clampées (Feature 4)."""
+        creds = _make_user(db_session, "starter")
+        self._add_domain(db_session, creds["user"].id, "ssl-clamp.example.com")
+
+        # Valeur trop petite → 7
+        client.patch(
+            "/monitoring/domains/ssl-clamp.example.com",
+            json={"ssl_alert_days": 1},
+            headers=_headers(creds["token"]),
+        )
+        db_session.expire_all()
+        d = db_session.query(MonitoredDomain).filter(
+            MonitoredDomain.domain == "ssl-clamp.example.com"
+        ).first()
+        assert d.ssl_alert_days == 7
+
+        # Valeur trop grande → 90
+        client.patch(
+            "/monitoring/domains/ssl-clamp.example.com",
+            json={"ssl_alert_days": 999},
+            headers=_headers(creds["token"]),
+        )
+        db_session.expire_all()
+        d = db_session.query(MonitoredDomain).filter(
+            MonitoredDomain.domain == "ssl-clamp.example.com"
+        ).first()
+        assert d.ssl_alert_days == 90
+
+    def test_patch_alert_config(self, client, db_session):
+        """Mettre à jour les préférences d'alertes (Feature 4)."""
+        creds = _make_user(db_session, "starter")
+        self._add_domain(db_session, creds["user"].id, "alert-cfg.example.com")
+
+        resp = client.patch(
+            "/monitoring/domains/alert-cfg.example.com",
+            json={"alert_config": {"score_drop": False, "ssl_expiry": True}},
+            headers=_headers(creds["token"]),
+        )
+        assert resp.status_code == 200
+
+        db_session.expire_all()
+        d = db_session.query(MonitoredDomain).filter(
+            MonitoredDomain.domain == "alert-cfg.example.com"
+        ).first()
+        cfg = d.get_alert_config()
+        assert cfg["score_drop"] is False
+        assert cfg["ssl_expiry"] is True
+        # Les clés non envoyées conservent leur valeur par défaut
+        assert cfg["critical_findings"] is True
+
+    def test_patch_alert_config_sanitizes_unknown_keys(self, client, db_session):
+        """Les clés inconnues dans alert_config sont ignorées (Feature 4)."""
+        creds = _make_user(db_session, "starter")
+        self._add_domain(db_session, creds["user"].id, "sanitize.example.com")
+
+        resp = client.patch(
+            "/monitoring/domains/sanitize.example.com",
+            json={"alert_config": {"score_drop": False, "unknown_key": True, "hack": "evil"}},
+            headers=_headers(creds["token"]),
+        )
+        assert resp.status_code == 200
+
+        db_session.expire_all()
+        d = db_session.query(MonitoredDomain).filter(
+            MonitoredDomain.domain == "sanitize.example.com"
+        ).first()
+        import json
+        raw = json.loads(d.alert_config)
+        assert "unknown_key" not in raw
+        assert "hack" not in raw
+        assert raw.get("score_drop") is False
+
     def test_patch_nonexistent_domain_404(self, client, db_session):
         """PATCH sur un domaine inexistant retourne 404."""
         creds = _make_user(db_session, "starter")

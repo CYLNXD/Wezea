@@ -143,20 +143,25 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
     prev_score = monitored.last_score
     threshold  = monitored.alert_threshold
 
+    # ── Alertes configurables ─────────────────────────────────────────────────
+    alert_cfg     = monitored.get_alert_config()
+    ssl_threshold = monitored.ssl_alert_days or 30
+
     # ── Feature 2 : Surveillance élargie — SSL, ports, technologies ──────────
     change_alerts: list[str] = []
 
-    # 1. SSL expiry
+    # 1. SSL expiry (seuil configurable)
     new_ssl_days: int | None = result.ssl_details.get("days_left")
     if new_ssl_days is not None:
-        if new_ssl_days <= 7:
-            change_alerts.append(
-                f"🚨 Certificat SSL expire dans {new_ssl_days} jour(s) — renouvellement urgent !"
-            )
-        elif new_ssl_days <= 30:
-            change_alerts.append(
-                f"⚠️ Certificat SSL expire dans {new_ssl_days} jours"
-            )
+        if alert_cfg["ssl_expiry"]:
+            if new_ssl_days <= 7:
+                change_alerts.append(
+                    f"🚨 Certificat SSL expire dans {new_ssl_days} jour(s) — renouvellement urgent !"
+                )
+            elif new_ssl_days <= ssl_threshold:
+                change_alerts.append(
+                    f"⚠️ Certificat SSL expire dans {new_ssl_days} jours (seuil configuré : {ssl_threshold}j)"
+                )
         monitored.last_ssl_expiry_days = new_ssl_days
 
     # 2. Open ports — détecter nouveaux ports ouverts / ports fermés
@@ -171,14 +176,15 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
     newly_opened   = new_ports_set - prev_ports_set
     newly_closed   = prev_ports_set - new_ports_set
 
-    if newly_opened:
-        change_alerts.append(
-            f"🔓 Nouveaux ports ouverts : {', '.join(sorted(newly_opened))}"
-        )
-    if newly_closed:
-        change_alerts.append(
-            f"🔒 Ports fermés : {', '.join(sorted(newly_closed))}"
-        )
+    if alert_cfg["port_changes"]:
+        if newly_opened:
+            change_alerts.append(
+                f"🔓 Nouveaux ports ouverts : {', '.join(sorted(newly_opened))}"
+            )
+        if newly_closed:
+            change_alerts.append(
+                f"🔒 Ports fermés : {', '.join(sorted(newly_closed))}"
+            )
     monitored.last_open_ports = _json.dumps(new_open_ports)
 
     # 3. Technologies — détecter changements de versions
@@ -194,7 +200,7 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
         if tech in prev_tech_map and prev_tech_map[tech] != new_ver and new_ver:
             tech_changes.append(f"{tech}: {prev_tech_map[tech]} → {new_ver}")
 
-    if tech_changes:
+    if alert_cfg["tech_changes"] and tech_changes:
         change_alerts.append(
             f"🔄 Changements de versions : {'; '.join(tech_changes[:3])}"
         )
@@ -211,7 +217,7 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
     should_alert = False
     alert_reason = ""
 
-    if prev_score is not None:
+    if alert_cfg["score_drop"] and prev_score is not None:
         drop = prev_score - new_score
         if drop >= threshold:
             should_alert  = True
@@ -222,7 +228,7 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
         f for f in result.findings
         if f.severity == "CRITICAL" and f.penalty > 0
     ]
-    if critical_findings:
+    if alert_cfg["critical_findings"] and critical_findings:
         should_alert = True
         if alert_reason:
             alert_reason += f" + {len(critical_findings)} finding(s) critique(s)"
@@ -502,6 +508,84 @@ async def _async_onboarding_emails():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Résumé hebdomadaire : digest lundi 07:30 UTC
+# ─────────────────────────────────────────────────────────────────────────────
+
+def run_weekly_digest():
+    """Point d'entrée APScheduler — lundi 07:30 UTC."""
+    logger.info("📊 Démarrage du digest hebdomadaire de monitoring...")
+    try:
+        asyncio.run(_async_weekly_digest())
+    except Exception as e:
+        logger.error(f"Erreur digest hebdomadaire : {e}")
+
+
+async def _async_weekly_digest():
+    from app.database import SessionLocal
+    from app.models import MonitoredDomain, User
+    from app.services.brevo_service import send_weekly_monitoring_digest
+
+    db = SessionLocal()
+    try:
+        # Récupérer tous les users ayant au moins un domaine actif
+        active_users = (
+            db.query(User)
+            .join(MonitoredDomain, MonitoredDomain.user_id == User.id)
+            .filter(
+                MonitoredDomain.is_active == True,
+                User.is_active == True,
+            )
+            .distinct()
+            .all()
+        )
+        logger.info(f"Digest hebdomadaire : {len(active_users)} utilisateur(s) avec domaines actifs")
+
+        for user in active_users:
+            try:
+                domains = (
+                    db.query(MonitoredDomain)
+                    .filter(
+                        MonitoredDomain.user_id == user.id,
+                        MonitoredDomain.is_active == True,
+                    )
+                    .all()
+                )
+                if not domains:
+                    continue
+
+                domain_data = []
+                for d in domains:
+                    domain_data.append({
+                        "domain":          d.domain,
+                        "score":           d.last_score,
+                        "risk_level":      d.last_risk_level or "UNKNOWN",
+                        "ssl_expiry_days": d.last_ssl_expiry_days,
+                        "last_scan_at":    (
+                            d.last_scan_at.strftime("%d/%m/%Y")
+                            if d.last_scan_at else "Jamais"
+                        ),
+                        "open_ports":      (
+                            _json.loads(d.last_open_ports)
+                            if d.last_open_ports else []
+                        ),
+                    })
+
+                await send_weekly_monitoring_digest(
+                    email      = user.email,
+                    first_name = user.first_name or user.email.split("@")[0],
+                    domains    = domain_data,
+                )
+                logger.info(f"Digest envoyé à {user.email} ({len(domain_data)} domaine(s))")
+            except Exception as e:
+                logger.error(f"Erreur digest pour {user.email} : {e}")
+
+    except Exception as e:
+        logger.error(f"[digest] Erreur globale : {e}")
+    finally:
+        db.close()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Démarrage / arrêt du scheduler
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -541,9 +625,22 @@ def start_scheduler() -> bool:
         misfire_grace_time=3600,
     )
 
+    # Chaque lundi à 07:30 UTC — digest récapitulatif de surveillance
+    _scheduler.add_job(
+        run_weekly_digest,
+        trigger="cron",
+        day_of_week="mon",
+        hour=7,
+        minute=30,
+        id="weekly_digest",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
     _scheduler.start()
     logger.info(
         "✅ Scheduler démarré — monitoring hebdomadaire lundi 06:00 UTC"
+        " | digest lundi 07:30 UTC"
         " | onboarding quotidien 09:00 UTC"
     )
     return True

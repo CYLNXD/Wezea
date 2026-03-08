@@ -91,6 +91,8 @@ class UpdateDomainRequest(BaseModel):
     checks_config:   Optional[dict] = None
     scan_frequency:  Optional[str]  = None   # weekly | biweekly | monthly
     email_report:    Optional[bool] = None   # envoyer PDF par email à chaque scan
+    ssl_alert_days:  Optional[int]  = None   # seuil SSL en jours [7–90]
+    alert_config:    Optional[dict] = None   # {"score_drop":bool,...}
 
 
 class DomainResponse(BaseModel):
@@ -110,6 +112,9 @@ class DomainResponse(BaseModel):
     # Feature 3 — Scan programmé
     scan_frequency:       str            = "weekly"
     email_report:         bool           = False
+    # Feature 4 — Alertes configurables
+    ssl_alert_days:       int            = 30
+    alert_config_parsed:  dict           = {}
 
 
 def _require_premium(user: User) -> None:
@@ -171,6 +176,8 @@ def list_monitored_domains(
             last_technologies     = _parse_json_dict(d.last_technologies),
             scan_frequency        = d.scan_frequency or "weekly",
             email_report          = bool(d.email_report),
+            ssl_alert_days        = d.ssl_alert_days or 30,
+            alert_config_parsed   = d.get_alert_config(),
         )
         for d in domains
     ]
@@ -306,6 +313,12 @@ def update_monitored_domain(
             monitored.scan_frequency = body.scan_frequency
     if body.email_report is not None:
         monitored.email_report = body.email_report
+    if body.ssl_alert_days is not None:
+        monitored.ssl_alert_days = max(7, min(90, body.ssl_alert_days))
+    if body.alert_config is not None:
+        allowed_keys = {"score_drop", "critical_findings", "ssl_expiry", "port_changes", "tech_changes"}
+        sanitized = {k: bool(v) for k, v in body.alert_config.items() if k in allowed_keys}
+        monitored.alert_config = _json.dumps(sanitized)
 
     db.commit()
     return {"message": f"'{domain}' mis à jour.", "domain": domain}

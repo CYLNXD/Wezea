@@ -23,6 +23,7 @@ Fonctions exportées :
     send_monitoring_alert_email(email, first_name, domain, new_score,
                                 prev_score, risk_level, reason, findings)
     send_pdf_email(email, domain, pdf_bytes, score, risk_level)
+    send_weekly_monitoring_digest(email, first_name, domains)
 
   Contact
     send_contact_notification(name, email, subject, message)
@@ -784,3 +785,172 @@ async def remove_newsletter_contact(email: str) -> bool:
     except Exception as exc:
         logger.error("Brevo remove_newsletter_contact error: %s", exc)
         return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Monitoring — résumé hebdomadaire (digest lundi matin)
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def send_weekly_monitoring_digest(
+    email:      str,
+    first_name: str,
+    domains:    list[dict],
+) -> bool:
+    """
+    Envoie le digest hebdomadaire de surveillance par email.
+
+    domains : liste de dict avec clés :
+      domain, score, risk_level, ssl_expiry_days, last_scan_at, open_ports
+    """
+    def _domain_priority(d: dict) -> int:
+        if (d.get("risk_level") or "") in ("CRITICAL", "HIGH"):
+            return 0
+        score = d.get("score")
+        if score is not None and score < 50:
+            return 1
+        ssl = d.get("ssl_expiry_days")
+        if ssl is not None and ssl < 14:
+            return 2
+        return 3
+
+    sorted_domains = sorted(domains, key=_domain_priority)
+    attention_count = sum(1 for d in domains if _domain_priority(d) < 3)
+
+    _RISK_COLORS: dict[str, str] = {
+        "CRITICAL": "#ef4444",
+        "HIGH":     "#f97316",
+        "MEDIUM":   "#f59e0b",
+        "LOW":      "#22c55e",
+        "UNKNOWN":  "#64748b",
+    }
+
+    rows_html = ""
+    for d in sorted_domains:
+        score = d.get("score")
+        score_color = (
+            "#ef4444" if score is not None and score < 40 else
+            "#f97316" if score is not None and score < 70 else
+            "#22c55e"
+        )
+        score_str = str(score) if score is not None else "—"
+        risk = (d.get("risk_level") or "UNKNOWN").upper()
+        risk_color = _RISK_COLORS.get(risk, "#64748b")
+        ssl_days = d.get("ssl_expiry_days")
+        ssl_str = f"{ssl_days}j" if ssl_days is not None else "—"
+        ssl_warning = ssl_days is not None and ssl_days < 14
+        rows_html += f"""
+        <tr>
+          <td style="padding:10px 12px;border-bottom:1px solid #1e293b;
+                     font-family:monospace;font-size:13px;color:#94a3b8;">
+            {_esc(d.get('domain', ''))}
+          </td>
+          <td style="padding:10px 12px;border-bottom:1px solid #1e293b;
+                     text-align:center;font-weight:700;color:{score_color};">
+            {score_str}
+          </td>
+          <td style="padding:10px 12px;border-bottom:1px solid #1e293b;text-align:center;">
+            <span style="background:{risk_color}22;color:{risk_color};
+                         padding:2px 8px;border-radius:4px;
+                         font-size:11px;font-weight:700;">
+              {_esc(risk)}
+            </span>
+          </td>
+          <td style="padding:10px 12px;border-bottom:1px solid #1e293b;
+                     text-align:center;
+                     color:{'#ef4444' if ssl_warning else '#94a3b8'};
+                     font-size:13px;">
+            {'&#9888; ' if ssl_warning else ''}{ssl_str}
+          </td>
+          <td style="padding:10px 12px;border-bottom:1px solid #1e293b;
+                     text-align:center;color:#64748b;font-size:12px;">
+            {_esc(d.get('last_scan_at', '—'))}
+          </td>
+        </tr>"""
+
+    summary_line = (
+        f"{attention_count} domaine(s) nécessite(nt) votre attention"
+        if attention_count > 0 else
+        f"Tous vos {len(domains)} domaine(s) sont en bonne santé ✅"
+    )
+    safe_first_name = _esc(first_name)
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    body {{ margin:0; padding:0; background:#0b1018;
+            font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }}
+    .wrap {{ max-width:640px; margin:0 auto; padding:32px 20px; }}
+    .logo {{ font-family:monospace;font-size:22px;font-weight:900;color:#22d3ee;
+             letter-spacing:-0.5px;text-decoration:none; }}
+    .logo span {{ color:#e2e8f0; }}
+    .card {{ background:#111827;border:1px solid #1e293b;
+             border-radius:12px;padding:28px;margin-top:24px; }}
+    h1 {{ color:#e2e8f0;font-size:18px;margin:0 0 8px;font-weight:700; }}
+    .subtitle {{ color:#64748b;font-size:13px;margin:0 0 20px; }}
+    .summary {{ background:#0f172a;border:1px solid #1e293b;
+                border-radius:8px;padding:12px 16px;margin-bottom:20px;
+                color:#94a3b8;font-size:13px; }}
+    table {{ width:100%;border-collapse:collapse; }}
+    th {{ color:#475569;font-size:11px;font-weight:600;
+          text-transform:uppercase;letter-spacing:0.5px;
+          padding:8px 12px;text-align:left;border-bottom:1px solid #1e293b; }}
+    th:not(:first-child) {{ text-align:center; }}
+    .btn {{ display:inline-block;background:#22d3ee;color:#0b1018;
+            font-weight:700;font-size:14px;padding:12px 28px;
+            border-radius:8px;text-decoration:none;margin:20px 0 8px; }}
+    .footer {{ margin-top:32px;text-align:center;color:#475569;font-size:12px; }}
+    .footer a {{ color:#475569; }}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a href="{FRONTEND_URL}" class="logo">We<span>zea</span></a>
+    <div class="card">
+      <h1>Résumé hebdomadaire de surveillance</h1>
+      <p class="subtitle">
+        Bonjour {safe_first_name} — voici l'état de vos domaines surveillés
+        au {datetime.date.today().strftime('%d/%m/%Y')}.
+      </p>
+      <div class="summary">{_esc(summary_line)}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Domaine</th>
+            <th>Score</th>
+            <th>Risque</th>
+            <th>SSL</th>
+            <th>Dernier scan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows_html}
+        </tbody>
+      </table>
+      <center>
+        <a href="{FRONTEND_URL}" class="btn">&rarr; Voir le dashboard</a>
+      </center>
+      <p style="color:#64748b;font-size:12px;margin-top:4px;">
+        Vous recevez ce résumé car vous surveillez des domaines sur votre compte Wezea.
+        Pour modifier vos préférences, rendez-vous dans votre dashboard.
+      </p>
+    </div>
+    <div class="footer">
+      <p>
+        &copy; 2026 Wezea &middot; BCE 0811.380.056<br/>
+        <a href="{FRONTEND_URL}?legal=mentions">Mentions légales</a> &middot;
+        <a href="{FRONTEND_URL}?legal=confidentialite">Confidentialité</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    return await _send({
+        "sender":      SENDER,
+        "to":          [{"email": email, "name": first_name}],
+        "subject":     f"[Wezea] Résumé hebdomadaire — {len(domains)} domaine(s) surveillé(s)",
+        "htmlContent": html_content,
+    })
