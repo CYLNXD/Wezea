@@ -64,7 +64,14 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
           setError('');
           setLoading(true);
           try {
-            await googleLogin(resp.credential);
+            const result = await googleLogin(resp.credential);
+            if (result?.mfa_required) {
+              setMfaToken(result.mfa_token ?? '');
+              setTotpCode('');
+              setSubView('mfa');
+              setLoading(false);
+              return;
+            }
             onBack();
           } catch (err: any) {
             setError(err?.response?.data?.detail || err?.message || 'Erreur Google');

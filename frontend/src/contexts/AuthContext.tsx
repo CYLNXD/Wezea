@@ -25,7 +25,7 @@ interface AuthContextType {
   login:           (email: string, password: string) => Promise<void>;
   loginWithToken:  (token: string, userData: Partial<AuthUser>) => void;
   register:        (email: string, password: string) => Promise<void>;
-  googleLogin:     (idToken: string) => Promise<void>;
+  googleLogin:     (idToken: string) => Promise<{ mfa_required?: boolean; mfa_token?: string }>;
   logout:          () => void;
   authHeaders:     () => Record<string, string>;
   updateProfile:   (first_name: string | null, last_name: string | null) => Promise<void>;
@@ -140,13 +140,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prev => prev ? { ...prev, first_name: data.first_name ?? null, last_name: data.last_name ?? null } : null);
   }
 
-  async function googleLogin(idToken: string) {
+  async function googleLogin(idToken: string): Promise<{ mfa_required?: boolean; mfa_token?: string }> {
     const { data } = await authApi.post('/auth/google', { id_token: idToken });
+    // Si le compte a la 2FA activée, retourner sans loguer — LoginPage gère la suite
+    if (data.mfa_required) {
+      return { mfa_required: true, mfa_token: data.mfa_token };
+    }
     localStorage.setItem('wezea_token', data.access_token);
     setToken(data.access_token);
     const u: AuthUser = { ...data.user, first_name: data.user.first_name ?? null, last_name: data.user.last_name ?? null, google_id: data.user.google_id ?? null, is_admin: data.user.is_admin ?? false, mfa_enabled: data.user.mfa_enabled ?? false };
     setUser(u);
     analyticsIdentify(u.id, u.email, u.plan);
+    return {};
   }
 
   async function upgradeToPlan(plan: 'starter' | 'pro' | 'dev'): Promise<string> {
