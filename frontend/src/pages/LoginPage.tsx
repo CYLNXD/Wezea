@@ -83,18 +83,21 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
         },
       });
 
-      // Rendre le bouton Google en overlay transparent — clic direct utilisateur (FedCM + Chrome)
-      const hiddenDiv = document.getElementById('google-signin-hidden');
-      if (hiddenDiv) {
-        (gsi as any).renderButton(hiddenDiv, {
-          type: 'standard',
-          theme: 'filled_black',
-          size: 'large',
-          text: 'continue_with',
-          logo_alignment: 'center',
-          width: 400,
-        });
-      }
+      // Rendre le bouton Google officiel visible — FedCM + Chrome compatible
+      // Le div est rendu après gsiReady=true, donc un léger délai est nécessaire
+      setTimeout(() => {
+        const btnDiv = document.getElementById('google-signin-hidden');
+        if (btnDiv) {
+          (gsi as any).renderButton(btnDiv, {
+            type: 'standard',
+            theme: 'filled_black',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'rectangular',
+            width: 360,
+          });
+        }
+      }, 50);
 
       setGsiReady(true);
       return true;
@@ -601,42 +604,20 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
             <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
           </div>
 
-          {/* ── Bouton Google ── overlay pattern (FedCM + Chrome compatible) ── */}
-          <div className="mt-4 relative" style={{ height: 44 }}>
-            {/* Fond visuel (notre style) — non cliquable */}
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 flex items-center justify-center gap-3 sku-btn-ghost rounded-xl text-sm font-medium text-white pointer-events-none"
-              style={{ opacity: gsiReady && !loading ? 1 : 0.5 }}
-            >
-              {!gsiReady ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-slate-400 rounded-full animate-spin" />
-                  {lang === 'fr' ? 'Chargement Google…' : 'Loading Google…'}
-                </>
-              ) : (
-                <>
-                  <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-                    <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
-                    <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
-                    <path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/>
-                    <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
-                  </svg>
-                  {lang === 'fr' ? 'Continuer avec Google' : 'Continue with Google'}
-                </>
-              )}
-            </div>
-            {/* Bouton Google officiel en overlay transparent — reçoit le vrai clic utilisateur */}
-            <div
-              id="google-signin-hidden"
-              style={{
-                position: 'absolute', inset: 0,
-                overflow: 'hidden', borderRadius: 12,
-                opacity: gsiReady && !loading ? 0 : 0,
-                pointerEvents: gsiReady && !loading ? 'auto' : 'none',
-                cursor: 'pointer',
-              }}
-            />
+          {/* ── Bouton Google ── rendu officiel visible (FedCM + Chrome) ── */}
+          <div className="mt-4">
+            {!gsiReady ? (
+              <div className="w-full flex items-center justify-center gap-3 sku-btn-ghost rounded-xl py-2.5 text-sm font-medium text-white opacity-60 cursor-not-allowed">
+                <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-slate-400 rounded-full animate-spin" />
+                {lang === 'fr' ? 'Chargement Google…' : 'Loading Google…'}
+              </div>
+            ) : (
+              <div
+                id="google-signin-hidden"
+                className="flex justify-center overflow-hidden rounded-xl"
+                style={{ border: '1px solid rgba(255,255,255,0.08)', minHeight: 44 }}
+              />
+            )}
           </div>
           </>)}
           {/* ── fin subView === 'form' ── */}
