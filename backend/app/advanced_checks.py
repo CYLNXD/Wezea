@@ -408,7 +408,17 @@ class SubdomainAuditor(BaseAuditor):
 
         # 4. Générer les findings
 
-        # Sous-domaines orphelins (présents dans CT logs mais DNS mort)
+        # Sous-domaines sans résolution DNS :
+        # Ces sous-domaines n'ont AUCUN enregistrement DNS actif — ils n'existent que
+        # dans les logs Certificate Transparency (crt.sh). Sans entrée DNS, il n'y a
+        # AUCUNE surface d'attaque (un attaquant ne peut pas faire de subdomain takeover
+        # sans DNS). Ce sont des certificats historiques, pas des orphelins dangereux.
+        #
+        # ⚠️  Un vrai "orphelin dangereux" (subdomain takeover) nécessite :
+        #     DNS actif (CNAME/A) → service tiers désactivé (GitHub Pages, Heroku…)
+        #     Dans ce cas le sous-domaine RÉSOUT encore (active=True) mais est vulnérable.
+        #
+        # On les signale en INFO p=0 pour la transparence, sans pénalité.
         if orphaned:
             count = len(orphaned)
             sample = ", ".join(orphaned[:5])
@@ -416,25 +426,29 @@ class SubdomainAuditor(BaseAuditor):
                 sample += f" (+{count - 5} {self._t('autres', 'more')})"
             findings.append(Finding(
                 category          = "Sous-domaines & Certificats",
-                severity          = "MEDIUM",
+                severity          = "INFO",
                 title             = self._t(
-                    f"{count} sous-domaine(s) orphelin(s) détecté(s)",
-                    f"{count} orphaned subdomain(s) detected",
+                    f"{count} certificat(s) historique(s) dans les logs CT",
+                    f"{count} historical certificate(s) in CT logs",
                 ),
                 technical_detail  = self._t(
-                    f"Sous-domaines dans les logs CT mais sans résolution DNS active : {sample}",
-                    f"Subdomains in CT logs but without active DNS resolution: {sample}",
+                    f"Sous-domaines présents dans crt.sh mais sans enregistrement DNS actif : {sample}",
+                    f"Subdomains found in crt.sh but with no active DNS record: {sample}",
                 ),
                 plain_explanation = self._t(
-                    "Ces sous-domaines ont eu un certificat SSL mais ne répondent plus. "
-                    "Ils peuvent être repris par un attaquant (subdomain takeover) si les entrées DNS pointent vers des services tiers désactivés.",
-                    "These subdomains had an SSL certificate but no longer respond. "
-                    "They can be taken over by an attacker (subdomain takeover) if DNS entries point to disabled third-party services.",
+                    "Ces sous-domaines ont eu un certificat SSL par le passé mais n'ont aucune entrée DNS active. "
+                    "Sans DNS, ils ne sont pas accessibles et ne présentent aucun risque de subdomain takeover. "
+                    "Il s'agit d'enregistrements historiques dans les logs Certificate Transparency.",
+                    "These subdomains had an SSL certificate in the past but have no active DNS record. "
+                    "Without DNS, they are unreachable and present no subdomain takeover risk. "
+                    "These are historical records in Certificate Transparency logs.",
                 ),
-                penalty           = min(count * 3, 15),
+                penalty           = 0,
                 recommendation    = self._t(
-                    "Supprimer les entrées DNS des sous-domaines orphelins. Auditer les CNAME pointant vers des services tiers (GitHub Pages, Heroku, etc.).",
-                    "Remove DNS entries for orphaned subdomains. Audit CNAME records pointing to third-party services (GitHub Pages, Heroku, etc.).",
+                    "Aucune action requise. Les logs CT sont immuables — ces entrées resteront visibles indéfiniment. "
+                    "Surveiller uniquement si vous recréez ces sous-domaines dans le DNS.",
+                    "No action required. CT logs are immutable — these entries will remain visible indefinitely. "
+                    "Monitor only if you re-create these subdomains in DNS.",
                 ),
             ))
 
@@ -506,8 +520,8 @@ class SubdomainAuditor(BaseAuditor):
                     f"Subdomains detected via Certificate Transparency: {len(subdomains)} total, {len(active)} active.",
                 ),
                 plain_explanation = self._t(
-                    "Tous les sous-domaines actifs ont des certificats SSL valides. Aucun sous-domaine orphelin détecté.",
-                    "All active subdomains have valid SSL certificates. No orphaned subdomains detected.",
+                    "Tous les sous-domaines actifs ont des certificats SSL valides. Aucun sous-domaine à risque détecté.",
+                    "All active subdomains have valid SSL certificates. No at-risk subdomains detected.",
                 ),
                 penalty           = 0,
                 recommendation    = self._t(

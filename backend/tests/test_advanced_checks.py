@@ -735,46 +735,50 @@ class TestSubdomainAuditorSync:
         info = [f for f in findings if f.severity == "INFO"]
         assert "2" in info[0].title
 
-    # ── Sous-domaines orphelins ───────────────────────────────────────────────
+    # ── Sous-domaines sans DNS (certificats historiques CT) ──────────────────
+    # Sans enregistrement DNS actif, il n'y a aucune surface d'attaque.
+    # Ces sous-domaines n'existent que dans les logs Certificate Transparency
+    # (crt.sh). Ils sont signalés en INFO p=0, pas en MEDIUM.
 
-    def test_one_orphaned_medium_finding(self):
-        """1 sous-domaine orphelin → MEDIUM."""
+    def test_one_no_dns_info_finding(self):
+        """1 sous-domaine sans DNS → INFO (pas MEDIUM), pénalité 0."""
         findings, _ = self._run(
             ["old.example.com"],
             resolve_map={"old.example.com": None},
         )
-        medium = [f for f in findings if f.severity == "MEDIUM"]
-        assert len(medium) == 1
+        info = [f for f in findings if f.severity == "INFO"]
+        assert len(info) == 1
+        assert info[0].penalty == 0
 
-    def test_orphaned_penalty_three_per_subdomain(self):
-        """2 orphelins → pénalité 6 (2 × 3)."""
+    def test_no_dns_penalty_is_zero(self):
+        """2 sous-domaines sans DNS → pénalité 0 (pas de takeover possible)."""
         subs = ["a.example.com", "b.example.com"]
         findings, _ = self._run(subs, resolve_map={s: None for s in subs})
-        medium = [f for f in findings if f.severity == "MEDIUM"]
-        assert medium[0].penalty == 6
+        info = [f for f in findings if f.severity == "INFO"]
+        assert info[0].penalty == 0
 
-    def test_orphaned_penalty_clamped_at_15(self):
-        """6 orphelins → pénalité 15 (plafond min(6×3, 15))."""
+    def test_no_dns_penalty_zero_even_many(self):
+        """6 sous-domaines sans DNS → pénalité 0 (aucun risque réel)."""
         subs = [f"sub{i}.example.com" for i in range(6)]
         findings, _ = self._run(subs, resolve_map={s: None for s in subs})
-        medium = [f for f in findings if f.severity == "MEDIUM"]
-        assert medium[0].penalty == 15
+        info = [f for f in findings if f.severity == "INFO"]
+        assert info[0].penalty == 0
 
-    def test_orphaned_sample_in_detail(self):
-        """Les sous-domaines orphelins apparaissent dans le détail technique."""
+    def test_no_dns_subdomain_appears_in_detail(self):
+        """Les sous-domaines sans DNS apparaissent dans le détail technique."""
         findings, _ = self._run(
             ["dead.example.com"],
             resolve_map={"dead.example.com": None},
         )
-        medium = [f for f in findings if f.severity == "MEDIUM"]
-        assert "dead.example.com" in medium[0].technical_detail
+        info = [f for f in findings if f.severity == "INFO"]
+        assert "dead.example.com" in info[0].technical_detail
 
-    def test_orphaned_detail_truncated_after_five(self):
-        """Plus de 5 orphelins → mention '+N more' dans le détail."""
+    def test_no_dns_detail_truncated_after_five(self):
+        """Plus de 5 sous-domaines sans DNS → mention '+N more' dans le détail."""
         subs = [f"old{i}.example.com" for i in range(8)]
         findings, _ = self._run(subs, resolve_map={s: None for s in subs})
-        medium = [f for f in findings if f.severity == "MEDIUM"]
-        assert "+3" in medium[0].technical_detail or "+" in medium[0].technical_detail
+        info = [f for f in findings if f.severity == "INFO"]
+        assert "+3" in info[0].technical_detail or "+" in info[0].technical_detail
 
     # ── Certificats expirés ───────────────────────────────────────────────────
 
@@ -824,8 +828,8 @@ class TestSubdomainAuditorSync:
 
     # ── Scenarios combinés ────────────────────────────────────────────────────
 
-    def test_mixed_orphaned_and_expired(self):
-        """1 orphelin + 1 cert expiré → 2 findings (MEDIUM + HIGH)."""
+    def test_mixed_no_dns_and_expired(self):
+        """1 sans DNS (INFO p=0) + 1 cert expiré (HIGH) → 2 findings."""
         subs = ["dead.example.com", "secure.example.com"]
         findings, _ = self._run(
             subs,
@@ -833,8 +837,10 @@ class TestSubdomainAuditorSync:
             cert_map={"secure.example.com": {**_make_cert(-1), "subdomain": "secure.example.com"}},
         )
         severities = {f.severity for f in findings}
-        assert "MEDIUM" in severities
-        assert "HIGH"   in severities
+        # Sans DNS → INFO (pas MEDIUM), cert expiré → HIGH
+        assert "INFO"  in severities
+        assert "HIGH"  in severities
+        assert "MEDIUM" not in severities
 
     def test_active_with_expiring_soon_no_info_finding(self):
         """Quand certains certs expirent bientôt, pas de finding INFO (conditions non remplies)."""
