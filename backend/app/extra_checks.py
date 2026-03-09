@@ -416,6 +416,18 @@ class EmailSecurityAuditor(BaseAuditor):
     def _check_dkim(self) -> bool:
         resolver = dns.resolver.Resolver()
         resolver.lifetime = DNS_LIFETIME_SEC  # aligné sur SPF/DMARC (était 4.0, trop court)
+
+        # 1. Délégation NS sur _domainkey (ex: Infomaniak, OVH, certains ESP)
+        #    Ex: _domainkey.wezea.net. IN NS nsany1.infomaniak.com.
+        #    → le fournisseur gère les sélecteurs DKIM à notre place.
+        #    Un enregistrement NS à cet endroit = DKIM opérationnel.
+        try:
+            resolver.resolve(f"_domainkey.{self.domain}", "NS")
+            return True
+        except Exception:
+            pass
+
+        # 2. Sélecteurs courants (format TXT classique)
         for selector in self.COMMON_DKIM_SELECTORS:
             try:
                 resolver.resolve(f"{selector}._domainkey.{self.domain}", "TXT")

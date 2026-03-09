@@ -1198,7 +1198,10 @@ def _derive_checks_overview(
         })
 
     # ── Réputation ────────────────────────────────────────────────────────────
-    rep_ok = not _failed("liste noire", "blacklist", "dnsbl", "spam", "réputation")
+    # ⚠️  Ne pas inclure "réputation" dans les mots-clés : le finding INFO "Réputation
+    #     email vérifiée" (IP propre) contient ce mot et causerait un faux FAIL.
+    #     On cherche uniquement les termes propres aux findings négatifs.
+    rep_ok = not _failed("liste noire", "blacklist", "dnsbl", "spam")
     checks.append({
         "category": "Réputation",
         "icon": "🛡",

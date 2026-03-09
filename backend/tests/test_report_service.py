@@ -108,6 +108,38 @@ class TestChecksContext:
         assert result["warn_checks_count"]   >= 0
         assert result["fail_checks_count"]   >= 0
 
+    def test_dnsbl_clean_shows_passed_not_failed(self):
+        """IP propre → 'Réputation email vérifiée' (contient 'réputation') ne doit pas
+        déclencher un FAIL dans le bilan DNSBL. Régression: 'réputation' était dans les
+        mots-clés de _failed() → faux FAIL quand IP est propre."""
+        # Finding INFO généré par ReputationAuditor quand l'IP est propre
+        clean_finding = {
+            "title": "Réputation email vérifiée",
+            "severity": "INFO",
+            "penalty": 0,
+            "category": "Réputation du Domaine",
+        }
+        result = _checks_context(MINIMAL_DATA, [clean_finding], "fr")
+        checks = result["checks_overview"]
+        dnsbl = next((c for c in checks if "DNSBL" in c.get("label_fr", "") or "noire" in c.get("label_fr", "").lower()), None)
+        assert dnsbl is not None, "Check DNSBL introuvable dans checks_overview"
+        assert dnsbl["passed"] is True,  "IP propre → DNSBL doit être passed=True (pas FAIL)"
+        assert dnsbl["warning"] is False
+
+    def test_dnsbl_blacklisted_shows_failed(self):
+        """IP blacklistée → finding CRITICAL 'liste noire' → bilan DNSBL doit être FAIL."""
+        blacklist_finding = {
+            "title": "Domaine sur liste noire",
+            "severity": "CRITICAL",
+            "penalty": 20,
+            "category": "Réputation du Domaine",
+        }
+        result = _checks_context(MINIMAL_DATA, [blacklist_finding], "fr")
+        checks = result["checks_overview"]
+        dnsbl = next((c for c in checks if "DNSBL" in c.get("label_fr", "") or "noire" in c.get("label_fr", "").lower()), None)
+        assert dnsbl is not None
+        assert dnsbl["passed"] is False, "IP blacklistée → DNSBL doit être passed=False"
+
 
 # ─── Tests _derive_checks_overview — edge cases ───────────────────────────────
 

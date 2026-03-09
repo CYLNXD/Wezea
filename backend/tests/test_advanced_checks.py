@@ -369,11 +369,25 @@ class TestEmailSecurityAuditor:
             assert auditor._check_dkim() is True
 
     def test_check_dkim_returns_false_when_all_selectors_fail(self):
-        """_check_dkim → False si tous les sélecteurs échouent."""
+        """_check_dkim → False si NS et tous les sélecteurs échouent."""
         auditor = EmailSecurityAuditor("example.com")
         with patch("app.extra_checks.dns.resolver.Resolver",
                    return_value=self._mock_resolver(found=False)):
             assert auditor._check_dkim() is False
+
+    def test_check_dkim_returns_true_with_ns_delegation(self):
+        """_check_dkim → True si NS trouvé sur _domainkey (délégation Infomaniak/OVH…)."""
+        auditor = EmailSecurityAuditor("example.com")
+        # Simule : NS présent sur _domainkey.example.com, sélecteurs TXT absents
+        def smart_resolve(name, rtype):
+            if rtype == "NS" and "_domainkey" in name:
+                return [MagicMock()]          # NS trouvé → délégation confirmée
+            raise Exception("NXDOMAIN")       # Pas de TXT sur sélecteurs courants
+        mock_resolver = MagicMock()
+        mock_resolver.resolve.side_effect = smart_resolve
+        with patch("app.extra_checks.dns.resolver.Resolver",
+                   return_value=mock_resolver):
+            assert auditor._check_dkim() is True
 
     def test_check_mx_returns_true_when_found(self):
         """_check_mx → True si MX présent."""
