@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-09 (session 33)
+> Dernière mise à jour : 2026-03-09 (session 34)
 
 ---
 
@@ -487,6 +487,79 @@ ls -lh /home/cyberhealth/backups/
 #### Tests (+17 tests)
 - `TestBuildActionPlan` : 12 tests pour nouveaux checks
 - `TestBuildContext` : 6 tests pour `cover_gradient` (LOW/CRITICAL/HIGH/MEDIUM/UNKNOWN/présence)
+
+---
+
+## 🆕 Session 2026-03-09 (session 34) — Infra + Google Sign-In FedCM
+
+### Infrastructure — serveur remis à jour
+
+#### Problème git pull bloqué
+- Serveur était à `a106782`, dépôt local à `d785dfc` (12 commits d'écart)
+- `git stash` ne suffisait pas : 3 fichiers **untracked** bloquaient le merge :
+  - `backend/app/logging_config.py`
+  - `backend/app/metrics.py`
+  - `backend/tests/test_metrics.py`
+- Ces fichiers étaient déjà dans le repo (commits `b3b26db`, `75097f8`) → supprimés manuellement, puis `git pull` réussi
+- **Règle** : si `git pull` échoue sur des untracked, vérifier d'abord `git log --oneline` pour voir si le fichier est dans le repo ; si oui, `rm` + `git pull` est safe
+
+#### Logs JSON structurés (logging_config.py + metrics.py) — maintenant actifs en prod
+- `logging_config.py` : formatter JSON via `python-json-logger==2.0.7`, logs structurés `{"message", "level", "logger", "timestamp"}`
+- `metrics.py` : buffer rolling deque (maxlen=2000), p50/p95/p99 par endpoint, normalisation UUID dans les paths
+- Activés en prod depuis le `git pull` du 2026-03-09
+
+### Fix — Google Sign-In FedCM (Chrome)
+
+#### Symptôme
+- Chrome : "Connexion Google indisponible" + `FedCM get() rejects with NetworkError`
+- Safari : popup Google fonctionnait (Safari n'implémente pas FedCM)
+
+#### Cause
+- `gsi.prompt()` (One Tap) utilise FedCM dans Chrome → nécessite session Google active dans le navigateur
+- En l'absence de session préalable, FedCM rejette avec NetworkError
+- Tentative d'overlay transparent : Google button caché + clic programmatique → bloqué par Chrome popup blocker (pas un geste utilisateur direct)
+
+#### Fix final (commit `ba075ac`)
+- Abandon du bouton custom + `gsi.prompt()`
+- Utilisation de `gsi.renderButton()` avec `theme: 'filled_black'` — bouton officiel Google rendu **visible** directement dans l'UI
+- Spinner pendant le chargement de la lib GSI (`!gsiReady`)
+- `use_fedcm_for_prompt: true` ajouté dans `gsi.initialize()` (cast `as any` car types TS pas à jour)
+- `setTimeout(50ms)` pour laisser le temps au div d'être dans le DOM avant `renderButton()`
+- ✅ Chrome + Safari fonctionnels en prod
+
+#### Pattern dans LoginPage.tsx
+```tsx
+// Dans l'effect d'initialisation, après gsi.initialize() :
+setTimeout(() => {
+  const btnDiv = document.getElementById('google-signin-hidden');
+  if (btnDiv) {
+    (gsi as any).renderButton(btnDiv, {
+      theme: 'filled_black', size: 'large',
+      text: 'continue_with', shape: 'rectangular', width: 360,
+    });
+  }
+}, 50);
+
+// Dans le JSX :
+{!gsiReady ? <spinner /> : (
+  <div id="google-signin-hidden"
+    className="flex justify-center overflow-hidden rounded-xl"
+    style={{ border: '1px solid rgba(255,255,255,0.08)', minHeight: 44 }}
+  />
+)}
+```
+
+#### Note FedCM
+- `use_fedcm_for_prompt: true` opt-in FedCM (obligatoire dans Chrome à terme)
+- ⚠️ Les types `@types/google.accounts` ne connaissent pas encore `use_fedcm_for_prompt` → cast `as any` nécessaire
+- Migration FedCM complète : ✅ (bouton officiel = flow géré nativement par Google)
+
+### Nginx — split config (sessions précédentes, consolidé ici)
+- `infra/nginx-wezea.conf` → `/etc/nginx/sites-available/wezea.net` (frontend SPA)
+- `infra/nginx-scan.conf` → `/etc/nginx/sites-available/scan.wezea.net` (API backend)
+- `infra/nginx.conf` → marqué obsolète (avertissement de ne pas copier en prod)
+- **HSTS** : `add_header` doit être répété dans chaque `location` qui a ses propres `add_header` (héritage nginx cassé sinon)
+- SSL cert `scan.wezea.net` : obtenu via `sudo certbot --nginx -d scan.wezea.net`
 
 ---
 
