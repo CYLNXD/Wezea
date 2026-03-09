@@ -124,6 +124,8 @@ class ScanResult:
     subdomain_details: dict[str, Any]     = field(default_factory=dict)
     vuln_details:      dict[str, Any]     = field(default_factory=dict)
     breach_details:    dict[str, Any]     = field(default_factory=dict)
+    # Conformité réglementaire — tous plans
+    compliance:        dict[str, Any]     = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -140,6 +142,7 @@ class ScanResult:
             "subdomain_details":  self.subdomain_details,
             "vuln_details":       self.vuln_details,
             "breach_details":     self.breach_details,
+            "compliance":         self.compliance,
         }
 
 
@@ -1320,6 +1323,10 @@ class AuditManager:
         if self.plan in ("starter", "pro", "dev") and self._breach_auditor:
             breach_details = self._breach_auditor.get_details()
 
+        # Conformité NIS2 + RGPD — calculée sur TOUS les findings (tous plans)
+        from app.compliance_mapper import ComplianceMapper
+        compliance = ComplianceMapper().analyze(all_findings).to_dict()
+
         return ScanResult(
             domain             = self.domain,
             scanned_at         = start_ts.isoformat(),
@@ -1337,6 +1344,7 @@ class AuditManager:
             subdomain_details  = subdomain_details,
             vuln_details       = vuln_details,
             breach_details     = breach_details,
+            compliance         = compliance,
         )
 
 

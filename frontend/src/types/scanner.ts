@@ -71,6 +71,27 @@ export interface ScanResult {
   subdomain_details: SubdomainDetails | Record<string, never>;
   vuln_details:      VulnDetails      | Record<string, never>;
   breach_details?:   BreachDetails;
+  // Conformité réglementaire — tous plans
+  compliance?:       ComplianceData;
+}
+
+export interface ComplianceArticle {
+  code:           string;
+  framework:      'NIS2' | 'RGPD';
+  title:          string;
+  title_en:       string;
+  description:    string;
+  description_en: string;
+  compliant:      boolean;
+  triggered_by:   string[];
+}
+
+export interface ComplianceData {
+  nis2_score:    number;
+  rgpd_score:    number;
+  overall_level: 'conforme' | 'partiel' | 'non_conforme';
+  nis2:          ComplianceArticle[];
+  rgpd:          ComplianceArticle[];
 }
 
 export interface BreachDetails {

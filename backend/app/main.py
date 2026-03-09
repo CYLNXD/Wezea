@@ -294,6 +294,8 @@ class ScanResponse(BaseModel):
     subdomain_details: dict[str, Any] = {}
     vuln_details:      dict[str, Any] = {}
     breach_details:    dict[str, Any] = {}
+    # Conformité réglementaire — tous plans
+    compliance:        dict[str, Any] = {}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -700,6 +702,7 @@ async def run_scan(
                 "subdomain_details": result_dict.get("subdomain_details", {}),
                 "vuln_details":      result_dict.get("vuln_details", {}),
                 "breach_details":    result_dict.get("breach_details", {}),
+                "compliance":        result_dict.get("compliance", {}),
             }
             history = ScanHistory(
                 user_id           = current_user.id,
@@ -752,6 +755,7 @@ async def run_scan(
         subdomain_details = result_dict.get("subdomain_details", {}),
         vuln_details      = result_dict.get("vuln_details", {}),
         breach_details    = result_dict.get("breach_details", {}),
+        compliance        = result_dict.get("compliance", {}),
     )
 
 

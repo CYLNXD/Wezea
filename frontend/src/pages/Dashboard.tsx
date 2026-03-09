@@ -12,7 +12,7 @@ import {
   Shield, Search, ArrowRight, RotateCcw,
   FileDown, Globe, AlertTriangle, Info, Lock, X, UserPlus, MessageSquare,
   CheckCircle, ChevronDown, Zap, Eye, Star, ListChecks, BookOpen, Building2, Bell,
-  TrendingUp, TrendingDown, Database,
+  TrendingUp, TrendingDown, Database, FileText, Scale,
 } from 'lucide-react';
 
 import { useLanguage } from '../i18n/LanguageContext';
@@ -25,7 +25,7 @@ import { EmailCaptureModal } from '../components/EmailCaptureModal';
 import PricingModal from '../components/PricingModal';
 import NewsletterWidget from '../components/NewsletterWidget';
 import OnboardingWizard from '../components/OnboardingWizard';
-import type { Finding } from '../types/scanner';
+import type { Finding, ComplianceArticle } from '../types/scanner';
 import { SEVERITY_CONFIG } from '../types/scanner';
 import { apiClient, getScanLimits } from '../lib/api';
 import type { RateLimitInfo } from '../lib/api';
@@ -135,7 +135,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [monitoringLoading, setMonitoringLoading] = useState(false);
   const [monitoringInput, setMonitoringInput] = useState('');
   // Onglets de résultats
-  const [activeTab, setActiveTab] = useState<'summary' | 'findings' | 'advanced' | 'reco' | 'breaches'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'findings' | 'advanced' | 'reco' | 'breaches' | 'compliance'>('summary');
   const [pwCurrent, setPwCurrent]       = useState('');
   const [pwNew, setPwNew]               = useState('');
   const [pwConfirm, setPwConfirm]       = useState('');
@@ -1467,8 +1467,9 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                       { id: 'summary'  as const, label: lang === 'fr' ? 'Résumé'            : 'Summary',         shortLabel: lang === 'fr' ? 'Résumé'   : 'Summary', icon: <ListChecks size={13} />,    dot: r.findings.some(f => f.severity === 'CRITICAL') },
                       { id: 'findings' as const, label: lang === 'fr' ? `Vulnérabilités (${nonInfoCount})` : `Vulns (${nonInfoCount})`, shortLabel: lang === 'fr' ? `Vulnés (${nonInfoCount})` : `Vulns (${nonInfoCount})`, icon: <AlertTriangle size={13} />, dot: false },
                       { id: 'reco'     as const, label: lang === 'fr' ? 'Recommandations'   : 'Recommendations', shortLabel: lang === 'fr' ? 'Reco.'  : 'Reco.',   icon: <Zap size={13} />,           dot: (r.recommendations?.length ?? 0) > 0 },
-                      { id: 'breaches' as const, label: lang === 'fr' ? `Fuites${breachCount > 0 ? ` (${breachCount})` : ''}` : `Breaches${breachCount > 0 ? ` (${breachCount})` : ''}`, shortLabel: lang === 'fr' ? 'Fuites' : 'Breaches', icon: <Database size={13} />, dot: breachCount > 0 },
-                      { id: 'advanced' as const, label: lang === 'fr' ? 'Avancé'            : 'Advanced',        shortLabel: lang === 'fr' ? 'Avancé' : 'Advanced', icon: <Shield size={13} />,        dot: false },
+                      { id: 'breaches'   as const, label: lang === 'fr' ? `Fuites${breachCount > 0 ? ` (${breachCount})` : ''}` : `Breaches${breachCount > 0 ? ` (${breachCount})` : ''}`, shortLabel: lang === 'fr' ? 'Fuites' : 'Breaches', icon: <Database size={13} />, dot: breachCount > 0 },
+                      { id: 'compliance' as const, label: lang === 'fr' ? 'Conformité' : 'Compliance', shortLabel: lang === 'fr' ? 'NIS2/RGPD' : 'Compliance', icon: <Scale size={13} />, dot: false },
+                      { id: 'advanced'   as const, label: lang === 'fr' ? 'Avancé'     : 'Advanced',   shortLabel: lang === 'fr' ? 'Avancé' : 'Advanced', icon: <Shield size={13} />, dot: false },
                     ]).map(tab => (
                       <button
                         key={tab.id}
@@ -2065,6 +2066,149 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                         )}
                       </motion.div>
                     )}
+
+                    {/* ── Onglet Conformité NIS2 / RGPD ────────────────── */}
+                    {activeTab === 'compliance' && (() => {
+                      const c = r.compliance;
+                      if (!c || !c.nis2) {
+                        return (
+                          <motion.div key="tab-compliance-empty"
+                            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
+                            <div className="flex flex-col items-center gap-3 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
+                              <SkuIcon color="#22d3ee" size={44}><Scale size={20} className="text-cyan-300" /></SkuIcon>
+                              <p className="text-slate-400 text-sm max-w-xs">
+                                {lang === 'fr' ? 'Relancez une analyse pour obtenir le rapport de conformité.' : 'Re-run the analysis to get the compliance report.'}
+                              </p>
+                            </div>
+                          </motion.div>
+                        );
+                      }
+
+                      const levelCfg = {
+                        conforme:      { label: lang === 'fr' ? 'Conforme'       : 'Compliant',     bg: 'bg-green-500/15',  border: 'border-green-500/30',  text: 'text-green-300' },
+                        partiel:       { label: lang === 'fr' ? 'Partiel'        : 'Partial',       bg: 'bg-amber-500/15',  border: 'border-amber-500/30',  text: 'text-amber-300' },
+                        non_conforme:  { label: lang === 'fr' ? 'Non conforme'   : 'Non-compliant', bg: 'bg-red-500/15',    border: 'border-red-500/30',    text: 'text-red-300'   },
+                      }[c.overall_level] ?? { label: '—', bg: 'bg-slate-800', border: 'border-slate-700', text: 'text-slate-400' };
+
+                      const scoreBar = (score: number) => {
+                        const color = score >= 80 ? '#4ade80' : score >= 50 ? '#fbbf24' : '#f87171';
+                        return (
+                          <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${score}%`, background: color }} />
+                          </div>
+                        );
+                      };
+
+                      const ArticleRow = ({ art }: { art: ComplianceArticle }) => (
+                        <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border transition-colors ${
+                          art.compliant
+                            ? 'bg-slate-900/30 border-slate-800'
+                            : 'bg-red-500/5 border-red-500/20'
+                        }`}>
+                          <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                            art.compliant ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                          }`}>
+                            {art.compliant ? '✓' : '✗'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-mono text-slate-500">Art. {art.code}</span>
+                              <span className={`text-sm font-medium ${art.compliant ? 'text-slate-300' : 'text-slate-200'}`}>
+                                {lang === 'fr' ? art.title : art.title_en}
+                              </span>
+                            </div>
+                            <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">
+                              {lang === 'fr' ? art.description : art.description_en}
+                            </p>
+                            {!art.compliant && art.triggered_by.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {art.triggered_by.slice(0, 3).map((t, i) => (
+                                  <span key={i} className="px-2 py-0.5 rounded text-[10px] bg-red-500/10 text-red-300 border border-red-500/20">
+                                    {t}
+                                  </span>
+                                ))}
+                                {art.triggered_by.length > 3 && (
+                                  <span className="text-[10px] text-slate-600">+{art.triggered_by.length - 3}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+
+                      return (
+                        <motion.div key="tab-compliance"
+                          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}
+                          className="flex flex-col gap-5">
+
+                          {/* Badges scores + niveau global */}
+                          <div className="flex flex-col sm:flex-row items-stretch gap-3">
+                            {/* NIS2 */}
+                            <div className="flex-1 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <SkuIcon color="#818cf8" size={28}><FileText size={14} className="text-indigo-300" /></SkuIcon>
+                                  <span className="text-slate-300 text-sm font-semibold">NIS2</span>
+                                  <span className="text-slate-600 text-xs">Directive EU 2022/2555</span>
+                                </div>
+                                <span className={`text-lg font-bold ${c.nis2_score >= 80 ? 'text-green-400' : c.nis2_score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                                  {c.nis2_score}%
+                                </span>
+                              </div>
+                              {scoreBar(c.nis2_score)}
+                            </div>
+                            {/* RGPD */}
+                            <div className="flex-1 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <SkuIcon color="#a78bfa" size={28}><Scale size={14} className="text-violet-300" /></SkuIcon>
+                                  <span className="text-slate-300 text-sm font-semibold">RGPD</span>
+                                  <span className="text-slate-600 text-xs">Règlement EU 2016/679</span>
+                                </div>
+                                <span className={`text-lg font-bold ${c.rgpd_score >= 80 ? 'text-green-400' : c.rgpd_score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                                  {c.rgpd_score}%
+                                </span>
+                              </div>
+                              {scoreBar(c.rgpd_score)}
+                            </div>
+                            {/* Niveau global */}
+                            <div className={`flex flex-col items-center justify-center px-5 py-4 rounded-xl border ${levelCfg.bg} ${levelCfg.border} min-w-[110px]`}>
+                              <span className="text-slate-500 text-[10px] uppercase tracking-wider mb-1">
+                                {lang === 'fr' ? 'Niveau' : 'Level'}
+                              </span>
+                              <span className={`text-sm font-bold ${levelCfg.text}`}>{levelCfg.label}</span>
+                            </div>
+                          </div>
+
+                          {/* Disclaimer */}
+                          <p className="text-slate-600 text-xs px-1">
+                            {lang === 'fr'
+                              ? 'Ce rapport est basé sur les checks techniques automatisés. Il ne constitue pas un audit de conformité légal. Consultez un DPO ou expert NIS2 pour une évaluation complète.'
+                              : 'This report is based on automated technical checks. It does not constitute a legal compliance audit. Consult a DPO or NIS2 expert for a full assessment.'}
+                          </p>
+
+                          {/* Articles NIS2 */}
+                          <div className="flex flex-col gap-2">
+                            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-1">
+                              NIS2 — Art. 21 §2 ({c.nis2.filter(a => a.compliant).length}/{c.nis2.length} {lang === 'fr' ? 'conformes' : 'compliant'})
+                            </p>
+                            {c.nis2.map(art => <ArticleRow key={art.code} art={art} />)}
+                          </div>
+
+                          {/* Articles RGPD */}
+                          <div className="flex flex-col gap-2">
+                            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-1">
+                              RGPD ({c.rgpd.filter(a => a.compliant).length}/{c.rgpd.length} {lang === 'fr' ? 'conformes' : 'compliant'})
+                            </p>
+                            {c.rgpd.map(art => <ArticleRow key={art.code} art={art} />)}
+                          </div>
+
+                        </motion.div>
+                      );
+                    })()}
 
                   </AnimatePresence>
                 </div>
