@@ -324,13 +324,21 @@ class DNSAuditor(BaseAuditor):
 
     # ── DNSSEC ────────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _root_domain(domain: str) -> str:
+        """Extrait le domaine racine (ex: sub.example.com → example.com).
+        Les DNSKEY/CAA/RDAP vivent sur la zone apex, pas sur les sous-domaines."""
+        parts = domain.split(".")
+        return ".".join(parts[-2:]) if len(parts) >= 2 else domain
+
     def _check_dnssec(self) -> None:
-        """Vérifie si DNSSEC est activé sur la zone DNS du domaine."""
+        """Vérifie si DNSSEC est activé sur la zone DNS du domaine (apex)."""
+        root = self._root_domain(self.domain)
         try:
             resolver = dns.resolver.Resolver()
             resolver.lifetime = DNS_LIFETIME_SEC
-            # Demander les enregistrements DNSKEY — leur présence indique DNSSEC actif
-            answers = resolver.resolve(self.domain, "DNSKEY")
+            # Demander les enregistrements DNSKEY sur le domaine racine — DNSSEC vit à l'apex
+            answers = resolver.resolve(root, "DNSKEY")
             if answers:
                 self._details["dnssec"] = {"status": "ok"}
                 return
@@ -349,9 +357,9 @@ class DNSAuditor(BaseAuditor):
                 "DNSSEC not enabled"
             ),
             technical_detail=self._t(
-                f"Aucun enregistrement DNSKEY trouvé pour {self.domain}. "
+                f"Aucun enregistrement DNSKEY trouvé pour {root}. "
                 "La zone DNS n'est pas signée cryptographiquement.",
-                f"No DNSKEY record found for {self.domain}. "
+                f"No DNSKEY record found for {root}. "
                 "The DNS zone is not cryptographically signed."
             ),
             plain_explanation=self._t(
@@ -373,11 +381,13 @@ class DNSAuditor(BaseAuditor):
     # ── CAA ───────────────────────────────────────────────────────────────────
 
     def _check_caa(self) -> None:
-        """Vérifie la présence d'un enregistrement CAA limitant les autorités de certification."""
+        """Vérifie la présence d'un enregistrement CAA sur la zone apex.
+        CAA est hérité par les sous-domaines (RFC 6844) — on interroge le domaine racine."""
+        root = self._root_domain(self.domain)
         try:
             resolver = dns.resolver.Resolver()
             resolver.lifetime = DNS_LIFETIME_SEC
-            answers = resolver.resolve(self.domain, "CAA")
+            answers = resolver.resolve(root, "CAA")
             if answers:
                 caa_records = [r.to_text() for r in answers]
                 self._details["caa"] = {"status": "ok", "records": caa_records}
@@ -396,9 +406,9 @@ class DNSAuditor(BaseAuditor):
                 "CAA record missing"
             ),
             technical_detail=self._t(
-                f"Aucun enregistrement CAA (Certification Authority Authorization) trouvé pour {self.domain}. "
+                f"Aucun enregistrement CAA (Certification Authority Authorization) trouvé pour {root}. "
                 "N'importe quelle autorité de certification peut émettre un certificat SSL pour ce domaine.",
-                f"No CAA (Certification Authority Authorization) record found for {self.domain}. "
+                f"No CAA (Certification Authority Authorization) record found for {root}. "
                 "Any certificate authority can issue an SSL certificate for this domain."
             ),
             plain_explanation=self._t(
