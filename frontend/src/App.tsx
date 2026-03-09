@@ -8,6 +8,7 @@ import ClientSpace from './pages/ClientSpace';
 import ContactPage from './pages/ContactPage';
 import LegalPage from './pages/LegalPage';
 import PublicScanPage from './pages/PublicScanPage';
+import CompliancePage from './pages/CompliancePage';
 import type { LegalSection } from './pages/LegalPage';
 import CookieBanner from './components/CookieBanner';
 import { LanguageProvider } from './i18n/LanguageContext';
@@ -15,7 +16,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { initClientId, } from './lib/api';
 import { restoreConsent } from './lib/analytics';
 
-type Page = 'dashboard' | 'login' | 'history' | 'admin' | 'clientspace' | 'contact' | 'legal' | 'public-scan';
+type Page = 'dashboard' | 'login' | 'history' | 'admin' | 'clientspace' | 'contact' | 'legal' | 'public-scan' | 'compliance';
 type ClientSpaceTab = 'overview' | 'monitoring' | 'apps' | 'history' | 'settings' | 'developer';
 type SettingsSection = 'profile' | 'billing' | 'whitelabel' | 'danger';
 
@@ -43,6 +44,12 @@ export default function App() {
 
   // Détecte les routes /r/{uuid} pour les rapports publics
   useEffect(() => {
+    // Détecte la page de conformité NIS2/RGPD
+    if (window.location.pathname === '/conformite-nis2') {
+      setPage('compliance');
+      return;
+    }
+
     const path = window.location.pathname;
     const match = path.match(/^\/r\/([a-f0-9-]{36})$/i);
     if (match) {
@@ -154,6 +161,13 @@ export default function App() {
               window.history.replaceState({}, '', '/');
               setPage('dashboard');
             }}
+          />
+        )}
+        {page === 'compliance' && (
+          <CompliancePage
+            onGoBack={() => { window.history.replaceState({}, '', '/'); setPage('dashboard'); }}
+            onGoRegister={() => { setLoginMode('register'); setPage('login'); }}
+            onGoLogin={() => { setLoginMode('login'); setPage('login'); }}
           />
         )}
       </AuthProvider>
