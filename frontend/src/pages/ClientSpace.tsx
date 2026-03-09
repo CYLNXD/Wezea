@@ -173,6 +173,24 @@ interface DastDetails {
   findings: DastFindingDetail[];
 }
 
+interface SecretFindingDetail {
+  pattern_name:   string;
+  severity:       string;
+  penalty:        number;
+  description:    string;
+  recommendation: string;
+  matched_value:  string;
+  source_url:     string;
+  context:        string;
+}
+
+interface SecretDetails {
+  scripts_found:   number;
+  scripts_scanned: number;
+  error?:          string | null;
+  findings:        SecretFindingDetail[];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers visuels
 // ─────────────────────────────────────────────────────────────────────────────
@@ -421,7 +439,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   const [appVerifyMsg, setAppVerifyMsg]         = useState<Record<number, { ok: boolean; msg: string }>>({});
   const [appScanLoading, setAppScanLoading]     = useState<number | null>(null);
   const [appScanResults, setAppScanResults]     = useState<Record<number, AppScanFinding[]>>({});
-  const [appScanDetails, setAppScanDetails]     = useState<Record<number, { dast?: DastDetails }>>({});
+  const [appScanDetails, setAppScanDetails]     = useState<Record<number, { dast?: DastDetails; secrets?: SecretDetails }>>({});
   const [appExpandedId, setAppExpandedId]       = useState<number | null>(null);
   const [appVerifyInfo, setAppVerifyInfo]       = useState<Record<number, boolean>>({});
 
@@ -515,7 +533,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
     try {
       const { data } = await apiClient.post(`/apps/${appId}/scan`);
       setAppScanResults(prev => ({ ...prev, [appId]: data.findings ?? [] }));
-      setAppScanDetails(prev => ({ ...prev, [appId]: { dast: data.details?.dast } }));
+      setAppScanDetails(prev => ({ ...prev, [appId]: { dast: data.details?.dast, secrets: data.details?.secrets } }));
       setAppExpandedId(appId);
       await fetchApps();
     } catch (e: any) {
@@ -1366,10 +1384,12 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                                 CRITICAL: 'text-red-400', HIGH: 'text-orange-400',
                                 MEDIUM: 'text-yellow-400', LOW: 'text-blue-400', INFO: 'text-slate-400',
                               };
-                              // Séparer findings App Scan vs DAST
-                              const appFindings  = scanResult.filter(f => !f.category?.startsWith('DAST'));
-                              const dastFindings = scanResult.filter(f => f.category?.startsWith('DAST'));
-                              const dast = scanDetails?.dast;
+                              // Séparer findings App Scan / Secrets / DAST
+                              const appFindings     = scanResult.filter(f => !f.category?.startsWith('DAST') && f.category !== 'Secrets exposés');
+                              const dastFindings    = scanResult.filter(f => f.category?.startsWith('DAST'));
+                              const secretFindings  = scanResult.filter(f => f.category === 'Secrets exposés');
+                              const dast    = scanDetails?.dast;
+                              const secrets = scanDetails?.secrets;
                               return (
                                 <div className="border-t border-slate-800 px-4 py-4 flex flex-col gap-4">
 
@@ -1477,6 +1497,75 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                                           </div>
                                         )}
                                         <p className="text-slate-400 text-xs leading-relaxed">{df.detail}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                  {/* Secrets section */}
+                                  <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-red-400 text-xs font-mono uppercase tracking-wider">
+                                        {lang === 'fr' ? 'Secrets exposés dans le bundle' : 'Secrets exposed in bundle'}
+                                      </p>
+                                      {secrets && (
+                                        <span className="text-[10px] font-mono text-slate-600">
+                                          {lang === 'fr'
+                                            ? `${secrets.scripts_found} script${secrets.scripts_found > 1 ? 's' : ''} trouvé${secrets.scripts_found > 1 ? 's' : ''}, ${secrets.scripts_scanned} analysé${secrets.scripts_scanned > 1 ? 's' : ''}`
+                                            : `${secrets.scripts_found} script${secrets.scripts_found !== 1 ? 's' : ''} found, ${secrets.scripts_scanned} scanned`
+                                          }
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {secrets?.error && (
+                                      <p className="text-amber-400/70 text-xs font-mono">{secrets.error}</p>
+                                    )}
+                                    {secrets && !secrets.error && secrets.scripts_scanned === 0 && secrets.scripts_found === 0 && (
+                                      <p className="text-slate-600 text-xs italic">
+                                        {lang === 'fr' ? 'Aucun bundle JS externe découvert.' : 'No external JS bundle discovered.'}
+                                      </p>
+                                    )}
+                                    {secrets && !secrets.error && secrets.scripts_scanned > 0 && secretFindings.length === 0 && (
+                                      <p className="text-green-400/70 text-xs flex items-center gap-1">
+                                        <Check size={11} />
+                                        {lang === 'fr' ? 'Aucun secret détecté dans les bundles analysés' : 'No secret detected in scanned bundles'}
+                                      </p>
+                                    )}
+
+                                    {/* Secret findings */}
+                                    {secrets?.findings?.map((sf, i) => (
+                                      <div key={i} className={`border-l-2 rounded-r-lg p-3 ${sevColors[sf.severity] ?? sevColors.INFO}`}>
+                                        <div className="flex items-start justify-between gap-2 mb-1">
+                                          <p className="text-white text-sm font-semibold leading-snug">{sf.pattern_name}</p>
+                                          <span className={`text-xs font-bold font-mono shrink-0 ${sevText[sf.severity] ?? sevText.INFO}`}>
+                                            {sf.severity}
+                                            {sf.penalty > 0 && <span className="text-slate-500 font-normal ml-1">−{sf.penalty}pt</span>}
+                                          </span>
+                                        </div>
+
+                                        {/* Valeur masquée + source */}
+                                        <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500 mb-1.5 flex-wrap">
+                                          <span>
+                                            <span className="text-slate-600">{lang === 'fr' ? 'Valeur :' : 'Value:'} </span>
+                                            <span className="text-red-300/80">{sf.matched_value}</span>
+                                          </span>
+                                          {sf.source_url && (
+                                            <span className="truncate max-w-[240px]">
+                                              <span className="text-slate-600">{lang === 'fr' ? 'Source :' : 'Source:'} </span>
+                                              <span className="text-slate-400">{sf.source_url.replace(/^https?:\/\/[^/]+/, '')}</span>
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Contexte (extrait du bundle) */}
+                                        {sf.context && (
+                                          <div className="bg-slate-900 rounded px-2.5 py-1.5 font-mono text-[10px] text-slate-400 break-all mb-1.5">
+                                            {sf.context}
+                                          </div>
+                                        )}
+
+                                        <p className="text-slate-400 text-xs leading-relaxed mb-1.5">{sf.description}</p>
+                                        <p className="text-cyan-400/70 text-[10px] font-mono leading-relaxed">{sf.recommendation}</p>
                                       </div>
                                     ))}
                                   </div>

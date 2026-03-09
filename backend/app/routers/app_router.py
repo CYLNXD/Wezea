@@ -406,9 +406,10 @@ async def scan_app(
             detail="Vérifiez d'abord la propriété de l'application avant de lancer un scan."
         )
 
-    from app.app_checks import AppAuditor
-    from app.dast_checks import DastAuditor
-    from app.scanner import Finding as ScannerFinding
+    from app.app_checks    import AppAuditor
+    from app.dast_checks   import DastAuditor
+    from app.secret_scanner import SecretScanner
+    from app.scanner       import Finding as ScannerFinding
 
     try:
         # ── 1. Scan passif (AppAuditor) ────────────────────────────────────────
@@ -416,8 +417,9 @@ async def scan_app(
         findings = await auditor.audit()
         details  = auditor.get_details()
 
-        # ── 2. DAST actif sur formulaires (app.url = URL complète vérifiée) ───
         loop = asyncio.get_event_loop()
+
+        # ── 2. DAST actif sur formulaires (app.url = URL complète vérifiée) ───
         dast_result = await loop.run_in_executor(
             None, lambda: DastAuditor(app.url).run()
         )
@@ -426,15 +428,35 @@ async def scan_app(
         # Convertir les DastFindings en Finding scanner pour le ScoreEngine
         for df in dast_result.findings:
             findings.append(ScannerFinding(
-                category         = f"DAST — {df.test_type.upper()}",
-                severity         = df.severity,
-                title            = df.title,
-                technical_detail = df.detail,
+                category          = f"DAST — {df.test_type.upper()}",
+                severity          = df.severity,
+                title             = df.title,
+                technical_detail  = df.detail,
                 plain_explanation = (
                     "Détecté par test actif (DAST) sur les formulaires de l'application vérifiée."
                 ),
-                penalty          = df.penalty,
-                recommendation   = _dast_recommendation(df.test_type),
+                penalty           = df.penalty,
+                recommendation    = _dast_recommendation(df.test_type),
+            ))
+
+        # ── 3. Détection de secrets dans les bundles JS publics ────────────────
+        secret_result = await loop.run_in_executor(
+            None, lambda: SecretScanner(app.url).run()
+        )
+        details["secrets"] = secret_result.to_dict()
+
+        for sf in secret_result.findings:
+            findings.append(ScannerFinding(
+                category          = "Secrets exposés",
+                severity          = sf.severity,
+                title             = f"{sf.pattern_name} exposé dans le bundle public",
+                technical_detail  = (
+                    f"Valeur masquée : {sf.matched_value} — "
+                    f"Source : {sf.source_url}"
+                ),
+                plain_explanation = sf.description,
+                penalty           = sf.penalty,
+                recommendation    = sf.recommendation,
             ))
 
     except Exception as exc:
