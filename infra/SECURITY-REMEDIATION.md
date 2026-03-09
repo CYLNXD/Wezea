@@ -1,14 +1,28 @@
 # Plan de remédiation sécurité — wezea.net
 > Basé sur le rapport d'audit du 09/03/2026 · Score : 41/100 · Objectif : 85+/100
+> Mis à jour le 09/03/2026 après vérification DNS manuelle
 
 ---
 
-## ✅ Corrections déjà appliquées dans ce repo
+## ✅ Corrections déjà appliquées ou confirmées
 
-| # | Finding | Action | Fichier modifié |
-|---|---------|--------|-----------------|
-| 6 | Version serveur exposée (LOW -3pts) | `server_tokens off;` ajouté | `nginx-wezea.conf`, `nginx-scan.conf` |
-| 8 | MTA-STS non configuré (LOW -2pts) | Config nginx + politique créées | `nginx-mta-sts.conf` (nouveau) |
+| # | Finding | Statut | Détail |
+|---|---------|--------|--------|
+| 3 | DKIM non détecté (-8 pts) | ✅ DÉJÀ CONFIGURÉ | Délégation NS `_domainkey → nsany1.infomaniak.com` — Infomaniak gère les sélecteurs |
+| 2 | DMARC p=none (-8 pts) | ✅ DÉJÀ CORRIGÉ | `p=reject; adkim=s; aspf=s; fo=1; pct=100` |
+| 4 | Sous-domaines orphelins (-6 pts) | ✅ FAUX POSITIF | `crm.wezea.net` et `intranet.wezea.net` absents du DNS — détectés via crt.sh (certificats historiques) uniquement |
+| 7 | Enregistrement CAA absent (-2 pts) | ✅ DÉJÀ CONFIGURÉ | `CAA 0 issue "letsencrypt.org"` + `CAA 0 issuewild ";"` présents |
+| 6 | Version serveur exposée (-3 pts) | ✅ CORRIGÉ dans ce repo | `server_tokens off;` ajouté dans `nginx-wezea.conf` et `nginx-scan.conf` |
+| 8 | MTA-STS non configuré (-2 pts) | ✅ CONFIG CRÉÉE | `nginx-mta-sts.conf` prêt avec MX corrigé (`mta-gw.infomaniak.ch`) |
+
+> **Note DKIM** : Le scanner attendait un enregistrement TXT sur `_domainkey.wezea.net` (sans sélecteur spécifique).
+> Infomaniak utilise une délégation NS : `_domainkey.wezea.net. IN NS nsany1.infomaniak.com.`
+> Ce mécanisme est valide — les sélecteurs DKIM (ex: `default._domainkey.wezea.net`) sont gérés par Infomaniak directement.
+> Vérification : `dig TXT default._domainkey.wezea.net` ou `dig TXT s1._domainkey.wezea.net`
+
+> **Note sous-domaines orphelins** : Le scanner a trouvé `crm.wezea.net` et `intranet.wezea.net` dans les logs
+> Certificate Transparency (crt.sh) — ces sous-domaines ont eu des certificats SSL par le passé mais n'ont
+> JAMAIS eu d'enregistrements DNS A/CNAME actifs (ou ont été supprimés). Pas d'action requise.
 
 ---
 
@@ -29,74 +43,9 @@
    - Via [ICANN WHOIS](https://lookup.icann.org/) → trouver le registrar → déposer plainte
    - Ou via [Nominet abuse](https://www.nominet.uk/report-abuse/) pour les .net
 
-**Protection DMARC liée :** appliquer #2 ci-dessous simultanément.
-
 ---
 
-## 🟠 MEDIUM — À corriger sous 30 jours
-
-### #2 — DMARC en mode surveillance p=none (-8 pts)
-
-**Risque** : N'importe qui peut envoyer des emails en se faisant passer pour `@wezea.net`.
-
-**Enregistrement DNS actuel :**
-```
-v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com
-```
-
-**Procédure (Infomaniak → Hébergement → Domaines → DNS) :**
-
-Étape 1 — Passer à `p=quarantine` (les emails frauduleux vont en spam) :
-```
-v=DMARC1; p=quarantine; rua=mailto:rua@dmarc.brevo.com; pct=100
-```
-
-Étape 2 — Attendre 2 semaines, analyser les rapports reçus sur `rua@dmarc.brevo.com`.
-Si aucun email légitime ne part en spam, passer à `p=reject` :
-```
-v=DMARC1; p=reject; rua=mailto:rua@dmarc.brevo.com; pct=100
-```
-
-⚠️ Ne passer à `p=reject` qu'après avoir configuré DKIM (#3) et vérifié les rapports.
-
----
-
-### #3 — DKIM non détecté (-8 pts)
-
-**Risque** : Sans DKIM, les emails peuvent être falsifiés sans détection.
-
-**Configuration DKIM chez Infomaniak :**
-
-1. Se connecter à [Infomaniak Manager](https://manager.infomaniak.com)
-2. Menu → **Emails** → votre domaine `wezea.net`
-3. Onglet **Sécurité** → activer **DKIM**
-4. Infomaniak génère automatiquement la clé et ajoute l'enregistrement DNS
-
-**Vérification :** (après 15 min de propagation DNS)
-```bash
-dig TXT default._domainkey.wezea.net
-# Doit retourner : v=DKIM1; k=rsa; p=...
-```
-
----
-
-### #4 — 2 sous-domaines orphelins (-6 pts)
-
-**Risque** : `crm.wezea.net` et `intranet.wezea.net` n'ont plus de serveur — vulnérables au *subdomain takeover*.
-
-**Action chez Infomaniak → DNS :**
-
-Supprimer les enregistrements DNS suivants :
-- `crm.wezea.net` (type A ou CNAME — n'a plus d'IP)
-- `intranet.wezea.net` (type A ou CNAME — n'a plus d'IP)
-
-**Vérification :**
-```bash
-dig A crm.wezea.net      # doit retourner NXDOMAIN
-dig A intranet.wezea.net  # doit retourner NXDOMAIN
-```
-
----
+## 🟠 MEDIUM — Action immédiate
 
 ### #5 — Domaine expire dans 57 jours (2026-05-06) (-5 pts)
 
@@ -110,9 +59,9 @@ dig A intranet.wezea.net  # doit retourner NXDOMAIN
 
 ---
 
-## 🟡 LOW — Optimisations (sous 90 jours)
+## 🟡 LOW — Déploiements serveur
 
-### #6 — Version nginx exposée (-3 pts) ✅ DÉJÀ CORRIGÉ
+### #6 — Version nginx exposée (-3 pts) ✅ CORRIGÉ dans ce repo
 
 `server_tokens off;` ajouté dans `nginx-wezea.conf` et `nginx-scan.conf`.
 
@@ -125,38 +74,17 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ---
 
-### #7 — Enregistrement CAA absent (-2 pts)
-
-**Risque** : N'importe quelle autorité de certification peut émettre un certificat SSL pour votre domaine.
-
-**Enregistrement DNS à ajouter chez Infomaniak :**
-
-| Type | Nom | Valeur |
-|------|-----|--------|
-| CAA | `wezea.net` | `0 issue "letsencrypt.org"` |
-| CAA | `wezea.net` | `0 issuewild ";"` (bloque les wildcards) |
-
-**Vérification :**
-```bash
-dig CAA wezea.net
-# doit retourner : wezea.net. 3600 IN CAA 0 issue "letsencrypt.org"
-```
-
----
-
 ### #8 — MTA-STS non configuré (-2 pts) ✅ CONFIG CRÉÉE
 
-Le fichier `infra/nginx-mta-sts.conf` est prêt. Déploiement en 3 étapes :
+Le fichier `infra/nginx-mta-sts.conf` est prêt.
+MX configuré correctement : `mta-gw.infomaniak.ch` (vérifié via `dig MX wezea.net`).
 
 **Étape 1 — Ajouter les DNS chez Infomaniak :**
 
 | Type | Nom | Valeur |
 |------|-----|--------|
 | A | `mta-sts.wezea.net` | `83.228.217.154` |
-| TXT | `_mta-sts.wezea.net` | `v=STSv1; id=20260309000000` |
-
-> ⚠️ Vérifier d'abord les vrais serveurs MX : `dig MX wezea.net`
-> Adapter les lignes `mx:` dans `nginx-mta-sts.conf` si nécessaire.
+| TXT | `_mta-sts.wezea.net` | `v=STSv1; id=20260309000001` |
 
 **Étape 2 — Déployer nginx et obtenir le certificat SSL :**
 ```bash
@@ -172,7 +100,7 @@ sudo systemctl reload nginx
 **Étape 3 — Vérification :**
 ```bash
 curl https://mta-sts.wezea.net/.well-known/mta-sts.txt
-# Doit afficher : version: STSv1 / mode: enforce / mx: mail.infomaniak.com ...
+# Doit afficher : version: STSv1 / mode: enforce / mx: mta-gw.infomaniak.ch ...
 ```
 
 ---
@@ -211,25 +139,27 @@ sudo apt install fail2ban
 
 ## 📊 Score estimé après toutes les corrections
 
-| Action | Gain |
-|--------|------|
-| DMARC p=reject | +8 pts |
-| DKIM configuré | +8 pts |
-| Sous-domaines orphelins supprimés | +6 pts |
-| Domaine renouvelé | +5 pts |
-| Serveur header masqué ✅ | +3 pts |
-| CAA ajouté | +2 pts |
-| MTA-STS configuré ✅ | +2 pts |
-| **Total estimé** | **41 + 34 = 75 pts** |
+| Action | Gain | Statut |
+|--------|------|--------|
+| DMARC p=reject | +8 pts | ✅ DÉJÀ FAIT |
+| DKIM configuré | +8 pts | ✅ DÉJÀ FAIT (NS delegation) |
+| Sous-domaines orphelins | +6 pts | ✅ FAUX POSITIF |
+| Domaine renouvelé | +5 pts | ⏳ À FAIRE |
+| Serveur header masqué | +3 pts | ✅ DÉJÀ CORRIGÉ (à déployer) |
+| CAA ajouté | +2 pts | ✅ DÉJÀ FAIT |
+| MTA-STS configuré | +2 pts | ✅ CONFIG PRÊTE (à déployer) |
+| **Total estimé** | **41 + 34 = 75 pts** | |
 
 > Le typosquatting (-25 pts) est détecté mais hors de contrôle direct —
 > enregistrer les TLDs principaux reste fortement recommandé pour la protection de marque.
+
+> **Remarque** : Le score passera probablement à 75+ dès le prochain audit car DKIM/DMARC/CAA
+> sont confirmés configurés — le scanner ne les avait pas détectés correctement.
 
 ---
 
 ## 🔢 Ordre de priorité résumé
 
 1. **URGENT (cette semaine)** : Renouveler le domaine wezea.net · Acheter wezea.com
-2. **IMPORTANT (2 semaines)** : DMARC p=quarantine → surveiller → p=reject · Configurer DKIM
-3. **IMPORTANT (1 mois)** : Supprimer DNS orphelins · Déployer nginx server_tokens + MTA-STS
-4. **OPTIMISATION (3 mois)** : Ajouter CAA · SSH clé uniquement · Fail2Ban
+2. **DÉPLOIEMENT (1-2 jours)** : Copier nginx configs sur le serveur (server_tokens) · Déployer MTA-STS
+3. **OPTIMISATION (3 mois)** : SSH clé uniquement · Fail2Ban
