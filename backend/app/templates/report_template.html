@@ -2013,15 +2013,102 @@ p.lead {
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     ⑤ PLAN D'ACTION IMMÉDIAT
+     CONFORMITÉ NIS2 / RGPD — 12 critères techniques
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="section page-break">
 
   <div class="section-header">
     <div class="section-number">{% if hacker_scenarios %}5{% else %}4{% endif %}</div>
     <div>
-      <div class="section-title">{% if lang == 'en' %}Immediate Action Plan{% else %}Plan d'Action Immédiat{% endif %}</div>
-      <div class="section-subtitle">{% if lang == 'en' %}3-phase remediation roadmap{% else %}Feuille de route de remédiation en 3 phases{% endif %}</div>
+      <div class="section-title">{% if lang == 'en' %}NIS2 &amp; GDPR Compliance{% else %}Conformité NIS2 &amp; RGPD{% endif %}</div>
+      <div class="section-subtitle">{% if lang == 'en' %}12 technical compliance criteria{% else %}12 critères techniques de conformité réglementaire{% endif %}</div>
+    </div>
+  </div>
+
+  <!-- Score global conformité -->
+  <div style="display:flex; align-items:center; gap:24px; padding:18px 20px; background:rgba(30,41,59,0.5); border:1px solid rgba(100,116,139,0.2); border-radius:12px; margin-bottom:20px;">
+    <div style="text-align:center; min-width:80px;">
+      <div style="font-size:40px; font-weight:900; font-family:monospace; color:{{ compliance.overall_color }}; line-height:1;">{{ compliance.score }}</div>
+      <div style="font-size:11px; color:#94a3b8; margin-top:2px;">/100</div>
+    </div>
+    <div style="flex:1;">
+      <div style="font-size:15px; font-weight:800; color:{{ compliance.overall_color }}; margin-bottom:4px;">{{ compliance.overall_label }}</div>
+      <div style="font-size:12px; color:#64748b; margin-bottom:8px;">{{ compliance.pass_count }}/{{ compliance.total }} {% if lang == 'en' %}criteria compliant{% else %}critères conformes{% endif %}</div>
+      <div style="display:flex; gap:16px;">
+        <span style="font-size:11px; color:#4ade80;">&#10003; {{ compliance.pass_count }} {% if lang == 'en' %}compliant{% else %}conformes{% endif %}</span>
+        <span style="font-size:11px; color:#fbbf24;">&#9888; {{ compliance.warn_count }} {% if lang == 'en' %}warnings{% else %}avertissements{% endif %}</span>
+        <span style="font-size:11px; color:#f87171;">&#10007; {{ compliance.fail_count }} {% if lang == 'en' %}non-compliant{% else %}non conformes{% endif %}</span>
+      </div>
+    </div>
+    <div style="text-align:right; font-size:10px; color:#475569; line-height:1.6;">
+      <div>Directive <strong style="color:#60a5fa;">NIS2</strong> Art. 21</div>
+      <div>R&#232;glement <strong style="color:#a78bfa;">RGPD</strong> Art. 25 &amp; 32</div>
+    </div>
+  </div>
+
+  <!-- Tableau des 12 critères -->
+  <table style="width:100%; border-collapse:separate; border-spacing:0 5px; font-size:11px;">
+    <thead>
+      <tr style="color:#475569; font-size:10px; text-transform:uppercase; letter-spacing:.06em;">
+        <th style="text-align:left; padding:4px 8px; width:28px;"></th>
+        <th style="text-align:left; padding:4px 8px;">{% if lang == 'en' %}Criterion{% else %}Crit&#232;re{% endif %}</th>
+        <th style="text-align:center; padding:4px 8px; width:80px;">{% if lang == 'en' %}Regulation{% else %}R&#233;glementation{% endif %}</th>
+        <th style="text-align:right; padding:4px 8px; width:90px;">{% if lang == 'en' %}Status{% else %}Statut{% endif %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in compliance.criteria %}
+      <tr style="background:{% if c.status == 'pass' %}rgba(74,222,128,0.04){% elif c.status == 'warn' %}rgba(251,191,36,0.06){% elif c.status == 'fail' %}rgba(248,113,113,0.06){% else %}rgba(30,41,59,0.3){% endif %}; border-radius:8px;">
+        <td style="padding:8px 6px 8px 10px; border-radius:8px 0 0 8px; border-left:3px solid {{ c.status_color }};">
+          {% if c.status == 'pass' %}<span style="color:#4ade80; font-size:14px;">&#10003;</span>
+          {% elif c.status == 'warn' %}<span style="color:#fbbf24; font-size:12px;">&#9888;</span>
+          {% elif c.status == 'fail' %}<span style="color:#f87171; font-size:14px;">&#10007;</span>
+          {% else %}<span style="color:#475569; font-size:12px;">?</span>{% endif %}
+        </td>
+        <td style="padding:8px 8px;">
+          <div style="font-weight:700; color:#f1f5f9; margin-bottom:2px;">{{ c.label }}</div>
+          <div style="color:#64748b; font-size:10px; line-height:1.4;">{{ c.desc }}</div>
+        </td>
+        <td style="padding:8px; text-align:center; vertical-align:top; padding-top:10px;">
+          {% for reg in c.regulations %}
+          <span style="display:inline-block; font-size:9px; font-weight:700; padding:2px 5px; border-radius:4px; margin:1px;
+            {% if reg == 'NIS2' %}background:rgba(96,165,250,0.12); color:#60a5fa; border:1px solid rgba(96,165,250,0.25);
+            {% else %}background:rgba(167,139,250,0.12); color:#a78bfa; border:1px solid rgba(167,139,250,0.25);{% endif %}">{{ reg }}</span>
+          {% endfor %}
+          <div style="font-size:9px; color:#475569; margin-top:3px; font-family:monospace;">{{ c.article.split('&#183;')[0].strip() }}</div>
+        </td>
+        <td style="padding:8px 10px 8px 8px; text-align:right; vertical-align:top; padding-top:10px; border-radius:0 8px 8px 0;">
+          <span style="font-size:10px; font-weight:700; padding:3px 8px; border-radius:5px;
+            background:{{ c.status_color }}1a; color:{{ c.status_color }}; border:1px solid {{ c.status_color }}33;">
+            {{ c.status_label }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div style="margin-top:16px; padding:12px 14px; background:rgba(15,23,42,0.5); border:1px solid rgba(100,116,139,0.15); border-radius:8px; font-size:10px; color:#475569; line-height:1.6;">
+    {% if lang == 'en' %}
+    This compliance analysis is based on an automatic passive scan of the public footprint of <strong style="color:#94a3b8;">{{ domain }}</strong>. It maps findings to NIS2 Directive Art. 21 and GDPR Art. 25 &amp; 32 technical requirements. It is indicative and does not constitute a legal compliance audit.
+    {% else %}
+    Cette analyse est bas&#233;e sur un scan passif automatique de l'empreinte publique de <strong style="color:#94a3b8;">{{ domain }}</strong>. Elle met en correspondance les findings avec les exigences techniques de la directive NIS2 (Art. 21) et du RGPD (Art. 25 &amp; 32). Elle est indicative et ne constitue pas un audit de conformit&#233; juridique.
+    {% endif %}
+  </div>
+
+</div><!-- /compliance -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     PLAN D'ACTION IMMÉDIAT
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="section page-break">
+
+  <div class="section-header">
+    <div class="section-number">{% if hacker_scenarios %}8{% else %}7{% endif %}</div>
+    <div>
+      <div class="section-title">{% if lang == 'en' %}Immediate Action Plan{% else %}Plan d'Action Imm&#233;diat{% endif %}</div>
+      <div class="section-subtitle">{% if lang == 'en' %}3-phase remediation roadmap{% else %}Feuille de route de rem&#233;diation en 3 phases{% endif %}</div>
     </div>
   </div>
 

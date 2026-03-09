@@ -842,3 +842,91 @@ class TestGeneratePdf:
 
         assert result == fake_pdf_bytes
         mock_html_inst.write_pdf.assert_called_once()
+
+
+class TestBuildComplianceContext:
+    """Tests pour _build_compliance_context — logique NIS2/RGPD."""
+
+    def _f(self, title: str, severity: str, category: str = "DNS & Mail") -> dict:
+        return {"title": title, "severity": severity, "category": category,
+                "technical_detail": "", "penalty": 5}
+
+    def test_no_findings_all_pass(self):
+        from app.services.report_service import _build_compliance_context
+        result = _build_compliance_context([])
+        assert result["pass_count"] == result["total"]
+        assert result["fail_count"] == 0
+        assert result["warn_count"] == 0
+        assert result["score"] == 100
+
+    def test_dmarc_pnone_gives_warn(self):
+        from app.services.report_service import _build_compliance_context
+        findings = [self._f("DMARC présent mais en mode surveillance (p=none)", "MEDIUM")]
+        result = _build_compliance_context(findings)
+        dmarc = next(c for c in result["criteria"] if c["id"] == "dmarc")
+        assert dmarc["status"] == "warn"
+
+    def test_dkim_missing_gives_fail(self):
+        from app.services.report_service import _build_compliance_context
+        findings = [self._f("DKIM non détecté", "MEDIUM", "Sécurité Email")]
+        result = _build_compliance_context(findings)
+        dkim = next(c for c in result["criteria"] if c["id"] == "dkim")
+        assert dkim["status"] == "fail"
+
+    def test_caa_absent_gives_warn(self):
+        from app.services.report_service import _build_compliance_context
+        findings = [self._f("Enregistrement CAA absent", "LOW")]
+        result = _build_compliance_context(findings)
+        dnssec = next(c for c in result["criteria"] if c["id"] == "dnssec")
+        assert dnssec["status"] == "warn"
+
+    def test_ssl_invalid_gives_fail(self):
+        from app.services.report_service import _build_compliance_context
+        findings = [self._f("Certificat SSL expiré", "CRITICAL", "SSL / HTTPS")]
+        result = _build_compliance_context(findings)
+        https_crit = next(c for c in result["criteria"] if c["id"] == "https")
+        assert https_crit["status"] == "fail"
+
+    def test_domain_expiry_medium_gives_warn(self):
+        from app.services.report_service import _build_compliance_context
+        findings = [self._f("Domaine expire dans 57 jours — à renouveler", "MEDIUM", "Infrastructure")]
+        result = _build_compliance_context(findings)
+        expiry = next(c for c in result["criteria"] if c["id"] == "expiry")
+        assert expiry["status"] == "warn"
+
+    def test_score_calculation(self):
+        from app.services.report_service import _build_compliance_context
+        result = _build_compliance_context([])
+        assert result["score"] == 100
+        assert result["total"] == 12
+
+    def test_lang_en_returns_english_labels(self):
+        from app.services.report_service import _build_compliance_context
+        result = _build_compliance_context([], lang="en")
+        assert result["overall_label"] == "Compliant"
+        dmarc = next(c for c in result["criteria"] if c["id"] == "dmarc")
+        assert "DMARC" in dmarc["label"]
+        assert "Anti-spoofing" in dmarc["label"]
+
+    def test_build_context_includes_compliance(self):
+        """_build_context() injecte bien la clé 'compliance' dans le contexte."""
+        from app.services.report_service import _build_context
+        ctx = _build_context({"domain": "test.com", "findings": [], "security_score": 85,
+                               "risk_level": "LOW"})
+        assert "compliance" in ctx
+        assert "criteria" in ctx["compliance"]
+        assert ctx["compliance"]["total"] == 12
+
+    def test_reputation_blacklist_gives_fail(self):
+        from app.services.report_service import _build_compliance_context
+        findings = [self._f("Listes noires (DNSBL)", "CRITICAL", "Réputation du Domaine")]
+        result = _build_compliance_context(findings)
+        rep = next(c for c in result["criteria"] if c["id"] == "reputation")
+        assert rep["status"] == "fail"
+
+    def test_vuln_version_critical_gives_fail(self):
+        from app.services.report_service import _build_compliance_context
+        findings = [self._f("PHP 7.4 vulnérable (CVE-2021-xxxx)", "CRITICAL", "Versions Vulnérables")]
+        result = _build_compliance_context(findings)
+        vers = next(c for c in result["criteria"] if c["id"] == "versions")
+        assert vers["status"] == "fail"

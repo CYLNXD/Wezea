@@ -406,6 +406,334 @@ def _build_context(
         "cover_gradient":    cover_gradient,
         # Benchmark maturité — score moyen des entreprises (injecté par main.py)
         "industry_avg":      int(data.get("industry_avg", 58)),
+        # Conformité NIS2 / RGPD — 12 critères mappés depuis les findings
+        "compliance":        _build_compliance_context(findings, lang),
+    }
+
+
+# ── Conformité NIS2 / RGPD ────────────────────────────────────────────────────
+
+_SEV_RANK: dict[str, int] = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+
+_COMPLIANCE_CRITERIA = [
+    # ── 5 critères "basiques" (équivalents à la vue gratuite frontend) ─────────
+    {
+        "id": "https",
+        "label_fr": "HTTPS & Chiffrement actif",
+        "label_en": "HTTPS & Active Encryption",
+        "regulations": ["NIS2", "RGPD"],
+        "article": "Art. 21 NIS2 · Art. 32 RGPD",
+        "desc_fr": "Tout le trafic doit être chiffré via HTTPS. Le certificat SSL doit être valide et la redirection HTTP → HTTPS active.",
+        "desc_en": "All traffic must be encrypted via HTTPS. SSL certificate must be valid and HTTP → HTTPS redirect active.",
+        "check": lambda findings: (
+            "fail" if any(
+                _SEV_RANK.get(str(f.get("severity","")),0) >= 4 and f.get("category") == "SSL / HTTPS"
+                for f in findings
+            ) or any(
+                any(w in (f.get("title","")).lower() for w in ["http", "redirect", "https"])
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 3
+                for f in findings
+            )
+            else "warn" if any(
+                _SEV_RANK.get(str(f.get("severity","")),0) >= 3 and f.get("category") == "SSL / HTTPS"
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    {
+        "id": "tls",
+        "label_fr": "Protocole TLS à jour",
+        "label_en": "Up-to-date TLS Protocol",
+        "regulations": ["NIS2"],
+        "article": "Art. 21 NIS2",
+        "desc_fr": "TLS 1.2 minimum requis. TLS 1.0 et 1.1 sont officiellement dépréciés depuis 2021 et ne doivent plus être utilisés.",
+        "desc_en": "TLS 1.2 minimum required. TLS 1.0 and 1.1 have been officially deprecated since 2021.",
+        "check": lambda findings: (
+            "fail" if any(
+                any(w in (f.get("title","")).lower() for w in ["tls 1.0", "tls 1.1", "tlsv1.0", "tlsv1.1", "deprecated", "cipher faible"])
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 2
+                for f in findings
+            )
+            else "warn" if any(
+                any(w in (f.get("title","")).lower() for w in ["perfect forward", "pfs"])
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 2
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    {
+        "id": "dmarc",
+        "label_fr": "Protection anti-usurpation (DMARC)",
+        "label_en": "Anti-spoofing Protection (DMARC)",
+        "regulations": ["NIS2"],
+        "article": "Art. 21 NIS2",
+        "desc_fr": "DMARC avec p=quarantine ou p=reject protège votre domaine contre le phishing par usurpation d'identité.",
+        "desc_en": "DMARC with p=quarantine or p=reject protects your domain against impersonation phishing.",
+        "check": lambda findings: (
+            "fail" if any(
+                "dmarc" in (f.get("title","")).lower()
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 3
+                for f in findings
+            )
+            else "warn" if any(
+                "dmarc" in (f.get("title","")).lower()
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 2
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    {
+        "id": "headers",
+        "label_fr": "En-têtes de sécurité HTTP",
+        "label_en": "HTTP Security Headers",
+        "regulations": ["RGPD"],
+        "article": "Art. 25 RGPD",
+        "desc_fr": "HSTS, CSP et X-Frame-Options réduisent la surface d'attaque XSS/clickjacking et protègent vos visiteurs.",
+        "desc_en": "HSTS, CSP and X-Frame-Options reduce the XSS/clickjacking attack surface and protect visitors.",
+        "check": lambda findings: (
+            "fail" if any(
+                f.get("category") == "En-têtes HTTP"
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 3
+                for f in findings
+            )
+            else "warn" if any(
+                f.get("category") == "En-têtes HTTP"
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 2
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    {
+        "id": "spf",
+        "label_fr": "Authentification email (SPF)",
+        "label_en": "Email Authentication (SPF)",
+        "regulations": ["NIS2"],
+        "article": "Art. 21 NIS2",
+        "desc_fr": "SPF strict (-all) empêche les tiers d'envoyer des emails en usurpant votre domaine.",
+        "desc_en": "Strict SPF (-all) prevents third parties from sending emails by spoofing your domain.",
+        "check": lambda findings: (
+            "fail" if any(
+                "spf" in (f.get("title","")).lower()
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 3
+                for f in findings
+            )
+            else "warn" if any(
+                "spf" in (f.get("title","")).lower()
+                and "+all" in (f.get("title","")).lower()
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 2
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    # ── 7 critères "premium" (équivalents à la vue floue frontend) ─────────────
+    {
+        "id": "dkim",
+        "label_fr": "Signature DKIM des emails",
+        "label_en": "DKIM Email Signing",
+        "regulations": ["NIS2"],
+        "article": "Art. 21 NIS2",
+        "desc_fr": "DKIM garantit l'intégrité et l'authenticité cryptographique des emails sortants.",
+        "desc_en": "DKIM guarantees the integrity and cryptographic authenticity of outgoing emails.",
+        "check": lambda findings: (
+            "fail" if any(
+                "dkim" in (f.get("title","")).lower()
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 2
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    {
+        "id": "dnssec",
+        "label_fr": "Sécurité DNS (DNSSEC + CAA)",
+        "label_en": "DNS Security (DNSSEC + CAA)",
+        "regulations": ["NIS2"],
+        "article": "Art. 21 NIS2",
+        "desc_fr": "DNSSEC protège contre la falsification DNS. CAA limite les autorités autorisées à émettre des certificats SSL.",
+        "desc_en": "DNSSEC protects against DNS forgery. CAA restricts which certificate authorities can issue SSL certificates.",
+        "check": lambda findings: (
+            "warn" if any(
+                any(w in (f.get("title","")).lower() for w in ["dnssec", "caa"])
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 1
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    {
+        "id": "ports",
+        "label_fr": "Ports dangereux exposés",
+        "label_en": "Dangerous Exposed Ports",
+        "regulations": ["NIS2"],
+        "article": "Art. 21 NIS2",
+        "desc_fr": "RDP, SMB, MySQL, Redis, Elasticsearch ne doivent jamais être accessibles depuis internet.",
+        "desc_en": "RDP, SMB, MySQL, Redis, Elasticsearch must never be accessible from the internet.",
+        "check": lambda findings: (
+            "fail" if any(
+                f.get("category") == "Exposition des Ports"
+                and any(w in (f.get("title","")).lower() for w in ["rdp", "smb", "mysql", "redis", "mongo", "elastic"])
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 3
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    {
+        "id": "reputation",
+        "label_fr": "Réputation et blacklists",
+        "label_en": "Reputation and Blacklists",
+        "regulations": ["RGPD"],
+        "article": "Art. 32 RGPD",
+        "desc_fr": "Votre domaine et IP ne doivent pas figurer sur les listes noires email ou malware.",
+        "desc_en": "Your domain and IP must not appear on email or malware blacklists.",
+        "check": lambda findings: (
+            "fail" if any(
+                f.get("category") == "Réputation du Domaine"
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 3
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    {
+        "id": "credentials",
+        "label_fr": "Credentials exposés dans le code",
+        "label_en": "Exposed Credentials in Code",
+        "regulations": ["RGPD"],
+        "article": "Art. 32 RGPD",
+        "desc_fr": "Aucune clé API, token ou secret ne doit être visible dans le source HTML ou JavaScript public.",
+        "desc_en": "No API key, token or secret should be visible in public HTML or JavaScript source.",
+        "check": lambda findings: (
+            "fail" if any(
+                any(w in (f.get("title","")).lower() for w in ["credential", "secret", "token", "api key", "clé", "exposed"])
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 3
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    {
+        "id": "expiry",
+        "label_fr": "Expiration du domaine",
+        "label_en": "Domain Expiration",
+        "regulations": ["NIS2"],
+        "article": "Art. 21 NIS2",
+        "desc_fr": "Un domaine expiré rend votre infrastructure inaccessible et peut être récupéré par un acteur malveillant.",
+        "desc_en": "An expired domain makes your infrastructure inaccessible and can be seized by a malicious actor.",
+        "check": lambda findings: (
+            "fail" if any(
+                any(w in (f.get("title","")).lower() for w in ["domain", "expir", "renouvell"])
+                and _SEV_RANK.get(str(f.get("severity","")),0) == 4
+                for f in findings
+            )
+            else "warn" if any(
+                any(w in (f.get("title","")).lower() for w in ["domain", "expir", "renouvell"])
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 2
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+    {
+        "id": "versions",
+        "label_fr": "Logiciels et versions vulnérables",
+        "label_en": "Vulnerable Software Versions",
+        "regulations": ["NIS2"],
+        "article": "Art. 21 NIS2",
+        "desc_fr": "CMS, serveurs et frameworks doivent être à jour. Les versions avec CVE connues doivent être mises à jour.",
+        "desc_en": "CMS, servers and frameworks must be up to date. Versions with known CVEs must be updated.",
+        "check": lambda findings: (
+            "fail" if any(
+                f.get("category") == "Versions Vulnérables"
+                and _SEV_RANK.get(str(f.get("severity","")),0) == 4
+                for f in findings
+            )
+            else "warn" if any(
+                f.get("category") == "Versions Vulnérables"
+                and _SEV_RANK.get(str(f.get("severity","")),0) >= 3
+                for f in findings
+            )
+            else "pass"
+        ),
+    },
+]
+
+_STATUS_LABEL = {
+    "fr": {"pass": "Conforme", "warn": "Avertissement", "fail": "Non conforme", "unknown": "Non vérifié"},
+    "en": {"pass": "Compliant", "warn": "Warning",       "fail": "Non-compliant", "unknown": "Not checked"},
+}
+_STATUS_COLOR = {"pass": "#4ade80", "warn": "#fbbf24", "fail": "#f87171", "unknown": "#94a3b8"}
+
+
+def _build_compliance_context(findings: list[dict], lang: str = "fr") -> dict:
+    """
+    Évalue les 12 critères NIS2/RGPD depuis les findings du scan.
+    Porte la logique de CompliancePage.tsx côté serveur pour inclusion dans le PDF.
+
+    Retourne :
+        {
+          criteria: list[dict]   - chaque critère avec son statut
+          score: int             - % critères conformes (0-100)
+          pass_count: int
+          warn_count: int
+          fail_count: int
+        }
+    """
+    labels     = _STATUS_LABEL.get(lang, _STATUS_LABEL["fr"])
+    label_key  = "label_fr" if lang != "en" else "label_en"
+    desc_key   = "desc_fr"  if lang != "en" else "desc_en"
+
+    results = []
+    for crit in _COMPLIANCE_CRITERIA:
+        try:
+            status = crit["check"](findings)
+        except Exception:
+            status = "unknown"
+        results.append({
+            "id":           crit["id"],
+            "label":        crit[label_key],
+            "regulations":  crit["regulations"],
+            "article":      crit["article"],
+            "desc":         crit[desc_key],
+            "status":       status,
+            "status_label": labels.get(status, status),
+            "status_color": _STATUS_COLOR.get(status, "#94a3b8"),
+        })
+
+    pass_count  = sum(1 for r in results if r["status"] == "pass")
+    warn_count  = sum(1 for r in results if r["status"] == "warn")
+    fail_count  = sum(1 for r in results if r["status"] == "fail")
+    total       = len(results)
+    score       = round((pass_count / total) * 100) if total else 0
+
+    overall = (
+        "fail"    if fail_count >= 3
+        else "fail"  if any(r["status"] == "fail" and "NIS2" in r["regulations"] for r in results)
+        else "warn"  if fail_count > 0 or warn_count > 0
+        else "pass"
+    )
+
+    overall_labels = {
+        "fr": {"pass": "Conforme", "warn": "Partiellement conforme", "fail": "Non conforme"},
+        "en": {"pass": "Compliant", "warn": "Partially compliant",   "fail": "Non-compliant"},
+    }
+    ol = overall_labels.get(lang, overall_labels["fr"])
+
+    return {
+        "criteria":        results,
+        "score":           score,
+        "pass_count":      pass_count,
+        "warn_count":      warn_count,
+        "fail_count":      fail_count,
+        "total":           total,
+        "overall_status":  overall,
+        "overall_label":   ol.get(overall, overall),
+        "overall_color":   _STATUS_COLOR.get(overall, "#94a3b8"),
     }
 
 
