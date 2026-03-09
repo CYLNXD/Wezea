@@ -293,6 +293,7 @@ class ScanResponse(BaseModel):
     # Champs premium
     subdomain_details: dict[str, Any] = {}
     vuln_details:      dict[str, Any] = {}
+    breach_details:    dict[str, Any] = {}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -698,6 +699,7 @@ async def run_scan(
                 "recommendations":   result_dict.get("recommendations", []),
                 "subdomain_details": result_dict.get("subdomain_details", {}),
                 "vuln_details":      result_dict.get("vuln_details", {}),
+                "breach_details":    result_dict.get("breach_details", {}),
             }
             history = ScanHistory(
                 user_id           = current_user.id,
@@ -749,6 +751,7 @@ async def run_scan(
         meta              = meta,
         subdomain_details = result_dict.get("subdomain_details", {}),
         vuln_details      = result_dict.get("vuln_details", {}),
+        breach_details    = result_dict.get("breach_details", {}),
     )
 
 

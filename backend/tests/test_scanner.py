@@ -508,7 +508,7 @@ def _mock_auditor(findings=None, details=None):
 def _all_auditor_patches(
     dns_mock=None, ssl_mock=None, port_mock=None,
     header_mock=None, email_mock=None, tech_mock=None, rep_mock=None,
-    expiry_mock=None, sub_mock=None, vuln_mock=None,
+    expiry_mock=None, sub_mock=None, vuln_mock=None, breach_mock=None,
 ):
     """
     Retourne une liste de patch() pour tous les auditeurs.
@@ -525,6 +525,7 @@ def _all_auditor_patches(
         patch("app.extra_checks.DomainExpiryAuditor",    return_value=expiry_mock or _mock_auditor()),
         patch("app.advanced_checks.SubdomainAuditor",    return_value=sub_mock    or _mock_auditor()),
         patch("app.advanced_checks.VulnVersionAuditor",  return_value=vuln_mock   or _mock_auditor()),
+        patch("app.breach_checks.BreachAuditor",         return_value=breach_mock or _mock_auditor()),
     ]
 
 
@@ -544,16 +545,17 @@ class TestAuditManagerInit:
         assert manager._vuln_auditor          is None
 
     def test_starter_plan_has_premium_auditors(self):
-        """Plan starter → 8 de base + 2 premium (subdomain + vuln)."""
+        """Plan starter → 8 de base + 3 premium (subdomain + vuln + breach)."""
         from app.scanner import AuditManager
         with ExitStack() as stack:
             for p in _all_auditor_patches():
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="starter")
         assert len(manager._auditors)         == 8
-        assert len(manager._premium_auditors) == 2
+        assert len(manager._premium_auditors) == 3
         assert manager._subdomain_auditor     is not None
         assert manager._vuln_auditor          is not None
+        assert manager._breach_auditor        is not None
 
     def test_pro_plan_has_premium_auditors(self):
         """Plan pro → même comportement que starter."""
@@ -562,18 +564,19 @@ class TestAuditManagerInit:
             for p in _all_auditor_patches():
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="pro")
-        assert len(manager._premium_auditors) == 2
+        assert len(manager._premium_auditors) == 3
 
     def test_dev_plan_has_premium_auditors(self):
-        """Plan dev = tout Pro → doit aussi avoir SubdomainAuditor + VulnVersionAuditor."""
+        """Plan dev = tout Pro → doit aussi avoir SubdomainAuditor + VulnVersionAuditor + BreachAuditor."""
         from app.scanner import AuditManager
         with ExitStack() as stack:
             for p in _all_auditor_patches():
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="dev")
-        assert len(manager._premium_auditors) == 2
+        assert len(manager._premium_auditors) == 3
         assert manager._subdomain_auditor is not None
         assert manager._vuln_auditor is not None
+        assert manager._breach_auditor is not None
 
     def test_domain_lowercased_and_stripped(self):
         """Le domaine est normalisé en minuscules sans espaces."""

@@ -70,6 +70,13 @@ export interface ScanResult {
   // Champs premium
   subdomain_details: SubdomainDetails | Record<string, never>;
   vuln_details:      VulnDetails      | Record<string, never>;
+  breach_details?:   BreachDetails;
+}
+
+export interface BreachDetails {
+  status:        'clean' | 'breached';
+  breach_count?: number;
+  breach_names?: string[];
 }
 
 export interface ConsoleLog {

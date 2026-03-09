@@ -12,7 +12,7 @@ import {
   Shield, Search, ArrowRight, RotateCcw,
   FileDown, Globe, AlertTriangle, Info, Lock, X, UserPlus, MessageSquare,
   CheckCircle, ChevronDown, Zap, Eye, Star, ListChecks, BookOpen, Building2, Bell,
-  TrendingUp, TrendingDown,
+  TrendingUp, TrendingDown, Database,
 } from 'lucide-react';
 
 import { useLanguage } from '../i18n/LanguageContext';
@@ -135,7 +135,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [monitoringLoading, setMonitoringLoading] = useState(false);
   const [monitoringInput, setMonitoringInput] = useState('');
   // Onglets de résultats
-  const [activeTab, setActiveTab] = useState<'summary' | 'findings' | 'advanced' | 'reco'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'findings' | 'advanced' | 'reco' | 'breaches'>('summary');
   const [pwCurrent, setPwCurrent]       = useState('');
   const [pwNew, setPwNew]               = useState('');
   const [pwConfirm, setPwConfirm]       = useState('');
@@ -1112,6 +1112,8 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
             const infoFindings = r.findings.filter(f => f.severity === 'INFO');
             const groups = groupFindings(visibleForGroups);
             const nonInfoCount = r.findings.filter(f => f.severity !== 'INFO').length;
+            const breachCount = r.breach_details?.breach_count ?? 0;
+            const isPremiumPlan = user && user.plan !== 'free';
 
             return (
               <motion.div
@@ -1465,6 +1467,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                       { id: 'summary'  as const, label: lang === 'fr' ? 'Résumé'            : 'Summary',         shortLabel: lang === 'fr' ? 'Résumé'   : 'Summary', icon: <ListChecks size={13} />,    dot: r.findings.some(f => f.severity === 'CRITICAL') },
                       { id: 'findings' as const, label: lang === 'fr' ? `Vulnérabilités (${nonInfoCount})` : `Vulns (${nonInfoCount})`, shortLabel: lang === 'fr' ? `Vulnés (${nonInfoCount})` : `Vulns (${nonInfoCount})`, icon: <AlertTriangle size={13} />, dot: false },
                       { id: 'reco'     as const, label: lang === 'fr' ? 'Recommandations'   : 'Recommendations', shortLabel: lang === 'fr' ? 'Reco.'  : 'Reco.',   icon: <Zap size={13} />,           dot: (r.recommendations?.length ?? 0) > 0 },
+                      { id: 'breaches' as const, label: lang === 'fr' ? `Fuites${breachCount > 0 ? ` (${breachCount})` : ''}` : `Breaches${breachCount > 0 ? ` (${breachCount})` : ''}`, shortLabel: lang === 'fr' ? 'Fuites' : 'Breaches', icon: <Database size={13} />, dot: breachCount > 0 },
                       { id: 'advanced' as const, label: lang === 'fr' ? 'Avancé'            : 'Advanced',        shortLabel: lang === 'fr' ? 'Avancé' : 'Advanced', icon: <Shield size={13} />,        dot: false },
                     ]).map(tab => (
                       <button
@@ -1879,6 +1882,159 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                               {lang === 'fr'
                                 ? 'Le domaine ne présente aucune anomalie nécessitant une action corrective.'
                                 : 'The domain shows no anomalies requiring corrective action.'}
+                            </p>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* ── Onglet Fuites de données ──────────────────────── */}
+                    {activeTab === 'breaches' && (
+                      <motion.div
+                        key="tab-breaches"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.18 }}
+                        className="flex flex-col gap-4"
+                      >
+                        {/* Paywall pour les utilisateurs free / non connectés */}
+                        {!isPremiumPlan ? (
+                          <div className="flex flex-col items-center gap-4 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
+                            <SkuIcon color="#f87171" size={52}>
+                              <Database size={24} className="text-red-300" />
+                            </SkuIcon>
+                            <div>
+                              <p className="text-slate-200 font-bold text-base">
+                                {lang === 'fr' ? 'Détection de fuites de données' : 'Data Breach Detection'}
+                              </p>
+                              <p className="text-slate-500 text-sm mt-1 max-w-sm mx-auto">
+                                {lang === 'fr'
+                                  ? 'Vérifiez si votre domaine a été compromis dans des bases de données piratées.'
+                                  : 'Check if your domain has been compromised in breached databases.'}
+                              </p>
+                            </div>
+                            <div className="flex flex-col items-center gap-2">
+                              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                                {lang === 'fr' ? 'Disponible dès le plan Starter' : 'Available from Starter plan'}
+                              </span>
+                              {!user && (
+                                <button
+                                  onClick={onGoRegister ?? onGoLogin}
+                                  className="sku-btn-primary mt-2 flex items-center gap-2 px-4 py-2 text-sm"
+                                >
+                                  <UserPlus size={14} />
+                                  {lang === 'fr' ? 'Créer un compte gratuit' : 'Create a free account'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : r.breach_details?.status === 'clean' ? (
+                          /* Domaine propre */
+                          <div className="flex flex-col items-center gap-4 py-12 text-center bg-slate-900/50 rounded-2xl border border-green-500/20">
+                            <SkuIcon color="#4ade80" size={52}>
+                              <CheckCircle size={24} className="text-green-300" />
+                            </SkuIcon>
+                            <div>
+                              <p className="text-green-400 font-bold text-base">
+                                {lang === 'fr' ? 'Aucune fuite détectée' : 'No breach detected'}
+                              </p>
+                              <p className="text-slate-500 text-sm mt-1 max-w-sm mx-auto">
+                                {lang === 'fr'
+                                  ? `Le domaine ${r.domain} n'apparaît dans aucune base de données piratée connue.`
+                                  : `The domain ${r.domain} does not appear in any known breached database.`}
+                              </p>
+                            </div>
+                            <p className="text-slate-600 text-xs">
+                              {lang === 'fr' ? 'Source : HaveIBeenPwned' : 'Source: HaveIBeenPwned'}
+                            </p>
+                          </div>
+                        ) : r.breach_details?.status === 'breached' ? (
+                          /* Domaine compromis */
+                          <div className="flex flex-col gap-4">
+                            {/* En-tête alerte */}
+                            <div className="flex items-start gap-4 p-5 rounded-2xl bg-red-500/10 border border-red-500/30">
+                              <SkuIcon color="#f87171" size={44}>
+                                <Database size={22} className="text-red-300" />
+                              </SkuIcon>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-red-300 font-bold text-base">
+                                  {lang === 'fr'
+                                    ? `Domaine trouvé dans ${breachCount} fuite${breachCount > 1 ? 's' : ''} de données`
+                                    : `Domain found in ${breachCount} data breach${breachCount > 1 ? 'es' : ''}`}
+                                </p>
+                                <p className="text-slate-400 text-sm mt-1">
+                                  {lang === 'fr'
+                                    ? 'Des identifiants liés à votre domaine ont été retrouvés dans des bases de données piratées. Ces credentials peuvent être utilisés pour du credential stuffing ou du phishing ciblé.'
+                                    : 'Credentials linked to your domain were found in breached databases. These can be used for credential stuffing or targeted phishing attacks.'}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Badges des fuites */}
+                            {(r.breach_details.breach_names?.length ?? 0) > 0 && (
+                              <div className="flex flex-col gap-2 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                                  {lang === 'fr' ? 'Sources identifiées' : 'Identified sources'}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {r.breach_details.breach_names!.map(name => (
+                                    <span
+                                      key={name}
+                                      className="px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/15 text-red-300 border border-red-500/30"
+                                    >
+                                      {name}
+                                    </span>
+                                  ))}
+                                </div>
+                                <p className="text-slate-600 text-xs mt-1">
+                                  {lang === 'fr' ? 'Source : HaveIBeenPwned' : 'Source: HaveIBeenPwned'}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Actions recommandées */}
+                            <div className="flex flex-col gap-2 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+                              <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                                {lang === 'fr' ? 'Actions recommandées' : 'Recommended actions'}
+                              </p>
+                              {[
+                                {
+                                  icon: <Lock size={14} className="text-amber-400" />,
+                                  text: lang === 'fr'
+                                    ? 'Demandez à vos équipes de changer immédiatement leurs mots de passe.'
+                                    : 'Ask your team to immediately change their passwords.',
+                                },
+                                {
+                                  icon: <Shield size={14} className="text-cyan-400" />,
+                                  text: lang === 'fr'
+                                    ? 'Activez l\'authentification à deux facteurs (2FA) sur tous les comptes professionnels.'
+                                    : 'Enable two-factor authentication (2FA) on all business accounts.',
+                                },
+                                {
+                                  icon: <Eye size={14} className="text-violet-400" />,
+                                  text: lang === 'fr'
+                                    ? 'Vérifiez les accès suspects dans vos logs et journaux d\'activité.'
+                                    : 'Review suspicious access in your logs and activity journals.',
+                                },
+                              ].map((action, i) => (
+                                <div key={i} className="flex items-start gap-3 py-2">
+                                  <span className="mt-0.5 shrink-0">{action.icon}</span>
+                                  <p className="text-slate-300 text-sm">{action.text}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          /* Données non disponibles (plan OK mais scan sans données breach) */
+                          <div className="flex flex-col items-center gap-3 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
+                            <SkuIcon color="#22d3ee" size={44}>
+                              <Database size={20} className="text-cyan-300" />
+                            </SkuIcon>
+                            <p className="text-slate-400 text-sm max-w-xs">
+                              {lang === 'fr'
+                                ? 'Données de fuites non disponibles pour ce scan. Relancez une analyse pour obtenir les résultats.'
+                                : 'Breach data not available for this scan. Re-run the analysis to get results.'}
                             </p>
                           </div>
                         )}

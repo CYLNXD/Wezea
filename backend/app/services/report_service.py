@@ -73,6 +73,9 @@ FINDING_ACTIONS: dict[str, dict] = {
     "Domain expired":                  {"phase": "urgent",    "action_fr": "Renouveler le nom de domaine immédiatement — risque de perte irréversible",                     "action_en": "Renew the domain name immediately — risk of irreversible loss"},
     "Domaine expire dans":             {"phase": "urgent",    "action_fr": "Renouveler le nom de domaine en urgence avant son expiration",                                   "action_en": "Renew the domain name urgently before it expires"},
     "Domain expires in":               {"phase": "urgent",    "action_fr": "Renouveler le nom de domaine en urgence avant son expiration",                                   "action_en": "Renew the domain name urgently before it expires"},
+    # ── Breach Detection (session 34) ─────────────────────────────────────────
+    "Domaine trouvé dans":             {"phase": "urgent",    "action_fr": "Réinitialiser les mots de passe compromis et activer le 2FA sur tous les comptes",            "action_en": "Reset compromised passwords and enable 2FA on all accounts"},
+    "Domain found in":                 {"phase": "urgent",    "action_fr": "Réinitialiser les mots de passe compromis et activer le 2FA sur tous les comptes",            "action_en": "Reset compromised passwords and enable 2FA on all accounts"},
 }
 
 DEFAULT_OPTIMIZE_ACTIONS_FR = [
@@ -283,7 +286,7 @@ def _build_context(
     # Autres catégories non listées ci-dessus (ex. futures catégories)
     known_cats = {"DNS & Mail", "SSL / HTTPS", "Exposition des Ports", "En-têtes HTTP",
                   "Sécurité Email", "Exposition Technologique", "Réputation du Domaine",
-                  "Sous-domaines & Certificats", "Versions Vulnérables"}
+                  "Sous-domaines & Certificats", "Versions Vulnérables", "Fuites de données"}
     other_findings = [f for f in findings if f.get("category") not in known_cats]
 
     # Compteurs
