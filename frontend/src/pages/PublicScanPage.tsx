@@ -97,7 +97,13 @@ export default function PublicScanPage({ uuid, onGoHome }: Props) {
         }
         return r.json();
       })
-      .then(data => { setScan(data); setLoading(false); })
+      .then(data => {
+        setScan(data);
+        setLoading(false);
+        // Titre dynamique pour Googlebot et les navigateurs standards
+        const rl = { low: 'Faible', moderate: 'Modéré', high: 'Élevé', critical: 'Critique' } as Record<string, string>;
+        document.title = `Rapport de sécurité — ${data.domain} · ${data.security_score}% · ${rl[data.risk_level] ?? data.risk_level} | Wezea`;
+      })
       .catch(e => { setError(e.message); setLoading(false); });
   }, [uuid]);
 
