@@ -135,7 +135,8 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [monitoringLoading, setMonitoringLoading] = useState(false);
   const [monitoringInput, setMonitoringInput] = useState('');
   // Onglets de résultats
-  const [activeTab, setActiveTab] = useState<'summary' | 'findings' | 'advanced' | 'reco' | 'breaches' | 'compliance'>('summary');
+  const [activeTab, setActiveTab] = useState<'actions' | 'vulnerabilities' | 'surveillance' | 'conformite'>('actions');
+  const [severityFilter, setSeverityFilter] = useState<'all' | 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'>('all');
   const [pwCurrent, setPwCurrent]       = useState('');
   const [pwNew, setPwNew]               = useState('');
   const [pwConfirm, setPwConfirm]       = useState('');
@@ -306,7 +307,8 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
       fetchScanLimits();
     }
     if (scanner.status === 'success' && scanner.result) {
-      setActiveTab('summary');
+      setActiveTab('actions');
+      setSeverityFilter('all');
       // Scroll vers les résultats une fois la transition AnimatePresence terminée.
       // Timeline : console exit (200ms) + results enter (400ms) + marge (100ms) = 700ms
       // behavior:'instant' — évite qu'une animation de scroll rate sa cible si la page
@@ -1108,7 +1110,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
             const visibleForGroups = isAnon
               ? r.findings.filter(f => f.severity !== 'LOW' && f.severity !== 'INFO')
               : r.findings.filter(f => f.severity !== 'INFO');
-            const hiddenLow = isAnon ? r.findings.filter(f => f.severity === 'LOW') : [];
+            // hiddenLow computed inline in vulnerabilities tab
             const infoFindings = r.findings.filter(f => f.severity === 'INFO');
             const groups = groupFindings(visibleForGroups);
             const nonInfoCount = r.findings.filter(f => f.severity !== 'INFO').length;
@@ -1464,12 +1466,30 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   {/* Barre de navigation */}
                   <div className="flex items-center gap-0 border-b border-slate-800 mb-6 overflow-x-auto scrollbar-hide">
                     {([
-                      { id: 'summary'  as const, label: lang === 'fr' ? 'Résumé'            : 'Summary',         shortLabel: lang === 'fr' ? 'Résumé'   : 'Summary', icon: <ListChecks size={13} />,    dot: r.findings.some(f => f.severity === 'CRITICAL') },
-                      { id: 'findings' as const, label: lang === 'fr' ? `Vulnérabilités (${nonInfoCount})` : `Vulns (${nonInfoCount})`, shortLabel: lang === 'fr' ? `Vulnés (${nonInfoCount})` : `Vulns (${nonInfoCount})`, icon: <AlertTriangle size={13} />, dot: false },
-                      { id: 'reco'     as const, label: lang === 'fr' ? 'Recommandations'   : 'Recommendations', shortLabel: lang === 'fr' ? 'Reco.'  : 'Reco.',   icon: <Zap size={13} />,           dot: (r.recommendations?.length ?? 0) > 0 },
-                      { id: 'breaches'   as const, label: lang === 'fr' ? `Fuites${breachCount > 0 ? ` (${breachCount})` : ''}` : `Breaches${breachCount > 0 ? ` (${breachCount})` : ''}`, shortLabel: lang === 'fr' ? 'Fuites' : 'Breaches', icon: <Database size={13} />, dot: breachCount > 0 },
-                      { id: 'compliance' as const, label: lang === 'fr' ? 'Conformité' : 'Compliance', shortLabel: lang === 'fr' ? 'NIS2/RGPD' : 'Compliance', icon: <Scale size={13} />, dot: false },
-                      { id: 'advanced'   as const, label: lang === 'fr' ? 'Avancé'     : 'Advanced',   shortLabel: lang === 'fr' ? 'Avancé' : 'Advanced', icon: <Shield size={13} />, dot: false },
+                      { id: 'actions'         as const,
+                        label:      lang === 'fr' ? `Actions${r.findings.some(f => f.severity === 'CRITICAL') ? ' 🔴' : ''}` : `Actions${r.findings.some(f => f.severity === 'CRITICAL') ? ' 🔴' : ''}`,
+                        shortLabel: 'Actions',
+                        icon: <Zap size={13} />,
+                        dot: r.findings.some(f => f.severity === 'CRITICAL'),
+                      },
+                      { id: 'vulnerabilities' as const,
+                        label:      lang === 'fr' ? `Vulnérabilités (${nonInfoCount})` : `Vulns (${nonInfoCount})`,
+                        shortLabel: lang === 'fr' ? `Vulnés (${nonInfoCount})` : `Vulns (${nonInfoCount})`,
+                        icon: <AlertTriangle size={13} />,
+                        dot: false,
+                      },
+                      { id: 'surveillance'    as const,
+                        label:      lang === 'fr' ? `Surveillance${breachCount > 0 ? ` (${breachCount})` : ''}` : `Threat Intel${breachCount > 0 ? ` (${breachCount})` : ''}`,
+                        shortLabel: lang === 'fr' ? 'Veille' : 'Intel',
+                        icon: <Globe size={13} />,
+                        dot: breachCount > 0,
+                      },
+                      { id: 'conformite'      as const,
+                        label:      lang === 'fr' ? 'Conformité' : 'Compliance',
+                        shortLabel: lang === 'fr' ? 'NIS2/RGPD' : 'Compliance',
+                        icon: <Scale size={13} />,
+                        dot: false,
+                      },
                     ]).map(tab => (
                       <button
                         key={tab.id}
@@ -1496,10 +1516,10 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   {/* Contenu des onglets */}
                   <AnimatePresence mode="wait">
 
-                    {/* ── Onglet Résumé ─────────────────────────────────── */}
-                    {activeTab === 'summary' && (
+                    {/* ── Onglet Actions (plan d'action + recommandations) ──── */}
+                    {activeTab === 'actions' && (
                       <motion.div
-                        key="tab-summary"
+                        key="tab-actions"
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
@@ -1545,9 +1565,9 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                           };
 
                           const prioGroups = [
-                            { key: 'p1', label: lang === 'fr' ? 'Priorité 1 — Maintenant'   : 'Priority 1 — Now',        dot: 'bg-red-500',    text: 'text-red-400',    border: 'border-red-500/20',    items: actionFindings.filter(f => f.severity === 'CRITICAL') },
-                            { key: 'p2', label: lang === 'fr' ? 'Priorité 2 — Cette semaine': 'Priority 2 — This week',  dot: 'bg-orange-500', text: 'text-orange-400', border: 'border-orange-500/20', items: actionFindings.filter(f => f.severity === 'HIGH') },
-                            { key: 'p3', label: lang === 'fr' ? 'Priorité 3 — Ce mois-ci'   : 'Priority 3 — This month', dot: 'bg-yellow-500', text: 'text-yellow-400', border: 'border-yellow-500/20', items: actionFindings.filter(f => f.severity === 'MEDIUM' || f.severity === 'LOW') },
+                            { key: 'p1', label: lang === 'fr' ? '🔴 Maintenant (Critique)'   : '🔴 Now (Critical)',      dot: 'bg-red-500',    text: 'text-red-400',    border: 'border-red-500/20',    items: actionFindings.filter(f => f.severity === 'CRITICAL') },
+                            { key: 'p2', label: lang === 'fr' ? '🟠 Cette semaine (Élevé)'   : '🟠 This week (High)',    dot: 'bg-orange-500', text: 'text-orange-400', border: 'border-orange-500/20', items: actionFindings.filter(f => f.severity === 'HIGH') },
+                            { key: 'p3', label: lang === 'fr' ? '🟡 Ce mois (Modéré / Faible)' : '🟡 This month (Med/Low)', dot: 'bg-yellow-500', text: 'text-yellow-400', border: 'border-yellow-500/20', items: actionFindings.filter(f => f.severity === 'MEDIUM' || f.severity === 'LOW') },
                           ].filter(g => g.items.length > 0);
 
                           return (
@@ -1613,6 +1633,57 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                           );
                         })()}
 
+                        {/* Recommandations */}
+                        {r.recommendations && r.recommendations.length > 0 && (
+                          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
+                            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-800 bg-slate-900/60">
+                              <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                <Star size={14} className="text-amber-400" />
+                              </div>
+                              <h3 className="text-white font-bold text-sm">
+                                {lang === 'fr' ? 'Recommandations' : 'Recommendations'}
+                              </h3>
+                              <span className="text-xs font-mono text-slate-500 ml-auto">{r.recommendations.length}</span>
+                            </div>
+                            <div className="p-5 flex flex-col gap-2">
+                              <p className="text-slate-500 text-xs mb-1">
+                                {lang === 'fr'
+                                  ? "Actions correctives classées par ordre de priorité, issues de l'analyse complète du domaine."
+                                  : 'Corrective actions ranked by priority, derived from the full domain analysis.'}
+                              </p>
+                              {r.recommendations.map((rec, i) => {
+                                const recLower = rec.toLowerCase();
+                                const matchedLink = blogLinks.find(l =>
+                                  l.match_keyword.split(',').some(kw =>
+                                    recLower.includes(kw.trim().toLowerCase())
+                                  )
+                                );
+                                return (
+                                  <div key={i} className="flex items-start gap-4 px-4 py-3.5 rounded-xl bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition-colors">
+                                    <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold flex items-center justify-center">
+                                      {i + 1}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-slate-200 text-sm leading-relaxed">{rec}</p>
+                                      {matchedLink && (
+                                        <a
+                                          href={matchedLink.article_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1.5 mt-2 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors font-medium"
+                                        >
+                                          <BookOpen size={11} />
+                                          {lang === 'fr' ? "Lire l'article : " : 'Read article: '}{matchedLink.article_title}
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
                         {/* CTA contextuel */}
                         {nonInfoCount >= 2 && (
                           <div className="bg-gradient-to-r from-cyan-950/50 to-slate-900 border border-cyan-500/25 rounded-2xl p-4">
@@ -1642,15 +1713,15 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                       </motion.div>
                     )}
 
-                    {/* ── Onglet Findings ───────────────────────────────── */}
-                    {activeTab === 'findings' && (
+                    {/* ── Onglet Vulnérabilités (liste filtrée par sévérité) ─── */}
+                    {activeTab === 'vulnerabilities' && (
                       <motion.div
-                        key="tab-findings"
+                        key="tab-vulnerabilities"
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
                         transition={{ duration: 0.18 }}
-                        className="flex flex-col gap-6"
+                        className="flex flex-col gap-5"
                       >
                         {r.findings.length === 0 ? (
                           <div className="flex flex-col items-center gap-3 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
@@ -1662,81 +1733,133 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                           </div>
                         ) : (
                           <>
-                            {/* 2 colonnes de findings */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                              {/* Colonne 1 — Infrastructure */}
-                              <div className="flex flex-col gap-5">
-                                <FindingGroup title={t('group_dns')}   findings={groups.dns}   startIdx={0} />
-                                <FindingGroup title={t('group_ssl')}   findings={groups.ssl}   startIdx={groups.dns.length} />
-                                <FindingGroup title={t('group_ports')} findings={groups.ports} startIdx={groups.dns.length + groups.ssl.length} />
-                                {groups.reputation.length > 0
-                                  ? <FindingGroup title={t('group_reputation')} findings={groups.reputation} startIdx={groups.dns.length + groups.ssl.length + groups.ports.length} />
-                                  : (
-                                    <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-4 flex items-center gap-3">
-                                      <div className="p-1.5 rounded-full bg-green-500/15 border border-green-500/25 shrink-0">
-                                        <CheckCircle size={14} className="text-green-400" />
-                                      </div>
-                                      <div>
-                                        <p className="text-green-400 font-semibold text-xs">{lang === 'fr' ? 'Réputation saine' : 'Clean reputation'}</p>
-                                        <p className="text-slate-500 text-xs mt-0.5">{lang === 'fr' ? 'Domaine absent des blacklists et DNSBL vérifiées.' : 'Domain not found on any checked blacklists or DNSBL.'}</p>
-                                      </div>
-                                    </div>
-                                  )
-                                }
-                              </div>
-                              {/* Colonne 2 — Configuration & exposition */}
-                              <div className="flex flex-col gap-5">
-                                <FindingGroup title={t('group_headers')}    findings={groups.headers}    startIdx={groups.dns.length + groups.ssl.length + groups.ports.length + groups.reputation.length} />
-                                <FindingGroup title={t('group_email')}      findings={groups.emailSec}   startIdx={groups.dns.length + groups.ssl.length + groups.ports.length + groups.reputation.length + groups.headers.length} />
-                                <FindingGroup title={t('group_tech')}       findings={groups.tech}       startIdx={groups.dns.length + groups.ssl.length + groups.ports.length + groups.reputation.length + groups.headers.length + groups.emailSec.length} />
-                              </div>
-                            </div>
-
-                            {/* Gate LOW findings — anonymes uniquement */}
-                            {isAnon && hiddenLow.length > 0 && (
-                              <motion.div
-                                initial={{ opacity: 0, y: 6 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.2 }}
-                                className="relative rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/40"
-                                style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
-                              >
-                                {/* Faux aperçu flou */}
-                                <div className="blur-sm opacity-40 pointer-events-none px-5 py-4 flex flex-col gap-3 select-none">
-                                  {[...Array(Math.min(hiddenLow.length, 3))].map((_, i) => (
-                                    <div key={i} className="h-12 rounded-lg bg-slate-800/60 border border-slate-700/40" />
+                            {/* Pills de filtres */}
+                            {(() => {
+                              const countBySev = (sev: string) => r.findings.filter(f => f.severity === sev).length;
+                              return (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {([
+                                    { key: 'all',      label: lang === 'fr' ? `Tous (${nonInfoCount})` : `All (${nonInfoCount})`,           active: 'bg-slate-700 text-white border-slate-600',               inactive: 'text-slate-400 border-slate-700 hover:border-slate-600' },
+                                    { key: 'CRITICAL', label: lang === 'fr' ? `Critique (${countBySev('CRITICAL')})` : `Critical (${countBySev('CRITICAL')})`, active: 'bg-red-500/20 text-red-300 border-red-500/40',           inactive: 'text-red-400/60 border-red-500/20 hover:border-red-500/40' },
+                                    { key: 'HIGH',     label: lang === 'fr' ? `Élevé (${countBySev('HIGH')})` : `High (${countBySev('HIGH')})`,             active: 'bg-orange-500/20 text-orange-300 border-orange-500/40', inactive: 'text-orange-400/60 border-orange-500/20 hover:border-orange-500/40' },
+                                    { key: 'MEDIUM',   label: lang === 'fr' ? `Moyen (${countBySev('MEDIUM')})` : `Medium (${countBySev('MEDIUM')})`,         active: 'bg-amber-500/20 text-amber-300 border-amber-500/40',   inactive: 'text-amber-400/60 border-amber-500/20 hover:border-amber-500/40' },
+                                    { key: 'LOW',      label: lang === 'fr' ? `Faible (${countBySev('LOW')})` : `Low (${countBySev('LOW')})`,               active: 'bg-slate-600/40 text-slate-300 border-slate-500/40',   inactive: 'text-slate-500/70 border-slate-700 hover:border-slate-600' },
+                                  ] as Array<{key: string; label: string; active: string; inactive: string}>).map(pill => (
+                                    <button
+                                      key={pill.key}
+                                      onClick={() => setSeverityFilter(pill.key as typeof severityFilter)}
+                                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${severityFilter === pill.key ? pill.active : `bg-transparent ${pill.inactive}`}`}
+                                    >
+                                      {pill.label}
+                                    </button>
                                   ))}
                                 </div>
-                                {/* Overlay CTA */}
-                                <div
-                                  className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center"
-                                  style={{ background: 'linear-gradient(180deg, rgba(15,21,30,0.3) 0%, rgba(15,21,30,0.85) 60%, rgba(15,21,30,0.95) 100%)' }}
-                                >
-                                  <SkuIcon color="#fbbf24" size={40}>
-                                    <Lock size={20} className="text-amber-300" />
-                                  </SkuIcon>
-                                  <div>
-                                    <p className="text-white font-bold text-sm">
-                                      {lang === 'fr'
-                                        ? `${hiddenLow.length} recommandation${hiddenLow.length > 1 ? 's' : ''} LOW masquée${hiddenLow.length > 1 ? 's' : ''}`
-                                        : `${hiddenLow.length} LOW recommendation${hiddenLow.length > 1 ? 's' : ''} hidden`}
-                                    </p>
-                                    <p className="text-slate-400 text-xs mt-1">
-                                      {lang === 'fr'
-                                        ? 'Créez un compte gratuit pour accéder au plan de correction complet.'
-                                        : 'Create a free account to access the full remediation plan.'}
-                                    </p>
+                              );
+                            })()}
+
+                            {/* Liste de findings filtrée */}
+                            {(() => {
+                              const sevOrder: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+                              const sorted = r.findings
+                                .filter(f => f.severity !== 'INFO')
+                                .sort((a, b) => (sevOrder[a.severity] ?? 4) - (sevOrder[b.severity] ?? 4));
+                              const toShow = severityFilter === 'all' ? sorted : sorted.filter(f => f.severity === severityFilter);
+                              const visibleItems = isAnon ? toShow.filter(f => f.severity !== 'LOW') : toShow;
+                              const gatedItems   = isAnon ? toShow.filter(f => f.severity === 'LOW')  : [];
+
+                              const borderCls = (sev: string) =>
+                                sev === 'CRITICAL' ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/35' :
+                                sev === 'HIGH'     ? 'bg-orange-500/5 border-orange-500/20 hover:border-orange-500/35' :
+                                sev === 'MEDIUM'   ? 'bg-amber-500/5 border-amber-500/20 hover:border-amber-500/35' :
+                                                    'bg-slate-900/50 border-slate-800 hover:border-slate-700';
+                              return (
+                                <>
+                                  {visibleItems.length === 0 && gatedItems.length === 0 && (
+                                    <div className="flex flex-col items-center gap-2 py-8 text-center bg-slate-900/50 rounded-xl border border-slate-800">
+                                      <CheckCircle size={20} className="text-green-400" />
+                                      <p className="text-green-400 font-semibold text-sm">
+                                        {lang === 'fr' ? 'Aucun problème dans cette catégorie' : 'No issues in this category'}
+                                      </p>
+                                    </div>
+                                  )}
+                                  <div className="flex flex-col gap-3">
+                                    {visibleItems.map((f, i) => (
+                                      <div key={(f.title ?? f.message ?? '') + i}
+                                        className={`rounded-xl border p-4 transition-colors ${borderCls(f.severity)}`}
+                                      >
+                                        <div className="flex items-start gap-3">
+                                          <span className={`shrink-0 mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${SEVERITY_CONFIG[f.severity]?.badge ?? 'bg-slate-700 text-slate-300'}`}>
+                                            {f.severity}
+                                          </span>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-2 mb-1">
+                                              <p className="text-slate-100 text-sm font-semibold leading-snug">{f.title ?? f.message}</p>
+                                              {f.category && (
+                                                <span className="shrink-0 text-[10px] text-slate-500 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded font-mono">
+                                                  {f.category}
+                                                </span>
+                                              )}
+                                            </div>
+                                            {f.plain_explanation && (
+                                              <p className="text-slate-400 text-xs leading-relaxed mt-1">{f.plain_explanation}</p>
+                                            )}
+                                            {f.recommendation && (
+                                              <p className="text-slate-500 text-xs leading-relaxed mt-1.5 pl-2 border-l border-slate-700">
+                                                <span className="text-cyan-500/70 font-medium">→ </span>{f.recommendation}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
-                                  <button
-                                    onClick={() => goRegister('low_findings_gate')}
-                                    className="sku-btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-2"
-                                  >
-                                    <UserPlus size={14} />
-                                    {lang === 'fr' ? 'Créer un compte gratuit' : 'Create free account'}
-                                  </button>
-                                </div>
-                              </motion.div>
-                            )}
+
+                                  {/* Gate LOW findings pour anonymes */}
+                                  {gatedItems.length > 0 && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: 6 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      transition={{ delay: 0.2 }}
+                                      className="relative rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/40"
+                                      style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+                                    >
+                                      <div className="blur-sm opacity-40 pointer-events-none px-5 py-4 flex flex-col gap-3 select-none">
+                                        {[...Array(Math.min(gatedItems.length, 3))].map((_, i) => (
+                                          <div key={i} className="h-12 rounded-lg bg-slate-800/60 border border-slate-700/40" />
+                                        ))}
+                                      </div>
+                                      <div
+                                        className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center"
+                                        style={{ background: 'linear-gradient(180deg, rgba(15,21,30,0.3) 0%, rgba(15,21,30,0.85) 60%, rgba(15,21,30,0.95) 100%)' }}
+                                      >
+                                        <SkuIcon color="#fbbf24" size={40}>
+                                          <Lock size={20} className="text-amber-300" />
+                                        </SkuIcon>
+                                        <div>
+                                          <p className="text-white font-bold text-sm">
+                                            {lang === 'fr'
+                                              ? `${gatedItems.length} recommandation${gatedItems.length > 1 ? 's' : ''} LOW masquée${gatedItems.length > 1 ? 's' : ''}`
+                                              : `${gatedItems.length} LOW recommendation${gatedItems.length > 1 ? 's' : ''} hidden`}
+                                          </p>
+                                          <p className="text-slate-400 text-xs mt-1">
+                                            {lang === 'fr'
+                                              ? 'Créez un compte gratuit pour accéder au plan de correction complet.'
+                                              : 'Create a free account to access the full remediation plan.'}
+                                          </p>
+                                        </div>
+                                        <button
+                                          onClick={() => goRegister('low_findings_gate')}
+                                          className="sku-btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-2"
+                                        >
+                                          <UserPlus size={14} />
+                                          {lang === 'fr' ? 'Créer un compte gratuit' : 'Create free account'}
+                                        </button>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </>
+                              );
+                            })()}
 
                             {/* Infos — collapsible */}
                             {infoFindings.length > 0 && (
@@ -1753,31 +1876,31 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 </div>
                               </details>
                             )}
-
-
                           </>
                         )}
                       </motion.div>
                     )}
 
-                    {/* ── Onglet Avancé ─────────────────────────────────── */}
-                    {activeTab === 'advanced' && (
+                    {/* ── Onglet Surveillance (Sous-domaines + Typo + CT + Fuites) */}
+                    {activeTab === 'surveillance' && (
                       <motion.div
-                        key="tab-advanced"
+                        key="tab-surveillance"
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
                         transition={{ duration: 0.18 }}
                         className="flex flex-col gap-6"
                       >
-                        {/* Analyses avancées */}
-                        {(user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'dev') ? (
+                        {/* Analyses avancées — Sous-domaines + CVE */}
+                        {isPremiumPlan ? (
                           <div className="flex flex-col gap-4">
                             <div className="flex items-center gap-2">
                               <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
                                 <Shield size={14} className="text-cyan-400" />
                               </div>
-                              <h3 className="text-white font-bold text-sm">Analyses avancées</h3>
+                              <h3 className="text-white font-bold text-sm">
+                                {lang === 'fr' ? 'Sous-domaines & Versions vulnérables' : 'Subdomains & Vulnerable versions'}
+                              </h3>
                               <span className="text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded-full">Starter & Pro</span>
                             </div>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1789,8 +1912,14 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                     <Shield size={16} className="text-green-400" />
                                   </div>
                                   <div>
-                                    <p className="text-green-400 font-bold text-sm">Aucune vulnérabilité avancée détectée</p>
-                                    <p className="text-slate-500 text-xs">Sous-domaines et versions logicielles vérifiés — aucun problème critique trouvé.</p>
+                                    <p className="text-green-400 font-bold text-sm">
+                                      {lang === 'fr' ? 'Aucune vulnérabilité avancée détectée' : 'No advanced vulnerability detected'}
+                                    </p>
+                                    <p className="text-slate-500 text-xs">
+                                      {lang === 'fr'
+                                        ? 'Sous-domaines et versions logicielles vérifiés — aucun problème critique trouvé.'
+                                        : 'Subdomains and software versions checked — no critical issue found.'}
+                                    </p>
                                   </div>
                                 </div>
                               )}
@@ -1800,29 +1929,38 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                           <div className="rounded-lg border border-dashed border-slate-600/60 bg-slate-800/30 p-5 flex flex-col gap-3">
                             <div className="flex items-center gap-2 text-slate-400 text-sm font-semibold">
                               <Lock size={14} className="text-cyan-500" />
-                              <span className="text-slate-300">Analyses avancées — Starter & Pro</span>
+                              <span className="text-slate-300">
+                                {lang === 'fr' ? 'Analyses avancées — Starter & Pro' : 'Advanced analysis — Starter & Pro'}
+                              </span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="rounded-md bg-slate-700/40 border border-slate-600/40 p-3 flex flex-col gap-1">
                                 <span className="text-xs font-mono text-cyan-400">🌐 Fuites de sous-domaines</span>
-                                <span className="text-xs text-slate-500">Certificats expirés, sous-domaines orphelins et risques de takeover via Certificate Transparency.</span>
+                                <span className="text-xs text-slate-500">
+                                  {lang === 'fr'
+                                    ? 'Certificats expirés, sous-domaines orphelins et risques de takeover via Certificate Transparency.'
+                                    : 'Expired certs, orphan subdomains, and takeover risks via Certificate Transparency.'}
+                                </span>
                               </div>
                               <div className="rounded-md bg-slate-700/40 border border-slate-600/40 p-3 flex flex-col gap-1">
                                 <span className="text-xs font-mono text-cyan-400">🔬 Versions vulnérables</span>
-                                <span className="text-xs text-slate-500">Détection de PHP, Apache, nginx, IIS exposés avec des failles connues (CVE critiques).</span>
+                                <span className="text-xs text-slate-500">
+                                  {lang === 'fr'
+                                    ? 'Détection de PHP, Apache, nginx, IIS exposés avec des failles connues (CVE critiques).'
+                                    : 'Detection of exposed PHP, Apache, nginx, IIS with known vulnerabilities (critical CVEs).'}
+                                </span>
                               </div>
                             </div>
                             <button onClick={() => openPricing('upgrade_banner')} className="self-start mt-1 text-xs font-semibold px-3 py-1.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 transition-colors flex items-center gap-1.5">
                               <Lock size={11} />
-                              Débloquer avec Starter — 9,90€/mois
+                              {lang === 'fr' ? 'Débloquer avec Starter — 9,90€/mois' : 'Unlock with Starter — €9.90/month'}
                               <ArrowRight size={11} />
                             </button>
                           </div>
                         )}
 
-
                         {/* Typosquatting */}
-                        {(user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'dev') ? (() => {
+                        {isPremiumPlan ? (() => {
                           const ts = r.typosquat_details;
                           return (
                             <div className="flex flex-col gap-4">
@@ -1888,8 +2026,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                           <span className="font-mono text-sm text-orange-300">{hit.domain}</span>
                                           <span className="ml-2 text-xs text-slate-600">→ {hit.ip}</span>
                                         </div>
-                                        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full border font-mono
-                                          bg-slate-800 border-slate-700 text-slate-400">
+                                        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full border font-mono bg-slate-800 border-slate-700 text-slate-400">
                                           {hit.variant_type}
                                         </span>
                                       </div>
@@ -1930,7 +2067,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                         )}
 
                         {/* Certificate Transparency Monitor */}
-                        {(user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'dev') ? (() => {
+                        {isPremiumPlan ? (() => {
                           const ct = r.ct_details;
                           return (
                             <div className="flex flex-col gap-4">
@@ -1955,7 +2092,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 </div>
                               ) : (
                                 <div className="flex flex-col gap-3">
-                                  {/* Stats bar */}
                                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                     {[
                                       { label: lang === 'fr' ? 'Total certs' : 'Total certs', value: ct.total_found, color: 'text-cyan-300' },
@@ -1970,7 +2106,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                     ))}
                                   </div>
 
-                                  {/* Émetteurs */}
                                   {ct.issuers.length > 0 && (
                                     <div className="flex flex-wrap gap-1.5 px-3 py-2.5 bg-slate-900/40 rounded-lg border border-slate-800">
                                       <span className="text-xs text-slate-500 w-full mb-0.5">
@@ -1984,7 +2119,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                     </div>
                                   )}
 
-                                  {/* Certs récents */}
                                   {ct.recent_certs.length > 0 && (
                                     <div className="flex flex-col gap-1">
                                       <p className="text-xs text-slate-500 px-1">
@@ -2002,7 +2136,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                     </div>
                                   )}
 
-                                  {/* Wildcards */}
                                   {ct.wildcard_count > 0 && (
                                     <div className="rounded-lg bg-orange-500/5 border border-orange-500/20 p-3 text-xs text-orange-300/80">
                                       <span className="font-semibold">⚠️ {ct.wildcard_count} certificat{ct.wildcard_count > 1 ? 's' : ''} wildcard</span>
@@ -2037,85 +2170,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                           </div>
                         )}
 
-                      </motion.div>
-                    )}
-
-                    {/* ── Onglet Recommandations ────────────────────────── */}
-                    {activeTab === 'reco' && (
-                      <motion.div
-                        key="tab-reco"
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{ duration: 0.18 }}
-                        className="flex flex-col gap-4"
-                      >
-                        {r.recommendations && r.recommendations.length > 0 ? (
-                          <>
-                            <p className="text-slate-500 text-xs px-1">
-                              {lang === 'fr'
-                                ? 'Actions correctives classées par ordre de priorité, issues de l\'analyse complète du domaine.'
-                                : 'Corrective actions ranked by priority, derived from the full domain analysis.'}
-                            </p>
-                            {r.recommendations.map((rec, i) => {
-                              const recLower = rec.toLowerCase();
-                              const matchedLink = blogLinks.find(l =>
-                                l.match_keyword.split(',').some(kw =>
-                                  recLower.includes(kw.trim().toLowerCase())
-                                )
-                              );
-                              return (
-                                <div key={i} className="flex items-start gap-4 px-4 py-3.5 rounded-xl bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition-colors">
-                                  <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold flex items-center justify-center">
-                                    {i + 1}
-                                  </span>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-slate-200 text-sm leading-relaxed">{rec}</p>
-                                    {matchedLink && (
-                                      <a
-                                        href={matchedLink.article_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1.5 mt-2 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors font-medium"
-                                      >
-                                        <BookOpen size={11} />
-                                        {lang === 'fr' ? 'Lire l\'article : ' : 'Read article: '}{matchedLink.article_title}
-                                      </a>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </>
-                        ) : (
-                          <div className="flex flex-col items-center gap-3 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
-                            <div className="p-3 rounded-full bg-green-500/10 border border-green-500/20">
-                              <Shield size={24} className="text-green-400" />
-                            </div>
-                            <p className="text-green-400 font-bold text-sm">
-                              {lang === 'fr' ? 'Aucune recommandation — excellent score !' : 'No recommendations — excellent score!'}
-                            </p>
-                            <p className="text-slate-500 text-xs max-w-sm">
-                              {lang === 'fr'
-                                ? 'Le domaine ne présente aucune anomalie nécessitant une action corrective.'
-                                : 'The domain shows no anomalies requiring corrective action.'}
-                            </p>
-                          </div>
-                        )}
-                      </motion.div>
-                    )}
-
-                    {/* ── Onglet Fuites de données ──────────────────────── */}
-                    {activeTab === 'breaches' && (
-                      <motion.div
-                        key="tab-breaches"
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{ duration: 0.18 }}
-                        className="flex flex-col gap-4"
-                      >
-                        {/* Paywall pour les utilisateurs free / non connectés */}
+                        {/* Fuites de données (HIBP) */}
                         {!isPremiumPlan ? (
                           <div className="flex flex-col items-center gap-4 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
                             <SkuIcon color="#f87171" size={52}>
@@ -2147,7 +2202,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             </div>
                           </div>
                         ) : r.breach_details?.status === 'clean' ? (
-                          /* Domaine propre */
                           <div className="flex flex-col items-center gap-4 py-12 text-center bg-slate-900/50 rounded-2xl border border-green-500/20">
                             <SkuIcon color="#4ade80" size={52}>
                               <CheckCircle size={24} className="text-green-300" />
@@ -2167,9 +2221,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             </p>
                           </div>
                         ) : r.breach_details?.status === 'breached' ? (
-                          /* Domaine compromis */
                           <div className="flex flex-col gap-4">
-                            {/* En-tête alerte */}
                             <div className="flex items-start gap-4 p-5 rounded-2xl bg-red-500/10 border border-red-500/30">
                               <SkuIcon color="#f87171" size={44}>
                                 <Database size={22} className="text-red-300" />
@@ -2187,8 +2239,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 </p>
                               </div>
                             </div>
-
-                            {/* Badges des fuites */}
                             {(r.breach_details.breach_names?.length ?? 0) > 0 && (
                               <div className="flex flex-col gap-2 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
                                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
@@ -2196,10 +2246,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 </p>
                                 <div className="flex flex-wrap gap-2">
                                   {r.breach_details.breach_names!.map(name => (
-                                    <span
-                                      key={name}
-                                      className="px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/15 text-red-300 border border-red-500/30"
-                                    >
+                                    <span key={name} className="px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/15 text-red-300 border border-red-500/30">
                                       {name}
                                     </span>
                                   ))}
@@ -2209,31 +2256,14 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 </p>
                               </div>
                             )}
-
-                            {/* Actions recommandées */}
                             <div className="flex flex-col gap-2 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
                               <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
                                 {lang === 'fr' ? 'Actions recommandées' : 'Recommended actions'}
                               </p>
                               {[
-                                {
-                                  icon: <Lock size={14} className="text-amber-400" />,
-                                  text: lang === 'fr'
-                                    ? 'Demandez à vos équipes de changer immédiatement leurs mots de passe.'
-                                    : 'Ask your team to immediately change their passwords.',
-                                },
-                                {
-                                  icon: <Shield size={14} className="text-cyan-400" />,
-                                  text: lang === 'fr'
-                                    ? 'Activez l\'authentification à deux facteurs (2FA) sur tous les comptes professionnels.'
-                                    : 'Enable two-factor authentication (2FA) on all business accounts.',
-                                },
-                                {
-                                  icon: <Eye size={14} className="text-violet-400" />,
-                                  text: lang === 'fr'
-                                    ? 'Vérifiez les accès suspects dans vos logs et journaux d\'activité.'
-                                    : 'Review suspicious access in your logs and activity journals.',
-                                },
+                                { icon: <Lock size={14} className="text-amber-400" />, text: lang === 'fr' ? 'Demandez à vos équipes de changer immédiatement leurs mots de passe.' : 'Ask your team to immediately change their passwords.' },
+                                { icon: <Shield size={14} className="text-cyan-400" />, text: lang === 'fr' ? "Activez l'authentification à deux facteurs (2FA) sur tous les comptes professionnels." : 'Enable two-factor authentication (2FA) on all business accounts.' },
+                                { icon: <Eye size={14} className="text-violet-400" />, text: lang === 'fr' ? "Vérifiez les accès suspects dans vos logs et journaux d'activité." : 'Review suspicious access in your logs and activity journals.' },
                               ].map((action, i) => (
                                 <div key={i} className="flex items-start gap-3 py-2">
                                   <span className="mt-0.5 shrink-0">{action.icon}</span>
@@ -2243,7 +2273,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             </div>
                           </div>
                         ) : r.breach_details?.status === 'no_api_key' ? (
-                          /* Clé HIBP non configurée */
                           <div className="flex flex-col items-center gap-4 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
                             <SkuIcon color="#fbbf24" size={44}>
                               <Database size={20} className="text-amber-300" />
@@ -2258,17 +2287,11 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                   : 'Add HIBP_API_KEY to the server environment variables to enable breach detection via HaveIBeenPwned.'}
                               </p>
                             </div>
-                            <a
-                              href="https://haveibeenpwned.com/API/Key"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors underline underline-offset-2"
-                            >
+                            <a href="https://haveibeenpwned.com/API/Key" target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors underline underline-offset-2">
                               haveibeenpwned.com/API/Key →
                             </a>
                           </div>
                         ) : (
-                          /* Données non disponibles (scan ancien ou HIBP injoignable) */
                           <div className="flex flex-col items-center gap-3 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
                             <SkuIcon color="#22d3ee" size={44}>
                               <Database size={20} className="text-cyan-300" />
@@ -2283,12 +2306,12 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                       </motion.div>
                     )}
 
-                    {/* ── Onglet Conformité NIS2 / RGPD ────────────────── */}
-                    {activeTab === 'compliance' && (() => {
+                    {/* ── Onglet Conformité NIS2 / RGPD ────────────────────── */}
+                    {activeTab === 'conformite' && (() => {
                       const c = r.compliance;
                       if (!c || !c.nis2) {
                         return (
-                          <motion.div key="tab-compliance-empty"
+                          <motion.div key="tab-conformite-empty"
                             initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
                             <div className="flex flex-col items-center gap-3 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
@@ -2355,14 +2378,13 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                       );
 
                       return (
-                        <motion.div key="tab-compliance"
+                        <motion.div key="tab-conformite"
                           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}
                           className="flex flex-col gap-5">
 
                           {/* Badges scores + niveau global */}
                           <div className="flex flex-col sm:flex-row items-stretch gap-3">
-                            {/* NIS2 */}
                             <div className="flex-1 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
@@ -2376,7 +2398,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                               </div>
                               {scoreBar(c.nis2_score)}
                             </div>
-                            {/* RGPD */}
                             <div className="flex-1 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
@@ -2390,7 +2411,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                               </div>
                               {scoreBar(c.rgpd_score)}
                             </div>
-                            {/* Niveau global */}
                             <div className={`flex flex-col items-center justify-center px-5 py-4 rounded-xl border ${levelCfg.bg} ${levelCfg.border} min-w-[110px]`}>
                               <span className="text-slate-500 text-[10px] uppercase tracking-wider mb-1">
                                 {lang === 'fr' ? 'Niveau' : 'Level'}
@@ -2399,14 +2419,12 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             </div>
                           </div>
 
-                          {/* Disclaimer */}
                           <p className="text-slate-600 text-xs px-1">
                             {lang === 'fr'
                               ? 'Ce rapport est basé sur les checks techniques automatisés. Il ne constitue pas un audit de conformité légal. Consultez un DPO ou expert NIS2 pour une évaluation complète.'
                               : 'This report is based on automated technical checks. It does not constitute a legal compliance audit. Consult a DPO or NIS2 expert for a full assessment.'}
                           </p>
 
-                          {/* Articles NIS2 */}
                           <div className="flex flex-col gap-2">
                             <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-1">
                               NIS2 — Art. 21 §2 ({c.nis2.filter(a => a.compliant).length}/{c.nis2.length} {lang === 'fr' ? 'conformes' : 'compliant'})
@@ -2414,12 +2432,25 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             {c.nis2.map(art => <ArticleRow key={art.code} art={art} />)}
                           </div>
 
-                          {/* Articles RGPD */}
                           <div className="flex flex-col gap-2">
                             <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-1">
                               RGPD ({c.rgpd.filter(a => a.compliant).length}/{c.rgpd.length} {lang === 'fr' ? 'conformes' : 'compliant'})
                             </p>
                             {c.rgpd.map(art => <ArticleRow key={art.code} art={art} />)}
+                          </div>
+
+                          {/* PDF download */}
+                          <div className="pt-2 border-t border-slate-800">
+                            <button
+                              onClick={() => user ? downloadPdf() : setModalOpen(true)}
+                              disabled={!!user && pdfLoading}
+                              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-cyan-700/60 to-blue-700/60 hover:from-cyan-600/70 hover:to-blue-600/70 border border-cyan-500/40 text-cyan-200 disabled:opacity-50 transition-all"
+                            >
+                              <FileDown size={15} />
+                              {pdfLoading
+                                ? (lang === 'fr' ? 'Génération…' : 'Generating…')
+                                : (lang === 'fr' ? 'Télécharger le rapport PDF complet' : 'Download full PDF report')}
+                            </button>
                           </div>
 
                         </motion.div>
@@ -2428,6 +2459,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
 
                   </AnimatePresence>
                 </div>
+
 
               </motion.div>
             );
