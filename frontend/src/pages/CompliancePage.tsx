@@ -6,8 +6,25 @@ import {
   XCircle, AlertTriangle, ChevronRight, ArrowLeft,
   FileCheck, Eye, EyeOff,
 } from 'lucide-react';
-import { scanDomain, extractApiError, extractRateLimitDetail } from '../lib/api';
+import axios from 'axios';
+import { extractApiError, extractRateLimitDetail } from '../lib/api';
 import type { ScanResult } from '../types/scanner';
+
+// Client axios sans credentials — garantit un scan anonyme (plan "free", base auditors uniquement)
+// quel que soit l'état de connexion de l'utilisateur. Assure des résultats de conformité
+// reproductibles et indépendants du plan souscrit.
+const _BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const anonClient = axios.create({
+  baseURL:         _BASE_URL,
+  timeout:         60_000,
+  withCredentials: false,   // ne pas envoyer le cookie JWT — force le scan anonyme
+  headers:         { 'Content-Type': 'application/json' },
+});
+
+async function scanDomainAnon(domain: string): Promise<ScanResult> {
+  const { data } = await anonClient.post<ScanResult>('/scan', { domain, lang: 'fr' });
+  return data;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -337,7 +354,7 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
     }, 600);
 
     try {
-      const res = await scanDomain(d, 'fr');
+      const res = await scanDomainAnon(d);
       clearInterval(tick);
       setProgress(100);
       await new Promise(r => setTimeout(r, 300));
