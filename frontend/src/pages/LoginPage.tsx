@@ -83,15 +83,16 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
         },
       });
 
-      // Rendre le bouton Google officiel dans un div caché — compatibilité FedCM
+      // Rendre le bouton Google en overlay transparent — clic direct utilisateur (FedCM + Chrome)
       const hiddenDiv = document.getElementById('google-signin-hidden');
       if (hiddenDiv) {
         (gsi as any).renderButton(hiddenDiv, {
           type: 'standard',
-          theme: 'outline',
+          theme: 'filled_black',
           size: 'large',
           text: 'continue_with',
-          locale: 'fr',
+          logo_alignment: 'center',
+          width: 400,
         });
       }
 
@@ -119,18 +120,7 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
     return () => { delete (window as any).onGoogleLibraryLoad; };
   }, []);
 
-  const handleGoogleClick = () => {
-    // Déléguer au bouton Google officiel (rendu caché) — compatible FedCM
-    const hiddenBtn = document.querySelector('#google-signin-hidden div[role="button"]') as HTMLElement | null;
-    if (hiddenBtn) {
-      hiddenBtn.click();
-    } else {
-      // Fallback : One Tap prompt si le bouton rendu n'est pas encore disponible
-      const gsi = window.google?.accounts?.id;
-      if (!gsi) return;
-      (gsi.prompt as any)(() => {});
-    }
-  };
+  // handleGoogleClick supprimé — le clic passe directement par l'overlay #google-signin-hidden
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -611,16 +601,13 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
             <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
           </div>
 
-          {/* Div caché pour le bouton Google officiel (compatibilité FedCM) */}
-          <div id="google-signin-hidden" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', overflow: 'hidden', width: 1, height: 1 }} />
-
-          {/* ── Bouton Google ── */}
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={handleGoogleClick}
-              disabled={!gsiReady || loading}
-              className="w-full flex items-center justify-center gap-3 sku-btn-ghost disabled:opacity-50 disabled:cursor-not-allowed rounded-xl py-2.5 text-sm font-medium text-white transition-all"
+          {/* ── Bouton Google ── overlay pattern (FedCM + Chrome compatible) ── */}
+          <div className="mt-4 relative" style={{ height: 44 }}>
+            {/* Fond visuel (notre style) — non cliquable */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 flex items-center justify-center gap-3 sku-btn-ghost rounded-xl text-sm font-medium text-white pointer-events-none"
+              style={{ opacity: gsiReady && !loading ? 1 : 0.5 }}
             >
               {!gsiReady ? (
                 <>
@@ -629,7 +616,6 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
                 </>
               ) : (
                 <>
-                  {/* Logo Google SVG */}
                   <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
                     <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
                     <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
@@ -639,7 +625,18 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
                   {lang === 'fr' ? 'Continuer avec Google' : 'Continue with Google'}
                 </>
               )}
-            </button>
+            </div>
+            {/* Bouton Google officiel en overlay transparent — reçoit le vrai clic utilisateur */}
+            <div
+              id="google-signin-hidden"
+              style={{
+                position: 'absolute', inset: 0,
+                overflow: 'hidden', borderRadius: 12,
+                opacity: gsiReady && !loading ? 0 : 0,
+                pointerEvents: gsiReady && !loading ? 'auto' : 'none',
+                cursor: 'pointer',
+              }}
+            />
           </div>
           </>)}
           {/* ── fin subView === 'form' ── */}
