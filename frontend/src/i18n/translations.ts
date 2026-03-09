@@ -5,10 +5,10 @@ export type Lang = 'fr' | 'en';
 export const translations = {
   fr: {
     // ── Dashboard — Hero ──────────────────────────────────────────────────────
-    hero_badge:        'Gratuit · Résultats en 60s · Aucune installation',
-    hero_title_1:      'Votre domaine est-il',
-    hero_title_2:      'vraiment sécurisé\u00a0?',
-    hero_subtitle:     "Détectez les failles SSL, SPF, DMARC et ports exposés en 60\u00a0secondes. Rapport PDF professionnel inclus.",
+    hero_badge:        '40+ vérifications · DAST · Secret Scanner · Conformité NIS2',
+    hero_title_1:      'Audit de sécurité web',
+    hero_title_2:      'complet en 60\u00a0secondes',
+    hero_subtitle:     "SSL, DNS, ports, DAST actif, credentials exposés, conformité NIS2\u00a0& RGPD \u2014 un rapport structuré avec score\u00a0/100 et plan d'action priorisé. Sans installation. Sans accès serveur.",
     hero_try:          'Essayez\u00a0:',
     placeholder:       'votreentreprise.fr',
 
@@ -167,10 +167,10 @@ export const translations = {
 
   en: {
     // ── Dashboard — Hero ──────────────────────────────────────────────────────
-    hero_badge:        'Free · Results in 60s · No installation',
-    hero_title_1:      'Is your domain',
-    hero_title_2:      'actually secure?',
-    hero_subtitle:     'Detect SSL, SPF, DMARC and exposed port vulnerabilities in 60\u00a0seconds. Professional PDF report included.',
+    hero_badge:        '40+ checks · DAST · Secret Scanner · NIS2 compliance',
+    hero_title_1:      'Complete web security',
+    hero_title_2:      'audit in 60\u00a0seconds',
+    hero_subtitle:     'SSL, DNS, ports, active DAST, exposed credentials, NIS2\u00a0& GDPR compliance \u2014 a structured report with score\u00a0/100 and prioritised action plan. No installation. No server access.',
     hero_try:          'Try:',
     placeholder:       'yourbusiness.com',
 

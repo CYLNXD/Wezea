@@ -826,11 +826,13 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
               className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 mt-3"
             >
               {[
-                lang === 'fr' ? '✓ 100% passif, sans risque' : '✓ 100% passive, zero risk',
-                lang === 'fr' ? '✓ Données non stockées' : '✓ No data stored',
-                lang === 'fr' ? '✓ Rapport PDF inclus' : '✓ PDF report included',
-              ].map((item, i) => (
-                <span key={i} className="text-[11px] text-slate-600 font-medium">{item}</span>
+                { label: lang === 'fr' ? '✓ 100% externe, sans risque' : '✓ 100% external, zero risk', hi: false },
+                { label: lang === 'fr' ? '✓ Sans installation' : '✓ No installation', hi: false },
+                { label: lang === 'fr' ? '✓ DAST actif inclus' : '✓ Active DAST included', hi: true },
+                { label: lang === 'fr' ? '✓ Scan des credentials' : '✓ Credential scanning', hi: true },
+                { label: lang === 'fr' ? '✓ Rapport PDF inclus' : '✓ PDF report included', hi: false },
+              ].map(({ label, hi }, i) => (
+                <span key={i} className={`text-[11px] font-medium ${hi ? 'text-cyan-600' : 'text-slate-600'}`}>{label}</span>
               ))}
               {publicStats && (
                 <>
@@ -2473,66 +2475,115 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
         {isIdle && (
           <div className="mt-16 flex flex-col gap-24 pb-8">
 
-            {/* ── 1. COMMENT ÇA MARCHE ─────────────────────────────────────── */}
+            {/* ── 1. RÉSULTATS TYPIQUES ─────────────────────────────────────── */}
             <section>
               <div className="text-center mb-10">
                 <span className="text-xs font-semibold text-cyan-400 tracking-widest uppercase mb-3 block">
-                  {lang === 'fr' ? 'Simple & rapide' : 'Simple & fast'}
+                  {lang === 'fr' ? 'Résultats typiques' : 'Typical findings'}
                 </span>
                 <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
-                  {lang === 'fr' ? 'Comment ça marche ?' : 'How does it work?'}
+                  {lang === 'fr' ? 'Ce qu\'un audit révèle en 60\u00a0secondes' : 'What an audit reveals in 60\u00a0seconds'}
                 </h2>
-                <p className="text-slate-500 text-sm max-w-md mx-auto">
+                <p className="text-slate-500 text-sm max-w-lg mx-auto">
                   {lang === 'fr'
-                    ? 'En moins de 60 secondes, obtenez un rapport complet sur la sécurité de votre site.'
-                    : 'In under 60 seconds, get a full security report for your website.'}
+                    ? 'Trois catégories de failles fréquemment détectées — credentials exposés, vulnérabilités applicatives, configuration email défaillante.'
+                    : 'Three categories of frequently detected issues — exposed credentials, application vulnerabilities, misconfigured email.'}
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                {[
-                  {
-                    step: '01',
-                    icon: <Globe size={20} className="text-cyan-400" />,
-                    title: lang === 'fr' ? 'Entrez votre domaine' : 'Enter your domain',
-                    desc: lang === 'fr'
-                      ? 'Saisissez n\'importe quel nom de domaine (sans https://). L\'analyse démarre immédiatement.'
-                      : 'Enter any domain name (without https://). Analysis starts immediately.',
-                  },
-                  {
-                    step: '02',
-                    icon: <Zap size={20} className="text-yellow-400" />,
-                    title: lang === 'fr' ? 'Analyse automatique' : 'Automatic analysis',
-                    desc: lang === 'fr'
-                      ? 'Notre moteur inspecte SSL, DNS, ports ouverts, headers, réputation, technologies exposées et plus encore.'
-                      : 'Our engine inspects SSL, DNS, open ports, headers, reputation, exposed technologies and more.',
-                  },
-                  {
-                    step: '03',
-                    icon: <CheckCircle size={20} className="text-green-400" />,
-                    title: lang === 'fr' ? 'Recevez votre score' : 'Get your score',
-                    desc: lang === 'fr'
-                      ? 'Un score sur 100, les vulnérabilités classées par sévérité et un plan d\'action concret.'
-                      : 'A score out of 100, vulnerabilities ranked by severity and a concrete action plan.',
-                  },
-                ].map((s, i) => (
-                  <div key={i} className="relative flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="p-2.5 rounded-xl bg-slate-800 border border-slate-700">
-                        {s.icon}
-                      </div>
-                      <span className="text-4xl font-black text-slate-800 font-mono">{s.step}</span>
+                {/* Card 1 — Secret Scanner */}
+                <div className="flex flex-col gap-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="p-2.5 rounded-xl" style={{ background: '#f8717118', border: '1px solid #f8717130' }}>
+                      <svg width="20" height="20" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 8v4m0 4h.01"/>
+                      </svg>
                     </div>
-                    <div>
-                      <p className="text-white font-bold text-sm mb-1.5">{s.title}</p>
-                      <p className="text-slate-500 text-xs leading-relaxed">{s.desc}</p>
-                    </div>
-                    {i < 2 && (
-                      <div className="hidden md:block absolute -right-3 top-1/2 -translate-y-1/2 z-10">
-                        <ArrowRight size={16} className="text-slate-700" />
-                      </div>
-                    )}
+                    <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/25 uppercase tracking-wide">
+                      CRITICAL
+                    </span>
                   </div>
-                ))}
+                  <div>
+                    <p className="text-white font-bold text-sm mb-1.5">
+                      {lang === 'fr' ? 'Secret Scanner' : 'Secret Scanner'}
+                    </p>
+                    <p className="text-slate-400 text-xs leading-relaxed mb-3">
+                      {lang === 'fr'
+                        ? 'Credential exposé dans le source HTML — clé API ou token d\'accès visible publiquement.'
+                        : 'Credential exposed in HTML source — API key or access token publicly visible.'}
+                    </p>
+                    <div className="rounded-lg bg-slate-950/80 border border-slate-800 p-3 font-mono text-[10px] text-slate-500 leading-relaxed">
+                      <span className="text-slate-600">{'// script.js:42'}</span>{'\n'}
+                      <span className="text-red-400">{'access_token'}</span>
+                      <span className="text-slate-500">{' = '}</span>
+                      <span className="text-amber-400">{'"sk_live_••••••"'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2 — DAST */}
+                <div className="flex flex-col gap-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="p-2.5 rounded-xl" style={{ background: '#f8717118', border: '1px solid #f8717130' }}>
+                      <svg width="20" height="20" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                      </svg>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/25 uppercase tracking-wide">
+                      CRITICAL
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm mb-1.5">
+                      {lang === 'fr' ? 'DAST actif' : 'Active DAST'}
+                    </p>
+                    <p className="text-slate-400 text-xs leading-relaxed mb-3">
+                      {lang === 'fr'
+                        ? 'Panneau d\'administration accessible sans authentification — exposition directe à l\'attaque.'
+                        : 'Administration panel accessible without authentication — direct attack surface.'}
+                    </p>
+                    <div className="rounded-lg bg-slate-950/80 border border-slate-800 p-3 font-mono text-[10px] leading-relaxed">
+                      <span className="text-green-400">{'GET'}</span>
+                      <span className="text-slate-400">{' /admin/dashboard'}</span>
+                      <br/>
+                      <span className="text-slate-600">{'→ '}</span>
+                      <span className="text-red-400">{'200 OK'}</span>
+                      <span className="text-slate-600">{' (no auth)'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3 — Email config */}
+                <div className="flex flex-col gap-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="p-2.5 rounded-xl" style={{ background: '#fbbf2418', border: '1px solid #fbbf2430' }}>
+                      <svg width="20" height="20" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                      </svg>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25 uppercase tracking-wide">
+                      HIGH
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm mb-1.5">
+                      {lang === 'fr' ? 'Configuration email' : 'Email configuration'}
+                    </p>
+                    <p className="text-slate-400 text-xs leading-relaxed mb-3">
+                      {lang === 'fr'
+                        ? 'Politique DMARC trop permissive — le domaine peut être usurpé pour envoyer des emails de phishing.'
+                        : 'DMARC policy too permissive — domain can be spoofed to send phishing emails.'}
+                    </p>
+                    <div className="rounded-lg bg-slate-950/80 border border-slate-800 p-3 font-mono text-[10px] leading-relaxed">
+                      <span className="text-slate-500">{'v=DMARC1; '}</span>
+                      <span className="text-amber-400">{'p=none'}</span>
+                      <span className="text-slate-600">{'; rua='}</span>
+                      <br/>
+                      <span className="text-slate-600">{'→ '}</span>
+                      <span className="text-amber-400">{lang === 'fr' ? 'Aucune protection' : 'No enforcement'}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -2540,15 +2591,15 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
             <section>
               <div className="text-center mb-10">
                 <span className="text-xs font-semibold text-cyan-400 tracking-widest uppercase mb-3 block">
-                  {lang === 'fr' ? 'Ce que nous analysons' : 'What we analyse'}
+                  {lang === 'fr' ? 'Couverture complète' : 'Full coverage'}
                 </span>
                 <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
-                  {lang === 'fr' ? '20+ points de contrôle de sécurité' : '20+ security checkpoints'}
+                  {lang === 'fr' ? '40+ points de contrôle sur 4\u00a0domaines' : '40+ checks across 4\u00a0security domains'}
                 </h2>
                 <p className="text-slate-500 text-sm max-w-md mx-auto">
                   {lang === 'fr'
-                    ? 'Un audit complet en une seule analyse, sans installation ni configuration.'
-                    : 'A complete audit in a single scan, no installation or configuration required.'}
+                    ? 'Infrastructure passive, scan actif DAST, credentials exposés, conformité NIS2\u00a0& RGPD — un audit complet sans installation.'
+                    : 'Passive infrastructure, active DAST scan, exposed credentials, NIS2\u00a0& GDPR compliance — full audit with no installation.'}
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
@@ -2580,6 +2631,15 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   { c:'#f87171', free:false, title:'CVE / Versions',
                     desc: lang==='fr' ? 'Versions avec vulnérabilités connues (CVE)' : 'Versions with known vulnerabilities (CVE)',
                     paths: <><ellipse cx="12" cy="13" rx="4" ry="5"/><path d="M10 8c0-1.1.9-2 2-2s2 .9 2 2"/><path d="M9 8 7 6M15 8l2-2"/><path d="M8 12H5M19 12h-3"/><path d="M8 16H5M19 16h-3"/></> },
+                  { c:'#fb923c', free:false, title: lang==='fr' ? 'DAST actif' : 'Active DAST',
+                    desc: lang==='fr' ? 'Scan dynamique des endpoints, panneaux admin, headers de sécurité' : 'Dynamic endpoint scanning, admin panels, security headers',
+                    paths: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></> },
+                  { c:'#a78bfa', free:false, title: lang==='fr' ? 'Secret Scanner' : 'Secret Scanner',
+                    desc: lang==='fr' ? 'Détection de credentials, tokens et clés API exposés dans le source' : 'Detection of credentials, tokens and API keys exposed in source',
+                    paths: <><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v3m0 3h.01"/></> },
+                  { c:'#4ade80', free:false, title: lang==='fr' ? 'Conformité NIS2 / RGPD' : 'NIS2 / GDPR compliance',
+                    desc: lang==='fr' ? 'Vérifications alignées sur les exigences réglementaires européennes' : 'Checks aligned with European regulatory requirements',
+                    paths: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="11" x2="11" y2="11"/></> },
                 ] as Array<{c:string,free:boolean,title:string,desc:string,paths:React.ReactNode}>).map((f, i) => (
                   <div key={i} className={`flex items-start gap-3 rounded-xl border p-4 ${f.free ? 'border-slate-800 bg-slate-900/40' : 'border-cyan-500/15 bg-cyan-500/5'}`}>
                     <div style={{
@@ -2616,7 +2676,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   {lang === 'fr' ? 'Exemple de résultat' : 'Sample result'}
                 </span>
                 <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
-                  {lang === 'fr' ? 'Un rapport clair et actionnable' : 'A clear and actionable report'}
+                  {lang === 'fr' ? 'Un rapport structuré, actionnable, partageable' : 'A structured, actionable, shareable report'}
                 </h2>
                 <p className="text-slate-500 text-sm max-w-md mx-auto">
                   {lang === 'fr'
@@ -2724,15 +2784,15 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
             <section>
               <div className="text-center mb-10">
                 <span className="text-xs font-semibold text-cyan-400 tracking-widest uppercase mb-3 block">
-                  {lang === 'fr' ? 'Plan Pro' : 'Pro plan'}
+                  {lang === 'fr' ? 'Scan dynamique' : 'Dynamic scanning'}
                 </span>
                 <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
-                  {lang === 'fr' ? 'Intégrez la sécurité dans votre stack' : 'Integrate security into your stack'}
+                  {lang === 'fr' ? 'Au-delà de l\'analyse passive' : 'Beyond passive analysis'}
                 </h2>
                 <p className="text-slate-500 text-sm max-w-lg mx-auto">
                   {lang === 'fr'
-                    ? 'Le plan Pro va au-delà du scan : automatisation, intégrations et personnalisation pour les équipes et agences.'
-                    : 'The Pro plan goes beyond scanning: automation, integrations and customisation for teams and agencies.'}
+                    ? 'Automatisation, intégrations et personnalisation pour les équipes techniques et les agences digitales.'
+                    : 'Automation, integrations and customisation for technical teams and digital agencies.'}
                 </p>
               </div>
 
