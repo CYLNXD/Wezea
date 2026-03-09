@@ -495,10 +495,26 @@ ls -lh /home/cyberhealth/backups/
   - Ajouté à `AuditManager.all_base` → disponible tous plans
   - Extrait le root domain (`parts[-2:]`) pour éviter les requêtes sur sous-domaines
 
-#### Mise à jour tests (1070 tests, 0 échec)
+#### Mise à jour tests (1070 tests → 1078, 0 échec)
 - `_all_auditor_patches()` : ajout `DomainExpiryAuditor` mock, compteur 7→8
 - `_ALL_SECURE_HEADERS` fixture : ajout `Permissions-Policy`
 - `TestSSLAuditor::test_valid_cert_no_findings` : mock `("AES256-GCM-SHA384", "TLSv1.3", 256)` — fix PFS TLS 1.3
+
+### Fix — Faux positifs sur tous les checks existants
+
+#### Corrections appliquées
+- **DMARC sur sous-domaine** : `_check_dmarc` utilise maintenant `_dmarc.{root_domain}` — même fix que DNSSEC/CAA
+  - `_add_dmarc_missing_finding(root)` accepte un param optionnel pour afficher le vrai domaine dans le détail
+- **WordPress substring trop large** : patterns spécifiques uniquement (`/wp-content/`, `/wp-json/`, `wordpress.org`, `content=['"]wordpress`, `wp-login.php`)
+- **Drupal substring trop large** : patterns spécifiques (`drupal.js`, `/sites/default/files/`, `data-drupal`, `content=['"]drupal`, `X-Drupal-*` headers)
+- **`_check_http_redirect` en CI** : mock `_check_http_redirect` ajouté dans le helper `_audit` des tests `TestHttpHeaderAuditor`
+- **Ciphers faibles faux positif (TLS 1.3)** : `ctx.maximum_version = TLSv1_2` + vérification du préfixe du cipher négocié
+- **DNSSEC/CAA sur sous-domaines** : méthode `_root_domain()` extraite et réutilisée par `_check_dnssec`, `_check_caa`, `_check_dmarc`
+
+#### Tests ajoutés (session 30)
+- `TestAdminReset2FA` (4 tests dans test_admin.py) : succès, user introuvable, 2FA non activée, non-admin
+- `TestGoogleAuth2FA` (2 tests dans test_auth.py) : Google login + 2FA → `mfa_required`, flux complet Google → confirm-login
+- `test_wordpress_text_mention_no_false_positive` + `test_drupal_text_mention_no_false_positive`
 
 ### Fix — Navbar Dashboard
 - Suppression du bouton "Mon espace" de la top navbar (présent en doublon : navbar + dropdown)

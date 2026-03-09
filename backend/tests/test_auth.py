@@ -1557,3 +1557,90 @@ class Test2FA:
         resp = client.get("/auth/me", headers={"Authorization": f"Bearer {user['token']}"})
         assert resp.status_code == 200
         assert resp.json().get("mfa_enabled") is True
+
+
+# =============================================================================
+# Google OAuth + 2FA combiné
+# =============================================================================
+
+class TestGoogleAuth2FA:
+    """
+    Couvre la branche 2FA de /auth/google (lignes 520-522 de auth_router.py) :
+    quand un compte Google a mfa_enabled=True, le login doit retourner
+    {"mfa_required": True, "mfa_token": ...} au lieu d'un TokenResponse complet.
+    """
+
+    def test_google_login_with_2fa_returns_mfa_required(self, client, db_session):
+        """
+        User Google avec 2FA activée → POST /auth/google retourne
+        {"mfa_required": True, "mfa_token": <jwt>} et non un access_token complet.
+        """
+        import pyotp
+        from app.models import User
+        from app.auth import generate_api_key
+
+        # Créer un user Google avec 2FA activée
+        user = User(
+            email="google2fa@gmail.com",
+            password_hash="!google:sub_2fa",
+            plan="free",
+            api_key=generate_api_key(),
+            google_id="sub_2fa",
+            mfa_enabled=True,
+            mfa_secret=pyotp.random_base32(),
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        idinfo = _google_idinfo(email="google2fa@gmail.com", sub="sub_2fa")
+        with patch("app.routers.auth_router.GOOGLE_CLIENT_ID", "test-client-id"), \
+             patch("google.oauth2.id_token.verify_oauth2_token", return_value=idinfo):
+            resp = client.post("/auth/google", json={"id_token": "valid_tok"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        # Doit retourner le challenge MFA, PAS un access_token complet
+        assert data.get("mfa_required") is True
+        assert "mfa_token" in data
+        assert "access_token" not in data
+
+    def test_google_login_2fa_then_confirm_login(self, client, db_session):
+        """
+        Flux complet : Google login → mfa_required → confirm-login avec bon code TOTP → token.
+        """
+        import pyotp
+        from app.models import User
+        from app.auth import generate_api_key
+
+        secret = pyotp.random_base32()
+        user = User(
+            email="google2fa_full@gmail.com",
+            password_hash="!google:sub_2fa_full",
+            plan="free",
+            api_key=generate_api_key(),
+            google_id="sub_2fa_full",
+            mfa_enabled=True,
+            mfa_secret=secret,
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        # Étape 1 — Google login → challenge MFA
+        idinfo = _google_idinfo(email="google2fa_full@gmail.com", sub="sub_2fa_full")
+        with patch("app.routers.auth_router.GOOGLE_CLIENT_ID", "test-client-id"), \
+             patch("google.oauth2.id_token.verify_oauth2_token", return_value=idinfo):
+            resp1 = client.post("/auth/google", json={"id_token": "valid_tok"})
+
+        assert resp1.status_code == 200
+        mfa_token = resp1.json()["mfa_token"]
+
+        # Étape 2 — confirm-login avec le vrai code TOTP
+        totp = pyotp.TOTP(secret)
+        resp2 = client.post("/auth/2fa/confirm-login", json={
+            "mfa_token": mfa_token,
+            "code": totp.now(),
+        })
+        assert resp2.status_code == 200
+        data = resp2.json()
+        assert "access_token" in data
+        assert data["user"]["email"] == "google2fa_full@gmail.com"

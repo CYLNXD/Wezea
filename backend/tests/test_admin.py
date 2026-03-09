@@ -451,3 +451,64 @@ class TestPurgeScans:
         data = resp.json()
         assert data["retention_days"] == 30
         assert "cutoff" in data
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /admin/users/{user_id}/reset-2fa
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAdminReset2FA:
+
+    def _make_user_with_2fa(self, db_session) -> dict:
+        """Crée un user avec 2FA activée."""
+        import pyotp
+        info = _make_user(db_session, "free")
+        info["user"].mfa_enabled = True
+        info["user"].mfa_secret = pyotp.random_base32()
+        db_session.commit()
+        db_session.refresh(info["user"])
+        return info
+
+    def test_admin_reset_2fa_success(self, client, db_session):
+        """Admin peut réinitialiser la 2FA d'un user → 200, mfa_enabled=False en DB."""
+        admin = _make_user(db_session, "pro", is_admin=True)
+        target = self._make_user_with_2fa(db_session)
+        assert target["user"].mfa_enabled is True
+
+        resp = client.post(
+            f"/admin/users/{target['user'].id}/reset-2fa",
+            headers=_auth(admin["token"]),
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ok"
+
+        db_session.refresh(target["user"])
+        assert target["user"].mfa_enabled is False
+        assert target["user"].mfa_secret is None
+
+    def test_admin_reset_2fa_user_not_found(self, client, db_session):
+        """User inexistant → 404."""
+        admin = _make_user(db_session, "pro", is_admin=True)
+        resp = client.post("/admin/users/999999/reset-2fa", headers=_auth(admin["token"]))
+        assert resp.status_code == 404
+
+    def test_admin_reset_2fa_not_enabled(self, client, db_session):
+        """2FA non activée sur ce compte → 400."""
+        admin = _make_user(db_session, "pro", is_admin=True)
+        target = _make_user(db_session, "free")  # mfa_enabled=False par défaut
+        resp = client.post(
+            f"/admin/users/{target['user'].id}/reset-2fa",
+            headers=_auth(admin["token"]),
+        )
+        assert resp.status_code == 400
+
+    def test_non_admin_reset_2fa_forbidden(self, client, db_session):
+        """Non-admin ne peut pas réinitialiser la 2FA → 403."""
+        regular = _make_user(db_session, "pro")
+        target = self._make_user_with_2fa(db_session)
+        resp = client.post(
+            f"/admin/users/{target['user'].id}/reset-2fa",
+            headers=_auth(regular["token"]),
+        )
+        assert resp.status_code == 403
