@@ -404,6 +404,63 @@ class TestBuildActionPlan:
         plan = _build_action_plan(findings, "fr")
         assert any("SSL" in a or "certif" in a.lower() for a in plan["urgent"])
 
+    # ── Nouveaux checks (session 30) ──────────────────────────────────────────
+
+    def test_dnssec_goes_to_optimize(self):
+        findings = [{"title": "DNSSEC non activé", "severity": "LOW", "penalty": 3}]
+        plan = _build_action_plan(findings, "fr")
+        assert any("DNSSEC" in a for a in plan["optimize"])
+
+    def test_dnssec_en(self):
+        findings = [{"title": "DNSSEC not enabled", "severity": "LOW", "penalty": 3}]
+        plan = _build_action_plan(findings, "en")
+        assert any("DNSSEC" in a for a in plan["optimize"])
+
+    def test_caa_goes_to_optimize(self):
+        findings = [{"title": "CAA record missing", "severity": "LOW", "penalty": 2}]
+        plan = _build_action_plan(findings, "fr")
+        assert any("CAA" in a for a in plan["optimize"])
+
+    def test_pfs_goes_to_important(self):
+        findings = [{"title": "Perfect Forward Secrecy missing (PFS) — AES256", "severity": "MEDIUM", "penalty": 8}]
+        plan = _build_action_plan(findings, "fr")
+        assert any("ECDHE" in a or "PFS" in a for a in plan["important"])
+
+    def test_weak_cipher_goes_to_important(self):
+        findings = [{"title": "Cipher faible accepté : DES-CBC3-SHA", "severity": "HIGH", "penalty": 12}]
+        plan = _build_action_plan(findings, "fr")
+        assert any("cipher" in a.lower() or "3DES" in a or "RC4" in a for a in plan["important"])
+
+    def test_http_redirect_goes_to_urgent(self):
+        findings = [{"title": "Pas de redirection HTTP → HTTPS", "severity": "HIGH", "penalty": 10}]
+        plan = _build_action_plan(findings, "fr")
+        assert any("HTTP" in a and "HTTPS" in a for a in plan["urgent"])
+
+    def test_mta_sts_goes_to_optimize(self):
+        findings = [{"title": "MTA-STS non configuré", "severity": "LOW", "penalty": 2}]
+        plan = _build_action_plan(findings, "fr")
+        assert any("MTA-STS" in a for a in plan["optimize"])
+
+    def test_permissions_policy_goes_to_optimize(self):
+        findings = [{"title": "Permissions-Policy absent", "severity": "LOW", "penalty": 2}]
+        plan = _build_action_plan(findings, "fr")
+        assert any("Permissions-Policy" in a for a in plan["optimize"])
+
+    def test_domain_expired_goes_to_urgent(self):
+        findings = [{"title": "Domaine expiré depuis 5 jours !", "severity": "CRITICAL", "penalty": 50}]
+        plan = _build_action_plan(findings, "fr")
+        assert any("domaine" in a.lower() or "domain" in a.lower() for a in plan["urgent"])
+
+    def test_domain_expires_soon_goes_to_urgent(self):
+        findings = [{"title": "Domaine expire dans 10 jours — URGENT", "severity": "CRITICAL", "penalty": 30}]
+        plan = _build_action_plan(findings, "fr")
+        assert any("expir" in a.lower() or "domaine" in a.lower() for a in plan["urgent"])
+
+    def test_domain_expired_en(self):
+        findings = [{"title": "Domain expired 5 days ago!", "severity": "CRITICAL", "penalty": 50}]
+        plan = _build_action_plan(findings, "en")
+        assert any("domain" in a.lower() for a in plan["urgent"])
+
 
 # ─── Tests _build_context ─────────────────────────────────────────────────────
 
@@ -589,6 +646,42 @@ class TestBuildContext:
         assert ctx["high_count"]     == 0
         assert ctx["medium_count"]   == 0
         assert ctx["low_count"]      == 0
+
+    # ── Cover gradient dynamique ──────────────────────────────────────────────
+
+    def test_cover_gradient_key_present(self):
+        """cover_gradient est inclus dans le contexte."""
+        ctx = _build_context(MINIMAL_SCAN_DATA, "fr")
+        assert "cover_gradient" in ctx
+        assert "linear-gradient" in ctx["cover_gradient"]
+
+    def test_cover_gradient_low_is_green(self):
+        """risk_level=LOW → gradient vert."""
+        ctx = _build_context(MINIMAL_SCAN_DATA, "fr")  # risk_level=LOW
+        assert "14532d" in ctx["cover_gradient"]  # couleur verte
+
+    def test_cover_gradient_critical_is_red(self):
+        """risk_level=CRITICAL → gradient rouge."""
+        ctx = _build_context(SCAN_WITH_FINDINGS, "fr")  # risk_level=CRITICAL
+        assert "7f1d1d" in ctx["cover_gradient"]  # couleur rouge
+
+    def test_cover_gradient_high_is_orange(self):
+        """risk_level=HIGH → gradient orange."""
+        data = {**MINIMAL_SCAN_DATA, "risk_level": "HIGH"}
+        ctx = _build_context(data, "fr")
+        assert "7c2d12" in ctx["cover_gradient"]  # couleur orange
+
+    def test_cover_gradient_medium_is_blue(self):
+        """risk_level=MEDIUM → gradient bleu (défaut)."""
+        data = {**MINIMAL_SCAN_DATA, "risk_level": "MEDIUM"}
+        ctx = _build_context(data, "fr")
+        assert "1e3a8a" in ctx["cover_gradient"]  # couleur navy-blue
+
+    def test_cover_gradient_unknown_fallback_medium(self):
+        """risk_level inconnu → fallback MEDIUM (navy-blue)."""
+        data = {**MINIMAL_SCAN_DATA, "risk_level": "UNKNOWN"}
+        ctx = _build_context(data, "fr")
+        assert "1e3a8a" in ctx["cover_gradient"]  # fallback MEDIUM
 
 
 # =============================================================================

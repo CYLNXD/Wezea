@@ -56,6 +56,23 @@ FINDING_ACTIONS: dict[str, dict] = {
     "Protocole(s) obsolète(s)":   {"phase": "urgent",    "action_fr": "Désactiver FTP (21) et Telnet (23), passer à SFTP et SSH",                         "action_en": "Disable FTP (21) and Telnet (23), switch to SFTP and SSH"},
     "Base(s) de données":         {"phase": "urgent",    "action_fr": "Bloquer les ports BDD (3306/5432) depuis l'internet public",                       "action_en": "Block database ports (3306/5432) from the public internet"},
     "SSH (port 22)":              {"phase": "optimize",  "action_fr": "Désactiver l'auth par mot de passe SSH, utiliser des clés uniquement",              "action_en": "Disable SSH password authentication, use key-based auth only"},
+    # ── Nouveaux checks (session 30) ──────────────────────────────────────────
+    "DNSSEC non activé":               {"phase": "optimize",  "action_fr": "Activer DNSSEC sur votre registrar de domaine",                                                  "action_en": "Enable DNSSEC at your domain registrar"},
+    "DNSSEC not enabled":              {"phase": "optimize",  "action_fr": "Activer DNSSEC sur votre registrar de domaine",                                                  "action_en": "Enable DNSSEC at your domain registrar"},
+    "CAA record missing":              {"phase": "optimize",  "action_fr": "Ajouter un enregistrement CAA pour restreindre les CA autorisées à émettre des certificats",    "action_en": "Add a CAA DNS record to restrict which CAs can issue certificates for your domain"},
+    "Perfect Forward Secrecy missing": {"phase": "important", "action_fr": "Configurer des suites ECDHE/DHE sur votre serveur TLS pour activer PFS",                        "action_en": "Configure ECDHE/DHE cipher suites on your TLS server to enable PFS"},
+    "Cipher faible accepté":           {"phase": "important", "action_fr": "Désactiver les ciphers faibles (3DES, RC4, NULL) sur le serveur TLS",                           "action_en": "Disable weak ciphers (3DES, RC4, NULL) on the TLS server"},
+    "Cipher key too short":            {"phase": "important", "action_fr": "Activer des clés TLS d'au moins 128 bits — désactiver les algorithmes faibles",                 "action_en": "Enable TLS keys of at least 128 bits — disable weak algorithms"},
+    "Pas de redirection HTTP":         {"phase": "urgent",    "action_fr": "Configurer une redirection 301 permanente HTTP → HTTPS dans votre serveur web",                 "action_en": "Configure a permanent 301 HTTP → HTTPS redirect on your web server"},
+    "No HTTP → HTTPS redirect":        {"phase": "urgent",    "action_fr": "Configurer une redirection 301 permanente HTTP → HTTPS dans votre serveur web",                 "action_en": "Configure a permanent 301 HTTP → HTTPS redirect on your web server"},
+    "MTA-STS non configuré":           {"phase": "optimize",  "action_fr": "Déployer MTA-STS pour forcer le chiffrement TLS des emails entrants",                           "action_en": "Deploy MTA-STS to enforce TLS encryption for inbound emails"},
+    "MTA-STS not configured":          {"phase": "optimize",  "action_fr": "Déployer MTA-STS pour forcer le chiffrement TLS des emails entrants",                           "action_en": "Deploy MTA-STS to enforce TLS encryption for inbound emails"},
+    "Permissions-Policy absent":       {"phase": "optimize",  "action_fr": "Ajouter l'en-tête Permissions-Policy pour restreindre les API navigateur exposées",             "action_en": "Add a Permissions-Policy header to restrict exposed browser APIs"},
+    "Permissions-Policy missing":      {"phase": "optimize",  "action_fr": "Ajouter l'en-tête Permissions-Policy pour restreindre les API navigateur exposées",             "action_en": "Add a Permissions-Policy header to restrict exposed browser APIs"},
+    "Domaine expiré":                  {"phase": "urgent",    "action_fr": "Renouveler le nom de domaine immédiatement — risque de perte irréversible",                     "action_en": "Renew the domain name immediately — risk of irreversible loss"},
+    "Domain expired":                  {"phase": "urgent",    "action_fr": "Renouveler le nom de domaine immédiatement — risque de perte irréversible",                     "action_en": "Renew the domain name immediately — risk of irreversible loss"},
+    "Domaine expire dans":             {"phase": "urgent",    "action_fr": "Renouveler le nom de domaine en urgence avant son expiration",                                   "action_en": "Renew the domain name urgently before it expires"},
+    "Domain expires in":               {"phase": "urgent",    "action_fr": "Renouveler le nom de domaine en urgence avant son expiration",                                   "action_en": "Renew the domain name urgently before it expires"},
 }
 
 DEFAULT_OPTIMIZE_ACTIONS_FR = [
@@ -308,6 +325,15 @@ def _build_context(
     ssl_det  = dict(data.get("ssl_details",  {}) or {})
     port_det = dict(data.get("port_details", {}) or {})
 
+    # ── Gradient de couverture dynamique selon le niveau de risque ────────────
+    _cover_gradients = {
+        "CRITICAL": "linear-gradient(160deg, #0f172a 0%, #7f1d1d 52%, #450a0a 100%)",
+        "HIGH":     "linear-gradient(160deg, #0f172a 0%, #7c2d12 52%, #431407 100%)",
+        "MEDIUM":   "linear-gradient(160deg, #0f172a 0%, #1e3a8a 52%, #312e81 100%)",
+        "LOW":      "linear-gradient(160deg, #0f172a 0%, #14532d 52%, #052e16 100%)",
+    }
+    cover_gradient = _cover_gradients.get(risk_level, _cover_gradients["MEDIUM"])
+
     return {
         # Identifiants
         "domain":           data.get("domain", ""),
@@ -368,6 +394,8 @@ def _build_context(
         "is_premium":         bool(data.get("subdomain_details") or data.get("vuln_details")),
         # Section "What a hacker sees" — scénarios d'attaque CRITICAL/HIGH
         "hacker_scenarios":  _hacker_scenarios(findings, lang),
+        # Gradient couverture dynamique selon risque
+        "cover_gradient":    cover_gradient,
         # Benchmark maturité — score moyen des entreprises (injecté par main.py)
         "industry_avg":      int(data.get("industry_avg", 58)),
     }

@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-09 (session 31)
+> Dernière mise à jour : 2026-03-09 (session 32)
 
 ---
 
@@ -456,6 +456,37 @@ ls -lh /home/cyberhealth/backups/
 - **GitHub Actions runner dans `/home/ubuntu/`** : le service tourne en tant que `cyberhealth` qui n'a pas accès à `/home/ubuntu/` → déplacer dans `/home/cyberhealth/actions-runner/` + `chown -R cyberhealth:cyberhealth`
 - **`VITE_GOOGLE_CLIENT_ID` manquant** : le bouton Google Sign-In n'apparaît pas si cette variable est absente de `.env.production` → à recréer à chaque migration
 - **Mauvais fichier `.env`** : le service lit `/home/cyberhealth/app/backend/.env` (défini dans `EnvironmentFile` du service systemd), PAS `/home/cyberhealth/app/.env` — toujours éditer `backend/.env`
+
+---
+
+## 🆕 Fonctionnalités récentes (2026-03-09, session 32)
+
+### Rapport PDF — 3 améliorations
+
+#### 1. Couverture dynamique selon le niveau de risque
+- **`report_service.py`** : `_build_context` ajoute `cover_gradient` au contexte :
+  - CRITICAL → rouge foncé `#0f172a → #7f1d1d → #450a0a`
+  - HIGH → orange foncé `#0f172a → #7c2d12 → #431407`
+  - MEDIUM → bleu (inchangé) `#0f172a → #1e3a8a → #312e81`
+  - LOW → vert foncé `#0f172a → #14532d → #052e16`
+- **`report_template.html`** : `.cover` background appliqué via `style="{{ cover_gradient }}"`, bande `cover-risk-stripe` au bas en `risk_color`
+
+#### 2. One-pager dirigeant (page 2 visuelle)
+- Nouvelle page `@page onepager` insérée entre la couverture et la Synthèse
+- Score géant (88pt) + niveau de risque pill colorée
+- Grille 2 colonnes : Top 5 risques CRITICAL/HIGH (gauche) / Top 5 actions prioritaires (droite)
+- KPIs en bas : Critiques / Élevées / Modérées / Checks OK / Score / Moy. PME
+
+#### 3. Nouveaux checks dans le plan d'action
+- **`report_service.py`** — 16 nouvelles entrées `FINDING_ACTIONS` :
+  - DNSSEC, CAA → optimize
+  - PFS manquant, cipher faible, clé courte → important
+  - HTTP→HTTPS absent, domaine expiré/expire → urgent
+  - MTA-STS, Permissions-Policy → optimize
+
+#### Tests (+17 tests)
+- `TestBuildActionPlan` : 12 tests pour nouveaux checks
+- `TestBuildContext` : 6 tests pour `cover_gradient` (LOW/CRITICAL/HIGH/MEDIUM/UNKNOWN/présence)
 
 ---
 

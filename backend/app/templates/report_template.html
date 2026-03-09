@@ -132,7 +132,17 @@ body {
   width: 210mm;
   height: 297mm;
   position: relative;
-  background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 52%, #312e81 100%);
+  /* Le gradient est appliqué en inline style via Jinja2 selon le niveau de risque */
+}
+
+/* Bandeau de risque en bas de la couverture */
+.cover-risk-stripe {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 5pt;
+  opacity: 0.7;
 }
 
 /* Bande supérieure — transparente sur le dégradé */
@@ -308,7 +318,184 @@ body {
 
 
 /* ════════════════════════════════════════════════════════════════════════════
-   ② SECTIONS INTERNES (pages 2+)
+   ② ONE-PAGER DIRIGEANT
+   ════════════════════════════════════════════════════════════════════════════ */
+@page onepager {
+  size: A4;
+  margin: 14mm 16mm 14mm 16mm;
+  @top-right    { content: none; }
+  @bottom-left  { content: none; }
+  @bottom-right { content: none; }
+}
+
+.onepager {
+  page: onepager;
+}
+
+.op-topbar {
+  display: table;
+  width: 100%;
+  padding-bottom: 8pt;
+  margin-bottom: 16pt;
+  border-bottom: 1.5pt solid var(--border);
+}
+.op-topbar > div { display: table-cell; vertical-align: middle; }
+.op-topbar-brand {
+  font-size: 12pt;
+  font-weight: 800;
+  color: var(--navy);
+  letter-spacing: -0.3pt;
+}
+.op-topbar-brand span { color: #0891b2; }
+.op-topbar-domain {
+  font-family: var(--font-mono);
+  font-size: 9pt;
+  color: var(--slate-mid);
+  text-align: right;
+}
+.op-topbar-date {
+  font-size: 7.5pt;
+  color: var(--slate-light);
+  text-align: right;
+}
+
+/* Bloc score central */
+.op-score-wrap {
+  text-align: center;
+  margin-bottom: 18pt;
+}
+.op-score-number {
+  font-size: 88pt;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -4pt;
+}
+.op-score-outof {
+  font-size: 20pt;
+  color: var(--slate-light);
+  font-weight: 300;
+}
+.op-risk-pill {
+  display: inline-block;
+  padding: 4pt 20pt;
+  border-radius: 20pt;
+  font-size: 11pt;
+  font-weight: 800;
+  letter-spacing: 1pt;
+  text-transform: uppercase;
+  margin-top: 6pt;
+}
+.op-score-context {
+  font-size: 8pt;
+  color: var(--slate-mid);
+  margin-top: 6pt;
+}
+
+/* Grille 2 colonnes */
+.op-grid {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  border-spacing: 0;
+  margin-top: 0;
+}
+.op-col {
+  display: table-cell;
+  width: 50%;
+  vertical-align: top;
+  padding: 0 8pt;
+}
+.op-col:first-child { padding-left: 0; padding-right: 12pt; border-right: 1pt solid var(--border); }
+.op-col:last-child  { padding-left: 12pt; padding-right: 0; }
+
+.op-col-title {
+  font-size: 8pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5pt;
+  color: var(--slate-mid);
+  margin-bottom: 8pt;
+  padding-bottom: 4pt;
+  border-bottom: 0.5pt solid var(--border);
+}
+
+/* Items de risque */
+.op-risk-item {
+  display: table;
+  width: 100%;
+  padding: 6pt 0;
+  border-bottom: 0.5pt solid #f1f5f9;
+}
+.op-risk-item > * { display: table-cell; vertical-align: middle; }
+.op-risk-badge-cell { width: 54pt; }
+.op-risk-title {
+  font-size: 9pt;
+  font-weight: 600;
+  color: var(--navy);
+  line-height: 1.3;
+}
+.op-risk-cat {
+  font-size: 7pt;
+  color: var(--slate-mid);
+  margin-top: 1pt;
+}
+
+/* Items d'action */
+.op-action-item {
+  display: table;
+  width: 100%;
+  padding: 6pt 0;
+  border-bottom: 0.5pt solid #f1f5f9;
+}
+.op-action-item > * { display: table-cell; vertical-align: top; }
+.op-action-num {
+  width: 16pt;
+  font-size: 9pt;
+  font-weight: 800;
+  color: #0891b2;
+  padding-right: 6pt;
+}
+.op-action-text {
+  font-size: 8.5pt;
+  color: #1e293b;
+  line-height: 1.4;
+}
+
+/* Barre KPIs en bas */
+.op-kpis {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  margin-top: 16pt;
+  background: var(--bg-light);
+  border: 0.5pt solid var(--border);
+  border-radius: 6pt;
+}
+.op-kpi {
+  display: table-cell;
+  text-align: center;
+  padding: 8pt 6pt;
+  border-right: 0.5pt solid var(--border);
+  vertical-align: middle;
+}
+.op-kpi:last-child { border-right: none; }
+.op-kpi-val {
+  font-size: 18pt;
+  font-weight: 900;
+  display: block;
+  line-height: 1;
+}
+.op-kpi-lbl {
+  font-size: 6.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.8pt;
+  color: var(--slate-mid);
+  display: block;
+  margin-top: 2pt;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ③ SECTIONS INTERNES (pages 3+)
    ════════════════════════════════════════════════════════════════════════════ */
 .section {
   page: section;
@@ -1123,7 +1310,7 @@ p.lead {
 <!-- ══════════════════════════════════════════════════════════════════════════
      ① PAGE DE COUVERTURE
      ══════════════════════════════════════════════════════════════════════════ -->
-<div class="cover">
+<div class="cover" style="background: {{ cover_gradient }};">
 
   <!-- Bandeau supérieur navy -->
   <div class="cover-header">
@@ -1226,11 +1413,135 @@ p.lead {
       <p>Wezea Security Scanner · scan.wezea.net</p>
     {% endif %}
   </div>
+  <!-- Bande de risque dynamique en bas -->
+  <div class="cover-risk-stripe" style="background: {{ risk_color }};"></div>
 </div><!-- /cover -->
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     ② SYNTHÈSE DÉCISIONNELLE
+     ② ONE-PAGER DIRIGEANT — Synthèse visuelle 1 page
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="onepager page-break">
+
+  <!-- Entête -->
+  <div class="op-topbar">
+    <div>
+      {% if wb_active %}
+        <div class="op-topbar-brand">{{ wb_company }}</div>
+      {% else %}
+        <div class="op-topbar-brand">Wezea<span>Security</span></div>
+      {% endif %}
+      <div style="font-size:7pt; color:var(--slate-light); margin-top:1pt;">{% if lang == 'en' %}Cybersecurity Audit Report{% else %}Rapport d'Audit Cybersécurité{% endif %}</div>
+    </div>
+    <div>
+      <div class="op-topbar-domain">{{ domain }}</div>
+      <div class="op-topbar-date">{{ scanned_at }}</div>
+    </div>
+  </div>
+
+  <!-- Score géant + niveau de risque -->
+  <div class="op-score-wrap">
+    <div class="op-score-number" style="color: {{ score_color }};">
+      {{ security_score }}<span class="op-score-outof">/100</span>
+    </div>
+    <div>
+      <span class="op-risk-pill" style="background: {{ risk_color }}22; color: {{ risk_color }}; border: 1pt solid {{ risk_color }}55;">
+        {{ strings.risk_prefix }} {{ risk_label }}
+      </span>
+    </div>
+    <div class="op-score-context">
+      {% if lang == 'en' %}
+        {{ critical_count }} critical · {{ high_count }} high · {{ medium_count }} medium · {{ passed_checks_count }} checks OK
+      {% else %}
+        {{ critical_count }} critique{{ 's' if critical_count > 1 }} · {{ high_count }} élevé{{ 's' if high_count > 1 }} · {{ medium_count }} modéré{{ 's' if medium_count > 1 }} · {{ passed_checks_count }} checks OK
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Grille 2 colonnes : Top Risques | Actions prioritaires -->
+  {% set top_findings = findings | selectattr('severity', 'in', ['CRITICAL', 'HIGH']) | list %}
+  {% set urgent_actions = actions.urgent %}
+  {% set all_actions = urgent_actions + actions.important %}
+  <div class="op-grid">
+    <!-- Colonne gauche : Top Risques -->
+    <div class="op-col">
+      <div class="op-col-title">
+        {% if lang == 'en' %}⚠ Top Risks{% else %}⚠ Risques Prioritaires{% endif %}
+      </div>
+      {% if top_findings %}
+        {% for f in top_findings[:5] %}
+        <div class="op-risk-item no-break">
+          <div class="op-risk-badge-cell">
+            <span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span>
+          </div>
+          <div>
+            <div class="op-risk-title">{{ f.title }}</div>
+            <div class="op-risk-cat">{{ f.category }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="font-size:9pt; color:var(--green); padding:8pt 0;">
+          ✅ {% if lang == 'en' %}No critical or high-risk vulnerabilities detected.{% else %}Aucune vulnérabilité critique ou élevée détectée.{% endif %}
+        </div>
+      {% endif %}
+    </div>
+    <!-- Colonne droite : Actions Prioritaires -->
+    <div class="op-col">
+      <div class="op-col-title">
+        {% if lang == 'en' %}✓ Priority Actions{% else %}✓ Actions Prioritaires{% endif %}
+      </div>
+      {% if all_actions %}
+        {% for action in all_actions[:5] %}
+        <div class="op-action-item no-break">
+          <div class="op-action-num">{{ loop.index }}</div>
+          <div class="op-action-text">{{ action }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        {% for action in actions.optimize[:4] %}
+        <div class="op-action-item no-break">
+          <div class="op-action-num">{{ loop.index }}</div>
+          <div class="op-action-text">{{ action }}</div>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- KPIs en bas -->
+  <div class="op-kpis">
+    <div class="op-kpi">
+      <span class="op-kpi-val" style="color:{% if critical_count > 0 %}{{ risk_color }}{% else %}var(--green){% endif %}">{{ critical_count }}</span>
+      <span class="op-kpi-lbl">{% if lang == 'en' %}Critical{% else %}Critiques{% endif %}</span>
+    </div>
+    <div class="op-kpi">
+      <span class="op-kpi-val" style="color:{% if high_count > 0 %}var(--orange){% else %}var(--green){% endif %}">{{ high_count }}</span>
+      <span class="op-kpi-lbl">{% if lang == 'en' %}High{% else %}Élevées{% endif %}</span>
+    </div>
+    <div class="op-kpi">
+      <span class="op-kpi-val" style="color:var(--amber);">{{ medium_count }}</span>
+      <span class="op-kpi-lbl">{% if lang == 'en' %}Medium{% else %}Modérées{% endif %}</span>
+    </div>
+    <div class="op-kpi">
+      <span class="op-kpi-val" style="color:var(--green);">{{ passed_checks_count }}</span>
+      <span class="op-kpi-lbl">Checks OK</span>
+    </div>
+    <div class="op-kpi">
+      <span class="op-kpi-val" style="color:var(--navy);">{{ security_score }}/100</span>
+      <span class="op-kpi-lbl">Score</span>
+    </div>
+    <div class="op-kpi">
+      <span class="op-kpi-val" style="color:var(--slate-mid); font-size:14pt;">{{ industry_avg }}/100</span>
+      <span class="op-kpi-lbl">{% if lang == 'en' %}Avg PME{% else %}Moy. PME{% endif %}</span>
+    </div>
+  </div>
+
+</div><!-- /onepager -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ③ SYNTHÈSE DÉCISIONNELLE
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="section page-break">
 
