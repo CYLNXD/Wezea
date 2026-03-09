@@ -12,7 +12,7 @@ import {
   Shield, Search, ArrowRight, RotateCcw,
   FileDown, Globe, AlertTriangle, Info, Lock, X, UserPlus, MessageSquare,
   CheckCircle, ChevronDown, Zap, Eye, Star, ListChecks, BookOpen, Building2, Bell,
-  TrendingUp, TrendingDown, Database, FileText, Scale,
+  TrendingUp, TrendingDown, Database, FileText, Scale, Award,
 } from 'lucide-react';
 
 import { useLanguage } from '../i18n/LanguageContext';
@@ -1922,6 +1922,114 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 : 'Detects typosquatted domains registered by third parties (TLD variants, typos, homoglyphs) via DNS resolution.'}
                             </p>
                             <button onClick={() => openPricing('upgrade_banner')} className="self-start mt-1 text-xs font-semibold px-3 py-1.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors flex items-center gap-1.5">
+                              <Lock size={11} />
+                              {lang === 'fr' ? 'Débloquer avec Starter — 9,90€/mois' : 'Unlock with Starter — €9.90/month'}
+                              <ArrowRight size={11} />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Certificate Transparency Monitor */}
+                        {(user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'dev') ? (() => {
+                          const ct = r.ct_details;
+                          return (
+                            <div className="flex flex-col gap-4">
+                              <div className="flex items-center gap-2">
+                                <div className="p-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                                  <Award size={14} className="text-violet-400" />
+                                </div>
+                                <h3 className="text-white font-bold text-sm">
+                                  {lang === 'fr' ? 'Certificate Transparency (CT logs)' : 'Certificate Transparency (CT logs)'}
+                                </h3>
+                                <span className="text-xs bg-violet-500/20 text-violet-300 border border-violet-500/30 px-1.5 py-0.5 rounded-full">Starter & Pro</span>
+                              </div>
+
+                              {!ct || ct.status === 'no_data' ? (
+                                <div className="flex items-center gap-3 py-4 px-4 bg-slate-900/50 rounded-xl border border-slate-800">
+                                  <div className="p-2 rounded-full bg-blue-500/10 border border-blue-500/20">
+                                    <Award size={16} className="text-blue-400" />
+                                  </div>
+                                  <p className="text-slate-400 text-xs">
+                                    {lang === 'fr' ? 'Données CT non disponibles pour ce scan.' : 'CT data not available for this scan.'}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-3">
+                                  {/* Stats bar */}
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    {[
+                                      { label: lang === 'fr' ? 'Total certs' : 'Total certs', value: ct.total_found, color: 'text-cyan-300' },
+                                      { label: lang === 'fr' ? '7 derniers jours' : 'Last 7 days', value: ct.recent_7days, color: ct.recent_7days > 0 ? 'text-amber-300' : 'text-green-300' },
+                                      { label: lang === 'fr' ? '30 derniers jours' : 'Last 30 days', value: ct.recent_30days, color: 'text-slate-300' },
+                                      { label: lang === 'fr' ? 'Wildcards' : 'Wildcards', value: ct.wildcard_count, color: ct.wildcard_count > 0 ? 'text-orange-300' : 'text-green-300' },
+                                    ].map((s, i) => (
+                                      <div key={i} className="flex flex-col gap-0.5 px-3 py-2.5 bg-slate-900/60 rounded-lg border border-slate-800 text-center">
+                                        <span className={`text-xl font-bold font-mono ${s.color}`}>{s.value}</span>
+                                        <span className="text-xs text-slate-500">{s.label}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                  {/* Émetteurs */}
+                                  {ct.issuers.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 px-3 py-2.5 bg-slate-900/40 rounded-lg border border-slate-800">
+                                      <span className="text-xs text-slate-500 w-full mb-0.5">
+                                        {lang === 'fr' ? 'Autorités de certification détectées :' : 'Detected certificate authorities:'}
+                                      </span>
+                                      {ct.issuers.slice(0, 8).map((issuer, i) => (
+                                        <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 font-mono">
+                                          {issuer}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Certs récents */}
+                                  {ct.recent_certs.length > 0 && (
+                                    <div className="flex flex-col gap-1">
+                                      <p className="text-xs text-slate-500 px-1">
+                                        {lang === 'fr' ? `Certificats émis dans les 7 derniers jours (${ct.recent_certs.length}) :` : `Certificates issued in the last 7 days (${ct.recent_certs.length}):`}
+                                      </p>
+                                      {ct.recent_certs.slice(0, 5).map((cert, i) => (
+                                        <div key={i} className="flex items-center gap-3 px-3 py-2 bg-amber-500/5 rounded-lg border border-amber-500/15">
+                                          <div className="flex-1 min-w-0">
+                                            <span className="font-mono text-xs text-amber-300">{cert.common_name}</span>
+                                          </div>
+                                          <span className="shrink-0 text-xs text-slate-500">{cert.issuer}</span>
+                                          <span className="shrink-0 text-xs text-slate-600">{cert.logged_at}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Wildcards */}
+                                  {ct.wildcard_count > 0 && (
+                                    <div className="rounded-lg bg-orange-500/5 border border-orange-500/20 p-3 text-xs text-orange-300/80">
+                                      <span className="font-semibold">⚠️ {ct.wildcard_count} certificat{ct.wildcard_count > 1 ? 's' : ''} wildcard</span>
+                                      {' '}
+                                      {lang === 'fr'
+                                        ? 'trouvé(s) dans les logs CT. Les wildcards (*.domain.com) couvrent tous les sous-domaines.'
+                                        : 'found in CT logs. Wildcards (*.domain.com) cover all subdomains.'}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })() : (
+                          <div className="rounded-lg border border-dashed border-slate-600/60 bg-slate-800/30 p-5 flex flex-col gap-3">
+                            <div className="flex items-center gap-2 text-slate-400 text-sm font-semibold">
+                              <Award size={14} className="text-violet-500" />
+                              <span className="text-slate-300">
+                                {lang === 'fr' ? 'CT logs — Starter & Pro' : 'CT logs — Starter & Pro'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              {lang === 'fr'
+                                ? 'Surveille les logs Certificate Transparency (crt.sh) pour détecter tout certificat récent, wildcard ou suspect émis pour votre domaine.'
+                                : 'Monitors Certificate Transparency logs (crt.sh) to detect recent, wildcard, or suspicious certificates issued for your domain.'}
+                            </p>
+                            <button onClick={() => openPricing('upgrade_banner')} className="self-start mt-1 text-xs font-semibold px-3 py-1.5 rounded-md bg-violet-500/20 text-violet-300 border border-violet-500/40 hover:bg-violet-500/30 transition-colors flex items-center gap-1.5">
                               <Lock size={11} />
                               {lang === 'fr' ? 'Débloquer avec Starter — 9,90€/mois' : 'Unlock with Starter — €9.90/month'}
                               <ArrowRight size={11} />

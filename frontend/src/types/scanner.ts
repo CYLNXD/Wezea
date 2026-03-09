@@ -72,6 +72,7 @@ export interface ScanResult {
   vuln_details:      VulnDetails      | Record<string, never>;
   breach_details?:   BreachDetails;
   typosquat_details?: TyposquatDetails;
+  ct_details?:        CtDetails;
   // Conformité réglementaire — tous plans
   compliance?:       ComplianceData;
 }
@@ -112,6 +113,26 @@ export interface TyposquatDetails {
   checked:   number;
   hit_count: number;
   hits:      TyposquatHit[];
+}
+
+export interface CtCertRecord {
+  common_name: string;
+  name_value:  string;
+  issuer:      string;
+  logged_at:   string;
+  not_before:  string;
+  not_after:   string;
+}
+
+export interface CtDetails {
+  status:         'no_data' | 'certs_found';
+  total_found:    number;
+  recent_7days:   number;
+  recent_30days:  number;
+  wildcard_count: number;
+  issuers:        string[];
+  recent_certs:   CtCertRecord[];
+  wildcard_certs: CtCertRecord[];
 }
 
 export interface ConsoleLog {

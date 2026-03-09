@@ -295,6 +295,7 @@ class ScanResponse(BaseModel):
     vuln_details:      dict[str, Any] = {}
     breach_details:    dict[str, Any] = {}
     typosquat_details: dict[str, Any] = {}
+    ct_details:        dict[str, Any] = {}
     # Conformité réglementaire — tous plans
     compliance:        dict[str, Any] = {}
 
@@ -704,6 +705,7 @@ async def run_scan(
                 "vuln_details":      result_dict.get("vuln_details", {}),
                 "breach_details":    result_dict.get("breach_details", {}),
                 "typosquat_details": result_dict.get("typosquat_details", {}),
+                "ct_details":        result_dict.get("ct_details", {}),
                 "compliance":        result_dict.get("compliance", {}),
             }
             history = ScanHistory(
@@ -758,6 +760,7 @@ async def run_scan(
         vuln_details      = result_dict.get("vuln_details", {}),
         breach_details    = result_dict.get("breach_details", {}),
         typosquat_details = result_dict.get("typosquat_details", {}),
+        ct_details        = result_dict.get("ct_details", {}),
         compliance        = result_dict.get("compliance", {}),
     )
 

@@ -509,25 +509,26 @@ def _all_auditor_patches(
     dns_mock=None, ssl_mock=None, port_mock=None,
     header_mock=None, email_mock=None, tech_mock=None, rep_mock=None,
     expiry_mock=None, sub_mock=None, vuln_mock=None, breach_mock=None,
-    typosquat_mock=None,
+    typosquat_mock=None, ct_mock=None,
 ):
     """
     Retourne une liste de patch() pour tous les auditeurs.
     Chaque auditeur peut être remplacé par un mock personnalisé.
     """
     return [
-        patch("app.scanner.DNSAuditor",                         return_value=dns_mock      or _mock_auditor()),
-        patch("app.scanner.SSLAuditor",                         return_value=ssl_mock      or _mock_auditor()),
-        patch("app.scanner.PortAuditor",                        return_value=port_mock     or _mock_auditor()),
-        patch("app.extra_checks.HttpHeaderAuditor",             return_value=header_mock   or _mock_auditor()),
-        patch("app.extra_checks.EmailSecurityAuditor",          return_value=email_mock    or _mock_auditor()),
-        patch("app.extra_checks.TechExposureAuditor",           return_value=tech_mock     or _mock_auditor()),
-        patch("app.extra_checks.ReputationAuditor",             return_value=rep_mock      or _mock_auditor()),
-        patch("app.extra_checks.DomainExpiryAuditor",           return_value=expiry_mock   or _mock_auditor()),
-        patch("app.advanced_checks.SubdomainAuditor",           return_value=sub_mock      or _mock_auditor()),
-        patch("app.advanced_checks.VulnVersionAuditor",         return_value=vuln_mock     or _mock_auditor()),
-        patch("app.breach_checks.BreachAuditor",                return_value=breach_mock   or _mock_auditor()),
+        patch("app.scanner.DNSAuditor",                         return_value=dns_mock       or _mock_auditor()),
+        patch("app.scanner.SSLAuditor",                         return_value=ssl_mock       or _mock_auditor()),
+        patch("app.scanner.PortAuditor",                        return_value=port_mock      or _mock_auditor()),
+        patch("app.extra_checks.HttpHeaderAuditor",             return_value=header_mock    or _mock_auditor()),
+        patch("app.extra_checks.EmailSecurityAuditor",          return_value=email_mock     or _mock_auditor()),
+        patch("app.extra_checks.TechExposureAuditor",           return_value=tech_mock      or _mock_auditor()),
+        patch("app.extra_checks.ReputationAuditor",             return_value=rep_mock       or _mock_auditor()),
+        patch("app.extra_checks.DomainExpiryAuditor",           return_value=expiry_mock    or _mock_auditor()),
+        patch("app.advanced_checks.SubdomainAuditor",           return_value=sub_mock       or _mock_auditor()),
+        patch("app.advanced_checks.VulnVersionAuditor",         return_value=vuln_mock      or _mock_auditor()),
+        patch("app.breach_checks.BreachAuditor",                return_value=breach_mock    or _mock_auditor()),
         patch("app.typosquatting_checks.TyposquattingAuditor",  return_value=typosquat_mock or _mock_auditor()),
+        patch("app.ct_monitor.CertTransparencyAuditor",         return_value=ct_mock        or _mock_auditor()),
     ]
 
 
@@ -547,18 +548,19 @@ class TestAuditManagerInit:
         assert manager._vuln_auditor          is None
 
     def test_starter_plan_has_premium_auditors(self):
-        """Plan starter → 8 de base + 4 premium (subdomain + vuln + breach + typosquat)."""
+        """Plan starter → 8 de base + 5 premium (subdomain + vuln + breach + typosquat + ct)."""
         from app.scanner import AuditManager
         with ExitStack() as stack:
             for p in _all_auditor_patches():
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="starter")
         assert len(manager._auditors)         == 8
-        assert len(manager._premium_auditors) == 4
+        assert len(manager._premium_auditors) == 5
         assert manager._subdomain_auditor     is not None
         assert manager._vuln_auditor          is not None
         assert manager._breach_auditor        is not None
         assert manager._typosquat_auditor     is not None
+        assert manager._ct_auditor            is not None
 
     def test_pro_plan_has_premium_auditors(self):
         """Plan pro → même comportement que starter."""
@@ -567,20 +569,21 @@ class TestAuditManagerInit:
             for p in _all_auditor_patches():
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="pro")
-        assert len(manager._premium_auditors) == 4
+        assert len(manager._premium_auditors) == 5
 
     def test_dev_plan_has_premium_auditors(self):
-        """Plan dev = tout Pro → doit aussi avoir SubdomainAuditor + VulnVersionAuditor + BreachAuditor + TyposquattingAuditor."""
+        """Plan dev = tout Pro → 5 auditeurs premium dont CT Monitor."""
         from app.scanner import AuditManager
         with ExitStack() as stack:
             for p in _all_auditor_patches():
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="dev")
-        assert len(manager._premium_auditors) == 4
+        assert len(manager._premium_auditors) == 5
         assert manager._subdomain_auditor   is not None
         assert manager._vuln_auditor        is not None
         assert manager._breach_auditor      is not None
         assert manager._typosquat_auditor   is not None
+        assert manager._ct_auditor          is not None
 
     def test_domain_lowercased_and_stripped(self):
         """Le domaine est normalisé en minuscules sans espaces."""
@@ -704,7 +707,7 @@ class TestAuditManagerRun:
 
     @pytest.mark.asyncio
     async def test_run_no_premium_details_for_free_plan(self):
-        """Plan free → subdomain_details, vuln_details et typosquat_details vides."""
+        """Plan free → tous les champs premium sont vides."""
         from app.scanner import AuditManager
         with ExitStack() as stack:
             for p in _all_auditor_patches():
@@ -714,22 +717,28 @@ class TestAuditManagerRun:
         assert result.subdomain_details  == {}
         assert result.vuln_details       == {}
         assert result.typosquat_details  == {}
+        assert result.ct_details         == {}
 
     @pytest.mark.asyncio
     async def test_run_premium_details_populated_for_starter(self):
-        """Plan starter → subdomain_details, vuln_details et typosquat_details remplis."""
+        """Plan starter → tous les champs premium sont remplis."""
         from app.scanner import AuditManager
-        sub_mock      = _mock_auditor(details={"total_found": 3, "subdomains": ["a", "b", "c"]})
-        vuln_mock     = _mock_auditor(details={"detected_stack": ["PHP/7.4"]})
+        sub_mock       = _mock_auditor(details={"total_found": 3, "subdomains": ["a", "b", "c"]})
+        vuln_mock      = _mock_auditor(details={"detected_stack": ["PHP/7.4"]})
         typosquat_mock = _mock_auditor(details={"status": "clean", "checked": 50, "hit_count": 0, "hits": []})
+        ct_mock        = _mock_auditor(details={"status": "certs_found", "total_found": 5, "recent_7days": 0})
         with ExitStack() as stack:
-            for p in _all_auditor_patches(sub_mock=sub_mock, vuln_mock=vuln_mock, typosquat_mock=typosquat_mock):
+            for p in _all_auditor_patches(
+                sub_mock=sub_mock, vuln_mock=vuln_mock,
+                typosquat_mock=typosquat_mock, ct_mock=ct_mock,
+            ):
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="starter")
             result  = await manager.run()
         assert result.subdomain_details  == {"total_found": 3, "subdomains": ["a", "b", "c"]}
         assert result.vuln_details       == {"detected_stack": ["PHP/7.4"]}
         assert result.typosquat_details  == {"status": "clean", "checked": 50, "hit_count": 0, "hits": []}
+        assert result.ct_details         == {"status": "certs_found", "total_found": 5, "recent_7days": 0}
 
     @pytest.mark.asyncio
     async def test_run_score_computed_from_findings(self):
