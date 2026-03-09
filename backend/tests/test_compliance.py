@@ -157,11 +157,19 @@ class TestNIS2Mapping:
         f = _Finding("Headers HTTP", "HIGH", "HSTS manquant", 10)
         assert _nis2(_analyze(f), "21-2-h").compliant is False
 
-    def test_spf_triggers_21_2_g_and_h(self):
+    def test_spf_triggers_21_2_g_only(self):
+        # SPF/DMARC/DKIM = hygiène email (21-2-g), pas chiffrement (21-2-h)
         f = _Finding("DNS", "HIGH", "SPF manquant", 15)
         result = _analyze(f)
         assert _nis2(result, "21-2-g").compliant is False
-        assert _nis2(result, "21-2-h").compliant is False
+        assert _nis2(result, "21-2-h").compliant is True  # 21-2-h = chiffrement seulement
+
+    def test_dmarc_triggers_21_2_g_not_h(self):
+        # DMARC = hygiène email (21-2-g), pas chiffrement (21-2-h)
+        f = _Finding("DNS", "MEDIUM", "DMARC présent mais en mode surveillance (p=none)", 8)
+        result = _analyze(f)
+        assert _nis2(result, "21-2-g").compliant is False
+        assert _nis2(result, "21-2-h").compliant is True
 
     def test_dmarc_triggers_21_2_g(self):
         f = _Finding("DNS", "HIGH", "DMARC manquant", 15)
@@ -189,9 +197,19 @@ class TestNIS2Mapping:
         f = _Finding("DNS", "LOW", "DNSSEC absent", 3)
         assert _nis2(_analyze(f), "21-2-g").compliant is False
 
-    def test_domain_expiry_triggers_21_2_a(self):
+    def test_domain_expiry_triggers_21_2_e(self):
+        # Expiration domaine = maintenance/continuité (21-2-e), pas politiques (21-2-a)
         f = _Finding("Domaine", "HIGH", "Domaine expire dans 20 jours", 15)
-        assert _nis2(_analyze(f), "21-2-a").compliant is False
+        result = _analyze(f)
+        assert _nis2(result, "21-2-e").compliant is False
+        assert _nis2(result, "21-2-a").compliant is True  # 21-2-a = politiques de sécurité
+
+    def test_server_version_exposed_does_not_trigger_21_2_i(self):
+        # "Version du serveur exposée" ne doit pas matcher la règle des ports dangereux
+        # Corrige le faux positif causé par "exposé"/"exposed" dans les mots-clés ports
+        f = _Finding("Headers HTTP", "LOW", "Version du serveur exposée", 3)
+        result = _analyze(f)
+        assert _nis2(result, "21-2-i").compliant is True   # Faux positif corrigé — plus dans la règle ports
 
     def test_subdomain_triggers_21_2_i(self):
         f = _Finding("Sous-domaines", "MEDIUM", "Sous-domaines orphelins détectés", 9)

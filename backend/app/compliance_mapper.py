@@ -113,16 +113,18 @@ COMPLIANCE_RULES: list[tuple[list[str], list[str], list[str]]] = [
         ["32"],
     ),
     # Email security — SPF, DMARC, DKIM, MTA-STS
+    # Art. 21-2-g (hygiène email) uniquement — SPF/DMARC/DKIM ≠ chiffrement (pas 21-2-h)
     (
         ["spf", "dmarc", "dkim", "mta-sts"],
-        ["21-2-g", "21-2-h"],
+        ["21-2-g"],
         [],
     ),
     # Ports dangereux / services exposés
+    # "exposé"/"exposed" retirés : trop génériques (matchent "Version du serveur exposée")
     (
         ["rdp", "smb", "ftp", "telnet", "redis", "mongodb",
          "elasticsearch", "docker", "mysql", "postgresql",
-         "exposé", "exposed", "service"],
+         "service ouvert", "port ouvert"],
         ["21-2-i", "21-2-e"],
         ["32", "25"],
     ),
@@ -167,10 +169,10 @@ COMPLIANCE_RULES: list[tuple[list[str], list[str], list[str]]] = [
         ["21-2-g"],
         [],
     ),
-    # Expiration du nom de domaine
+    # Expiration du nom de domaine — Art. 21-2-e (maintenance), pas 21-2-a (politiques)
     (
         ["expire", "expiration", "domaine expiré", "domain expir"],
-        ["21-2-a"],
+        ["21-2-e"],
         [],
     ),
     # Sous-domaines orphelins
