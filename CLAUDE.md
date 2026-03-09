@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-09 (session 32)
+> Dernière mise à jour : 2026-03-09 (session 33)
 
 ---
 
@@ -487,6 +487,35 @@ ls -lh /home/cyberhealth/backups/
 #### Tests (+17 tests)
 - `TestBuildActionPlan` : 12 tests pour nouveaux checks
 - `TestBuildContext` : 6 tests pour `cover_gradient` (LOW/CRITICAL/HIGH/MEDIUM/UNKNOWN/présence)
+
+---
+
+## 🆕 Fonctionnalités récentes (2026-03-09, session 33)
+
+### Feature — Dashboard Monitoring Enrichi (alertes configurables + digest hebdomadaire)
+
+#### 1. Seuil SSL configurable par domaine
+- **`backend/app/models.py`** : colonne `ssl_alert_days = Column(Integer, default=30)` sur `MonitoredDomain`
+- **`backend/app/database.py`** : migration `012_monitoring_alert_config` — `ALTER TABLE monitored_domains ADD COLUMN ssl_alert_days INTEGER DEFAULT 30`
+- **`backend/app/scheduler.py`** : `ssl_threshold = monitored.ssl_alert_days or 30` remplace le hardcode 30j — alerte urgente si ≤7j, alerte warning si ≤ssl_threshold
+- **`frontend/src/pages/ClientSpace.tsx`** : select avec options 7/14/30/60 jours → appel PATCH `/monitoring/domains/{d}`
+
+#### 2. Préférences d'alertes par type
+- **`backend/app/models.py`** : colonne `alert_config = Column(Text, nullable=True)` + `DEFAULT_ALERT_CONFIG` dict + `get_alert_config()` méthode avec fallback
+- **`backend/app/routers/monitoring_router.py`** : `UpdateDomainRequest.alert_config: Optional[dict]` — sanitisation des clés autorisées uniquement ; `DomainResponse.alert_config_parsed` (dict décodé) retourné dans GET
+- **`backend/app/scheduler.py`** : `alert_cfg = monitored.get_alert_config()` — chaque type d'alerte (score_drop, critical_findings, ssl_expiry, port_changes, tech_changes) contrôlé individuellement
+- **`frontend/src/pages/ClientSpace.tsx`** : section `<details>` expandable avec 5 checkboxes dans la ligne de config de chaque domaine
+
+#### 3. Résumé hebdomadaire par email (digest lundi 07:30 UTC)
+- **`backend/app/services/brevo_service.py`** : `send_weekly_monitoring_digest(email, first_name, domains)` — email sombre avec tableau Domaine/Score/Risque/SSL/Dernier scan, tri par priorité (CRITICAL/HIGH en premier), compteur "X domaine(s) nécessitent votre attention"
+- **`backend/app/scheduler.py`** : `run_weekly_digest()` + `_async_weekly_digest()` — récupère tous les users avec domaines actifs, agrège les données, envoie le digest
+- **Planification** : `CronTrigger(day_of_week="mon", hour=7, minute=30)` enregistré dans `start_scheduler()`
+
+#### Tests (inclus dans 1095 tests, 0 échec)
+- `test_monitoring.py` : `test_patch_ssl_alert_days`, `test_patch_ssl_alert_days_clamped`, `test_patch_alert_config`, `test_patch_alert_config_sanitizes_unknown_keys`
+- `test_scheduler.py` : `TestWeeklyDigest` (5 tests) : domaines agrégés, données correctes, error silencieux, run_weekly_digest
+- `test_brevo_service.py` : `TestSendWeeklyMonitoringDigest` (5 tests) : tri priorité, HTML contenu, no API key → False
+- `test_database.py` : `012_monitoring_alert_config` dans la liste des migrations
 
 ---
 
