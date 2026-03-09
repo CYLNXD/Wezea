@@ -24,6 +24,7 @@ import { FindingCard, FindingGroup } from '../components/FindingCard';
 import { EmailCaptureModal } from '../components/EmailCaptureModal';
 import PricingModal from '../components/PricingModal';
 import NewsletterWidget from '../components/NewsletterWidget';
+import OnboardingWizard from '../components/OnboardingWizard';
 import type { Finding } from '../types/scanner';
 import { SEVERITY_CONFIG } from '../types/scanner';
 import { apiClient, getScanLimits } from '../lib/api';
@@ -149,6 +150,8 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
   const [domainHistory,  setDomainHistory]  = useState<number[]>([]);
   const [blogLinks,      setBlogLinks]      = useState<Array<{ id: number; match_keyword: string; article_title: string; article_url: string }>>([]);
   const [stickyDismissed, setStickyDismissed] = useState(false);
+  // Onboarding wizard — affiché une fois après l'inscription
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const inputRef                    = useRef<HTMLInputElement>(null);
   const resultsRef                  = useRef<HTMLDivElement>(null);
 
@@ -188,6 +191,22 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     apiClient.get('/public/stats').then(r => setPublicStats(r.data)).catch(() => {});
     apiClient.get('/public/blog-links').then(r => setBlogLinks(r.data)).catch(() => {});
   }, []);
+
+  // ── Onboarding wizard — afficher une fois après l'inscription ──────────────
+  useEffect(() => {
+    if (!user) return;
+    const key = `wezea_onboarding_done_${user.id}`;
+    if (!localStorage.getItem(key)) {
+      setOnboardingOpen(true);
+    }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const closeOnboarding = () => {
+    if (user) {
+      localStorage.setItem(`wezea_onboarding_done_${user.id}`, '1');
+    }
+    setOnboardingOpen(false);
+  };
 
   // ── Chargement d'un scan historique (depuis HistoryPage) ───────────────────
   useEffect(() => {
@@ -374,6 +393,14 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     await scanner.startScan(target, lang);
     // Note : le scroll post-scan est géré dans le useEffect sur scanner.status === 'success'
     // pour éviter de scroller pendant la transition AnimatePresence (zone vide visible)
+  };
+
+  // ── Lancer un scan depuis l'onboarding wizard ──────────────────────────────
+  const handleOnboardingScan = (d: string) => {
+    closeOnboarding();
+    setDomain(d);
+    const fakeEvent = { preventDefault: () => {} } as FormEvent;
+    handleSubmit(fakeEvent, d);
   };
 
   // Grouper les findings par catégorie
@@ -2960,6 +2987,18 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Onboarding wizard — affiché une fois après l'inscription ──────── */}
+      <AnimatePresence>
+        {onboardingOpen && user && (
+          <OnboardingWizard
+            user={user}
+            onStartScan={handleOnboardingScan}
+            onGoClientSpace={(tab) => { closeOnboarding(); onGoClientSpace?.(tab); }}
+            onClose={closeOnboarding}
+          />
         )}
       </AnimatePresence>
     </div>

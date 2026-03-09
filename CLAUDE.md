@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-09 (session 30)
+> Dernière mise à jour : 2026-03-09 (session 31)
 
 ---
 
@@ -456,6 +456,53 @@ ls -lh /home/cyberhealth/backups/
 - **GitHub Actions runner dans `/home/ubuntu/`** : le service tourne en tant que `cyberhealth` qui n'a pas accès à `/home/ubuntu/` → déplacer dans `/home/cyberhealth/actions-runner/` + `chown -R cyberhealth:cyberhealth`
 - **`VITE_GOOGLE_CLIENT_ID` manquant** : le bouton Google Sign-In n'apparaît pas si cette variable est absente de `.env.production` → à recréer à chaque migration
 - **Mauvais fichier `.env`** : le service lit `/home/cyberhealth/app/backend/.env` (défini dans `EnvironmentFile` du service systemd), PAS `/home/cyberhealth/app/.env` — toujours éditer `backend/.env`
+
+---
+
+## 🆕 Fonctionnalités récentes (2026-03-09, session 31)
+
+### Feature — Onboarding wizard post-inscription
+
+#### Architecture
+- **`frontend/src/components/OnboardingWizard.tsx`** (nouveau) — Modal overlay plein-écran affiché une seule fois après la première connexion
+  - 3 étapes animées (Framer Motion, `mode="wait"`) : Bienvenue → Scanner votre domaine → Prochaines étapes
+  - Détection "nouveau compte" : `localStorage.getItem(`wezea_onboarding_done_${user.id}`)` — vide au 1er login
+  - Fermeture : `localStorage.setItem(key, '1')` → ne réapparaît jamais pour cet userId
+  - Style skeuomorphique : `.sku-panel`, `SkuIcon`, `.sku-btn-primary`, `.sku-inset`
+  - StepDots indicator en haut du modal
+
+- **Étape 1 — Bienvenue** :
+  - Icône Shield cyan, salutation personnalisée (prénom ou partie email avant @)
+  - 3 feature cards : Analyse complète / Surveillance continue / Rapport PDF
+  - CTA "Commencer — scanner mon domaine"
+
+- **Étape 2 — Scanner votre domaine** :
+  - Input domain avec validation regex + nettoyage du protocole/www
+  - Bouton "Lancer l'analyse" → ferme le wizard + lance le scan sur le Dashboard
+  - Exemples cliquables (`exemple.fr`, `mon-shop.com`, `startup.io`)
+  - Lien "Explorer les fonctionnalités →" pour passer à l'étape 3
+
+- **Étape 3 — Prochaines étapes** :
+  - 3 boutons : Dashboard (ferme) / Surveillance (→ ClientSpace tab monitoring) / Plans (→ ClientSpace tab billing)
+
+- **`frontend/src/pages/Dashboard.tsx`** — Modifications :
+  - Import `OnboardingWizard`
+  - State `onboardingOpen`
+  - `useEffect` sur `user?.id` → vérifie le flag localStorage → `setOnboardingOpen(true)`
+  - `closeOnboarding()` → setItem + setState
+  - `handleOnboardingScan(domain)` — défini **après** `handleSubmit` (évite TDZ) → ferme wizard + lance scan
+  - `<AnimatePresence>` + `<OnboardingWizard ...>` en bas du JSX (avant `</div>` final)
+
+#### Comportement
+- Affiché uniquement si `user !== null && !localStorage[key]` (après login/register)
+- Clique sur l'overlay ferme le wizard
+- Bouton X (coin haut-droit) ferme le wizard
+- "Passer l'introduction" lien discret sur l'étape 1
+- Scan depuis le wizard : ferme le modal + pré-remplit le champ + lance `scanner.startScan()`
+
+#### Build
+- TypeScript build : ✅ 0 erreur
+- Bundle : 442 kB JS (+0 — composant inclus dans le bundle principal)
 
 ---
 
