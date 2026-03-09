@@ -283,10 +283,13 @@ def _build_context(
     email_findings      = [f for f in findings if f.get("category") == "Sécurité Email"]
     tech_findings       = [f for f in findings if f.get("category") == "Exposition Technologique"]
     reputation_findings = [f for f in findings if f.get("category") == "Réputation du Domaine"]
+    infra_findings      = [f for f in findings if f.get("category") == "Infrastructure"]
+    breach_findings     = [f for f in findings if f.get("category") == "Fuites de données"]
     # Autres catégories non listées ci-dessus (ex. futures catégories)
     known_cats = {"DNS & Mail", "SSL / HTTPS", "Exposition des Ports", "En-têtes HTTP",
                   "Sécurité Email", "Exposition Technologique", "Réputation du Domaine",
-                  "Sous-domaines & Certificats", "Versions Vulnérables", "Fuites de données"}
+                  "Sous-domaines & Certificats", "Versions Vulnérables", "Fuites de données",
+                  "Infrastructure"}
     other_findings = [f for f in findings if f.get("category") not in known_cats]
 
     # Compteurs
@@ -370,6 +373,8 @@ def _build_context(
         "email_findings":       email_findings,
         "tech_findings":        tech_findings,
         "reputation_findings":  reputation_findings,
+        "infra_findings":       infra_findings,
+        "breach_findings":      breach_findings,
         "other_findings":       other_findings,
         "critical_count":       critical_count,
         "high_count":           high_count,

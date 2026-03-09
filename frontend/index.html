@@ -7,30 +7,30 @@
     <meta name="theme-color" content="#020617" />
 
     <!-- SEO -->
-    <title>Wezea — Scanner de sécurité pour votre domaine | SPF, DMARC, SSL, ports</title>
+    <title>Wezea — Audit de sécurité web en 60 secondes | DAST · NIS2 · Secret Scanner</title>
     <meta name="description"
-      content="Analysez la sécurité de votre domaine en moins de 60 secondes. SPF, DMARC, SSL, ports critiques, CVE. Rapport PDF professionnel. Gratuit pour les PME et agences web." />
+      content="40+ vérifications de sécurité : SSL/TLS, DNS, DAST actif, Secret Scanner, conformité NIS2 & RGPD. Score /100 avec plan d'action priorisé et rapport PDF. Sans installation." />
     <meta name="keywords"
-      content="scanner sécurité domaine, audit cybersécurité PME, vérifier SPF DMARC SSL, SecurityScore, cybersécurité agence web, rapport sécurité PDF" />
+      content="audit sécurité web, scanner domaine, DAST, Secret Scanner, conformité NIS2, audit RGPD, SPF DMARC SSL, CVE, cybersécurité PME, agence web, MSP, rapport sécurité PDF" />
     <link rel="canonical" href="https://wezea.net" />
     <meta name="robots" content="index, follow" />
 
     <!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
-    <meta property="og:site_name"   content="Wezea Security Scanner" />
-    <meta property="og:title"       content="Wezea — Analysez la sécurité de votre domaine en 60 secondes" />
-    <meta property="og:description" content="SPF, DMARC, SSL, ports critiques, CVE — rapport PDF professionnel. Gratuit pour les PME. Idéal pour les agences web et MSP." />
+    <meta property="og:site_name"   content="Wezea — Audit de sécurité web" />
+    <meta property="og:title"       content="Wezea — Audit de sécurité web complet en 60 secondes" />
+    <meta property="og:description" content="40+ vérifications : SSL, DNS, DAST actif, Secret Scanner, conformité NIS2 & RGPD. Score /100 et plan d'action. Sans installation, sans accès serveur." />
     <meta property="og:type"        content="website" />
     <meta property="og:url"         content="https://wezea.net" />
     <meta property="og:image"       content="https://wezea.net/og-image.png" />
     <meta property="og:image:width"  content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt"    content="Wezea — Scanner de sécurité domaine" />
+    <meta property="og:image:alt"    content="Wezea — Audit de sécurité web en 60 secondes" />
     <meta property="og:locale"      content="fr_FR" />
 
     <!-- Twitter / X Card -->
     <meta name="twitter:card"        content="summary_large_image" />
-    <meta name="twitter:title"       content="Wezea — Scanner de sécurité domaine en 60 secondes" />
-    <meta name="twitter:description" content="SPF, DMARC, SSL, ports critiques, CVE. Rapport PDF professionnel. Gratuit pour PME et agences." />
+    <meta name="twitter:title"       content="Wezea — Audit de sécurité web en 60 secondes" />
+    <meta name="twitter:description" content="40+ vérifications : DAST, Secret Scanner, NIS2, RGPD, SSL, DNS, CVE. Score /100 + rapport PDF. Gratuit pour les PME et agences." />
     <meta name="twitter:image"       content="https://wezea.net/og-image.png" />
 
     <!-- JSON-LD Structured Data — WebApplication -->
@@ -40,14 +40,20 @@
       "@type": "WebApplication",
       "name": "Wezea Security Scanner",
       "url": "https://wezea.net",
-      "description": "Analysez la sécurité de votre domaine en moins de 60 secondes. SPF, DMARC, SSL, ports critiques, CVE. Rapport PDF professionnel.",
+      "description": "Audit de sécurité web complet en 60 secondes. 40+ vérifications : SSL/TLS, DNS, DAST actif, Secret Scanner, conformité NIS2 & RGPD. Score /100 avec plan d'action priorisé.",
       "applicationCategory": "SecurityApplication",
       "operatingSystem": "Web",
       "inLanguage": "fr",
       "featureList": [
-        "Audit SSL/TLS", "Vérification SPF DMARC", "Scan ports ouverts",
-        "Rapport PDF professionnel", "Monitoring continu", "Alertes email",
-        "Webhooks", "Badge SVG dynamique", "Export JSON CSV", "Marque blanche"
+        "Audit SSL/TLS complet", "Vérification SPF DMARC DKIM DNSSEC",
+        "DAST actif — scan dynamique des endpoints",
+        "Secret Scanner — détection credentials exposés",
+        "Conformité NIS2 & RGPD — 12 critères réglementaires",
+        "Scan ports ouverts et services exposés",
+        "Rapport PDF professionnel avec plan d'action",
+        "Monitoring continu avec alertes email",
+        "Webhooks temps réel", "Badge SVG dynamique",
+        "Export JSON CSV", "Marque blanche", "API key Bearer"
       ],
       "offers": [
         { "@type": "Offer", "name": "Free",    "price": "0",     "priceCurrency": "EUR" },
@@ -74,7 +80,7 @@
           "name": "Wezea est-il vraiment gratuit ?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Oui, le plan Free permet 5 scans par jour sans carte bancaire. Les plans Starter (9,90€/mois) et Pro (19,90€/mois) ajoutent des scans illimités, le monitoring continu, les rapports PDF et des intégrations avancées."
+            "text": "Oui, le plan Free permet 5 scans par jour sans carte bancaire. Les plans Starter (9,90€/mois), Pro (19,90€/mois) et Dev (29,90€/mois) ajoutent des scans illimités, le monitoring continu, les rapports PDF, le DAST actif, le Secret Scanner et des intégrations avancées."
           }
         },
         {
@@ -82,7 +88,23 @@
           "name": "Comment fonctionne le scanner de sécurité Wezea ?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Entrez votre nom de domaine et notre moteur analyse en moins de 60 secondes : SSL/TLS, DNS (SPF, DMARC, DNSSEC), ports ouverts, headers HTTP, réputation (blacklists), technologies exposées et vulnérabilités CVE connues. Le résultat est un score de sécurité sur 100 avec des recommandations concrètes."
+            "text": "Entrez votre nom de domaine et notre moteur analyse en moins de 60 secondes : SSL/TLS, DNS (SPF, DMARC, DNSSEC, CAA), ports ouverts, headers HTTP, réputation (blacklists), technologies exposées, vulnérabilités CVE connues, scan DAST actif et détection de credentials exposés via Secret Scanner. Le résultat est un score /100 avec un plan d'action priorisé."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Wezea vérifie-t-il la conformité NIS2 et RGPD ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Oui. Wezea mappe automatiquement chaque vulnérabilité sur les articles des directives NIS2 (article 21) et RGPD (articles 25 et 32). Vous obtenez un score de conformité sur 12 critères techniques réglementaires, avec un rapport exportable pour vos auditeurs ou votre DPO. Un diagnostic gratuit est disponible sur wezea.net/conformite-nis2."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Qu'est-ce que le DAST actif proposé par Wezea ?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Le DAST (Dynamic Application Security Testing) effectue des requêtes actives sur vos endpoints pour détecter des panneaux d'administration accessibles sans authentification, des fichiers sensibles exposés (.env, .git), des erreurs de configuration CORS, et d'autres vulnérabilités applicatives. Il complète l'analyse passive de l'infrastructure réseau."
           }
         },
         {
@@ -90,7 +112,7 @@
           "name": "Quelle est la différence entre le plan Starter et le plan Pro ?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Le plan Starter (9,90€/mois) inclut les scans illimités, 1 domaine en monitoring, les rapports PDF avancés et les alertes email. Le plan Pro (19,90€/mois) ajoute le monitoring illimité (domaines), les rapports en marque blanche, les webhooks, la clé API, le badge SVG dynamique et l'export JSON/CSV."
+            "text": "Le plan Starter (9,90€/mois) inclut les scans illimités, 1 domaine en monitoring, les rapports PDF avancés et les alertes email. Le plan Pro (19,90€/mois) ajoute le monitoring illimité, les rapports en marque blanche, les webhooks, le badge SVG dynamique et l'export JSON/CSV. Le plan Dev (29,90€/mois) ajoute l'API key Bearer et l'Application Scanning."
           }
         },
         {
@@ -98,7 +120,7 @@
           "name": "Wezea peut-il surveiller mon domaine automatiquement ?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Oui. Avec les plans Starter et Pro, vous pouvez activer le monitoring continu. Un scan automatique est effectué régulièrement et vous recevez une alerte email si le score de sécurité baisse en dessous d'un seuil que vous définissez."
+            "text": "Oui. Avec les plans Starter et Pro, vous pouvez activer le monitoring continu avec des alertes configurables par type (baisse de score, nouvelles vulnérabilités CRITICAL, expiration SSL). Un digest hebdomadaire récapitule l'état de tous vos domaines surveillés."
           }
         },
         {
@@ -106,7 +128,7 @@
           "name": "Les rapports PDF peuvent-ils être personnalisés avec mon logo ?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Oui, avec le plan Pro. La fonctionnalité marque blanche vous permet d'intégrer votre logo, vos couleurs et le nom de votre entreprise dans les rapports PDF. Idéal pour les agences web et les MSP qui souhaitent facturer des audits de sécurité à leurs clients."
+            "text": "Oui, avec le plan Pro ou Dev. La fonctionnalité marque blanche vous permet d'intégrer votre logo, vos couleurs et le nom de votre entreprise dans les rapports PDF. Idéal pour les agences web et les MSP qui souhaitent facturer des audits de sécurité à leurs clients."
           }
         }
       ]

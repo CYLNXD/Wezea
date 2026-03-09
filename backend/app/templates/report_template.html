@@ -1893,6 +1893,18 @@ p.lead {
     {% for f in reputation_findings %}{{ finding_card(f, "REP", loop.index) }}{% endfor %}
     {% endif %}
 
+    {# ── Infrastructure (expiration domaine) ─────────────────────────────── #}
+    {% if infra_findings %}
+    <h2 class="section-inner keep-with">🌐 {% if lang == 'en' %}Domain Infrastructure{% else %}Infrastructure & Domaine{% endif %}</h2>
+    {% for f in infra_findings %}{{ finding_card(f, "INF", loop.index) }}{% endfor %}
+    {% endif %}
+
+    {# ── Fuites de données (HIBP) ─────────────────────────────────────────── #}
+    {% if breach_findings %}
+    <h2 class="section-inner keep-with">🔓 {% if lang == 'en' %}Data Breaches{% else %}Fuites de Données{% endif %}</h2>
+    {% for f in breach_findings %}{{ finding_card(f, "BRH", loop.index) }}{% endfor %}
+    {% endif %}
+
     {# ── Autres catégories ───────────────────────────────────────────────── #}
     {% if other_findings %}
     <h2 class="section-inner keep-with">📌 {% if lang == 'en' %}Other Findings{% else %}Autres constatations{% endif %}</h2>
