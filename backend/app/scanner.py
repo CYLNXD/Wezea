@@ -338,9 +338,25 @@ class DNSAuditor(BaseAuditor):
     @staticmethod
     def _root_domain(domain: str) -> str:
         """Extrait le domaine racine (ex: sub.example.com → example.com).
-        Les DNSKEY/CAA/RDAP vivent sur la zone apex, pas sur les sous-domaines."""
+        Les DNSKEY/CAA/RDAP vivent sur la zone apex, pas sur les sous-domaines.
+
+        Gère les ccTLDs à 2 niveaux : .co.uk, .gov.uk, .org.nz, .com.br, etc.
+        Heuristique : si last_part a 2 chars (pays) ET second_to_last a ≤ 3 chars
+        (registre: co, gov, org, ac, com, net…), alors prendre les 3 dernières parties.
+        Exemples :
+          example.co.uk          → example.co.uk   ✓
+          sub.example.co.uk      → example.co.uk   ✓
+          example.com.br         → example.com.br  ✓
+          example.net            → example.net     ✓  (net = 3 chars mais last = 3 chars → pas ccTLD)
+          mail.wezea.net         → wezea.net        ✓
+        """
         parts = domain.split(".")
-        return ".".join(parts[-2:]) if len(parts) >= 2 else domain
+        if len(parts) < 2:
+            return domain
+        # ccTLD 2-level: pays (2 chars) + registre (≤ 3 chars) → prendre 3 dernières parties
+        if len(parts) >= 3 and len(parts[-1]) == 2 and len(parts[-2]) <= 3:
+            return ".".join(parts[-3:])
+        return ".".join(parts[-2:])
 
     def _check_dnssec(self) -> None:
         """Vérifie si DNSSEC est activé sur la zone DNS du domaine (apex)."""
@@ -353,7 +369,9 @@ class DNSAuditor(BaseAuditor):
             if answers:
                 self._details["dnssec"] = {"status": "ok"}
                 return
-        except dns.resolver.NoAnswer:
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+            # NoAnswer : zone existe mais pas de DNSKEY
+            # NXDOMAIN : certains resolvers retournent NXDOMAIN pour une absence de DNSKEY
             pass
         except Exception:
             self._details["dnssec"] = {"status": "error"}
@@ -403,7 +421,9 @@ class DNSAuditor(BaseAuditor):
                 caa_records = [r.to_text() for r in answers]
                 self._details["caa"] = {"status": "ok", "records": caa_records}
                 return
-        except dns.resolver.NoAnswer:
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+            # NoAnswer : zone existe mais pas de CAA
+            # NXDOMAIN : certains resolvers retournent NXDOMAIN pour l'absence de CAA
             pass
         except Exception:
             self._details["caa"] = {"status": "error"}
@@ -551,9 +571,22 @@ class SSLAuditor(BaseAuditor):
                         ),
                     ))
                 elif days_left < self.EXPIRY_WARNING_DAYS:
+                    # Pénalité graduée selon l'urgence :
+                    # < 7 jours  → HIGH  -10 pts (quasi-expiré, risque de coupure imminente)
+                    # < 14 jours → MEDIUM -5 pts (urgent)
+                    # < 30 jours → LOW   -2 pts (avertissement)
+                    if days_left < 7:
+                        expiry_severity = "HIGH"
+                        expiry_penalty  = 10
+                    elif days_left < 14:
+                        expiry_severity = "MEDIUM"
+                        expiry_penalty  = 5
+                    else:
+                        expiry_severity = "LOW"
+                        expiry_penalty  = 2
                     self._findings.append(Finding(
                         category="SSL / HTTPS",
-                        severity="MEDIUM",
+                        severity=expiry_severity,
                         title=self._t(
                             f"Certificat SSL expire dans {days_left} jours",
                             f"SSL certificate expires in {days_left} days"
@@ -568,7 +601,7 @@ class SSLAuditor(BaseAuditor):
                             f"Your security certificate expires in {days_left} days. "
                             "After that, visitors will see a security warning and leave your site."
                         ),
-                        penalty=0,
+                        penalty=expiry_penalty,
                         recommendation=self._t(
                             "Planifiez le renouvellement maintenant. "
                             "Avec Certbot/Let's Encrypt, il s'effectue en une commande.",

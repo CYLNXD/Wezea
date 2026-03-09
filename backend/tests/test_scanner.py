@@ -145,6 +145,65 @@ class TestScoreEngine:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# DNSAuditor._root_domain — ccTLD parsing
+# ═════════════════════════════════════════════════════════════════════════════
+
+class TestRootDomain:
+    """Vérifie l'extraction du domaine racine, notamment les ccTLDs."""
+
+    def _r(self, domain: str) -> str:
+        return DNSAuditor._root_domain(domain)
+
+    # ── TLDs classiques ──────────────────────────────────────────────────────
+
+    def test_simple_domain(self):
+        assert self._r("example.com") == "example.com"
+
+    def test_subdomain_stripped(self):
+        assert self._r("mail.example.com") == "example.com"
+
+    def test_deep_subdomain_stripped(self):
+        assert self._r("a.b.c.example.com") == "example.com"
+
+    def test_single_part_unchanged(self):
+        assert self._r("localhost") == "localhost"
+
+    # ── ccTLDs 2 niveaux ─────────────────────────────────────────────────────
+
+    def test_co_uk(self):
+        assert self._r("example.co.uk") == "example.co.uk"
+
+    def test_sub_co_uk(self):
+        assert self._r("www.example.co.uk") == "example.co.uk"
+
+    def test_deep_co_uk(self):
+        assert self._r("mail.sub.example.co.uk") == "example.co.uk"
+
+    def test_gov_uk(self):
+        assert self._r("www.gov.uk") == "www.gov.uk"   # 3 parties → 3 parties gardées
+
+    def test_org_nz(self):
+        assert self._r("sub.example.org.nz") == "example.org.nz"
+
+    def test_com_br(self):
+        assert self._r("www.example.com.br") == "example.com.br"
+
+    # ── TLDs ordinaires non confondus avec ccTLD ─────────────────────────────
+
+    def test_net_not_confused(self):
+        # "net" = 3 chars mais last part is "net" (3 chars, not 2) → règle ccTLD ne s'applique pas
+        assert self._r("mail.example.net") == "example.net"
+
+    def test_io_domain(self):
+        # ".io" = 2 chars mais second part > 3 chars → pas ccTLD 2-level
+        assert self._r("api.startup.io") == "startup.io"
+
+    def test_fr_domain(self):
+        # ".fr" = 2 chars mais second part > 3 chars → standard
+        assert self._r("www.wezea.fr") == "wezea.fr"
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # DNSAuditor — SPF
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -314,9 +373,9 @@ class TestSSLAuditor:
         assert ssl_findings[0].severity == "CRITICAL"
         assert ssl_findings[0].penalty  == PENALTY_TABLE["ssl_invalid"]
 
-    def test_cert_expiring_soon_creates_medium_warning(self):
-        """Certificat expirant dans 15 jours (< 30j) → MEDIUM, pénalité 0."""
-        tls_sock, _ = _mock_tls_sock(days_left=15)
+    def test_cert_expiring_soon_creates_low_warning(self):
+        """Certificat expirant dans 15 jours (7 < days < 14 → MEDIUM, pénalité 5)."""
+        tls_sock, _ = _mock_tls_sock(days_left=10)
         auditor = self._run(tls_sock)
         expiry_findings = [
             f for f in auditor._findings
@@ -324,7 +383,31 @@ class TestSSLAuditor:
         ]
         assert len(expiry_findings) == 1
         assert expiry_findings[0].severity == "MEDIUM"
-        assert expiry_findings[0].penalty  == 0  # avertissement, pas une pénalité
+        assert expiry_findings[0].penalty  == 5   # urgent (7-14 jours)
+
+    def test_cert_expiring_very_soon_high_penalty(self):
+        """Certificat expirant dans 3 jours (< 7j) → HIGH, pénalité 10."""
+        tls_sock, _ = _mock_tls_sock(days_left=3)
+        auditor = self._run(tls_sock)
+        expiry_findings = [
+            f for f in auditor._findings
+            if "expire" in f.title.lower() or "expir" in f.title.lower()
+        ]
+        assert len(expiry_findings) == 1
+        assert expiry_findings[0].severity == "HIGH"
+        assert expiry_findings[0].penalty  == 10
+
+    def test_cert_expiring_in_21_days_low_warning(self):
+        """Certificat expirant dans 21 jours (14-30j) → LOW, pénalité 2."""
+        tls_sock, _ = _mock_tls_sock(days_left=21)
+        auditor = self._run(tls_sock)
+        expiry_findings = [
+            f for f in auditor._findings
+            if "expire" in f.title.lower() or "expir" in f.title.lower()
+        ]
+        assert len(expiry_findings) == 1
+        assert expiry_findings[0].severity == "LOW"
+        assert expiry_findings[0].penalty  == 2
 
     def test_cert_valid_long_expiry_not_warned(self):
         """Certificat expirant dans 60 jours (> 30j) → aucun avertissement."""

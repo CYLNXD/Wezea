@@ -343,7 +343,10 @@ class SubdomainAuditor(BaseAuditor):
                 cert = sock.getpeercert()
                 not_after_str = cert.get("notAfter", "")
                 if not_after_str:
-                    not_after = datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z")
+                    # Python ssl retourne "Dec 31 23:59:59 2024 GMT"
+                    # %Z est peu fiable cross-platform → on retire le suffixe timezone avant de parser
+                    not_after_clean = not_after_str.replace(" GMT", "").replace(" UTC", "").strip()
+                    not_after = datetime.strptime(not_after_clean, "%b %d %H:%M:%S %Y")
                     not_after = not_after.replace(tzinfo=timezone.utc)
                     now = datetime.now(timezone.utc)
                     days_left = (not_after - now).days

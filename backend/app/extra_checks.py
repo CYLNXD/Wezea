@@ -306,8 +306,23 @@ class EmailSecurityAuditor(BaseAuditor):
     """Vérifie la configuration de sécurité email (DKIM, MX)."""
 
     COMMON_DKIM_SELECTORS = [
-        "default", "google", "mail", "dkim", "k1",
-        "selector1", "selector2", "s1", "s2", "email",
+        # Génériques courants
+        "default", "mail", "dkim", "email", "postmaster", "smtp",
+        # Numérotés
+        "k1", "k2", "s1", "s2", "m1", "m2",
+        "selector1", "selector2",
+        # Fournisseurs email courants
+        "google",       # Google Workspace
+        "brevo",        # Brevo / Sendinblue
+        "sendgrid",     # SendGrid
+        "mailchimp",    # Mailchimp (mc)
+        "mailjet",      # Mailjet
+        "ses",          # Amazon SES
+        "amazonses",    # Amazon SES (alt)
+        "office365",    # Microsoft 365
+        "zoho",         # Zoho Mail
+        "sig1",         # Litmus / various
+        "mx",           # Divers hébergeurs
     ]
 
     async def audit(self) -> list[Finding]:
@@ -534,36 +549,46 @@ class TechExposureAuditor(BaseAuditor):
                 ),
             ))
 
-            # Interface /wp-admin accessible
+            # Interface /wp-admin accessible — essaie HTTPS puis HTTP en fallback
+            wp_admin_status: int | None = None
             try:
-                conn2 = http.client.HTTPSConnection(self.domain, timeout=SCAN_TIMEOUT_SEC)  # était 3s hardcodé
+                conn2 = http.client.HTTPSConnection(self.domain, timeout=SCAN_TIMEOUT_SEC)
                 conn2.request("HEAD", "/wp-admin/", headers={"User-Agent": "Mozilla/5.0"})
                 r2 = conn2.getresponse()
                 conn2.close()
-                if r2.status in (200, 301, 302):
-                    findings.append(Finding(
-                        category          = "Exposition Technologique",
-                        severity          = "HIGH",
-                        title             = self._t(
-                            "Interface admin WordPress accessible",
-                            "WordPress admin interface accessible"
-                        ),
-                        technical_detail  = self._t(
-                            "/wp-admin retourne HTTP " + str(r2.status) + ", accessible publiquement.",
-                            "/wp-admin returns HTTP " + str(r2.status) + ", publicly accessible."
-                        ),
-                        plain_explanation = self._t(
-                            "L'interface d'administration est accessible depuis Internet et peut faire l'objet d'attaques par force brute sur les mots de passe.",
-                            "The admin interface is accessible from the internet and may be subject to brute-force password attacks."
-                        ),
-                        penalty           = 10,
-                        recommendation    = self._t(
-                            "Restreindre l'accès à /wp-admin par liste blanche d'IP ou activer la double authentification.",
-                            "Restrict access to /wp-admin by IP whitelist or enable two-factor authentication."
-                        ),
-                    ))
+                wp_admin_status = r2.status
             except Exception:
-                pass
+                # HTTPS indisponible (site HTTP-only ou cert invalide) → essayer HTTP
+                try:
+                    conn2 = http.client.HTTPConnection(self.domain, timeout=SCAN_TIMEOUT_SEC)
+                    conn2.request("HEAD", "/wp-admin/", headers={"User-Agent": "Mozilla/5.0"})
+                    r2 = conn2.getresponse()
+                    conn2.close()
+                    wp_admin_status = r2.status
+                except Exception:
+                    pass
+            if wp_admin_status in (200, 301, 302):
+                findings.append(Finding(
+                    category          = "Exposition Technologique",
+                    severity          = "HIGH",
+                    title             = self._t(
+                        "Interface admin WordPress accessible",
+                        "WordPress admin interface accessible"
+                    ),
+                    technical_detail  = self._t(
+                        "/wp-admin retourne HTTP " + str(wp_admin_status) + ", accessible publiquement.",
+                        "/wp-admin returns HTTP " + str(wp_admin_status) + ", publicly accessible."
+                    ),
+                    plain_explanation = self._t(
+                        "L'interface d'administration est accessible depuis Internet et peut faire l'objet d'attaques par force brute sur les mots de passe.",
+                        "The admin interface is accessible from the internet and may be subject to brute-force password attacks."
+                    ),
+                    penalty           = 10,
+                    recommendation    = self._t(
+                        "Restreindre l'accès à /wp-admin par liste blanche d'IP ou activer la double authentification.",
+                        "Restrict access to /wp-admin by IP whitelist or enable two-factor authentication."
+                    ),
+                ))
 
         # ── Drupal ────────────────────────────────────────────────────────────
         # Patterns spécifiques : fichiers JS Drupal, attributs data-drupal, meta generator,
@@ -750,12 +775,22 @@ class DomainExpiryAuditor(BaseAuditor):
             pass
         return self._findings
 
+    @staticmethod
+    def _root_domain(domain: str) -> str:
+        """Extrait le domaine racine — identique à DNSAuditor._root_domain().
+        Gère les ccTLDs à 2 niveaux : .co.uk, .gov.uk, .org.nz, .com.br…"""
+        parts = domain.split(".")
+        if len(parts) < 2:
+            return domain
+        if len(parts) >= 3 and len(parts[-1]) == 2 and len(parts[-2]) <= 3:
+            return ".".join(parts[-3:])
+        return ".".join(parts[-2:])
+
     def _check_expiry(self) -> None:
         """Interroge l'API RDAP pour obtenir la date d'expiration du domaine."""
         try:
             # Extraire le domaine racine (supprimer sous-domaines) pour la requête RDAP
-            parts = self.domain.split(".")
-            root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else self.domain
+            root_domain = self._root_domain(self.domain)
 
             url = f"https://rdap.org/domain/{root_domain}"
             req = _urllib_request.Request(
