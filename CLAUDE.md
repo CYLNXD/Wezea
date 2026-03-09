@@ -1,6 +1,6 @@
 # CLAUDE.md — Mémoire du projet CyberHealth Scanner
 > Ce fichier est lu en PREMIER à chaque nouvelle session. Il doit être mis à jour à chaque modification importante.
-> Dernière mise à jour : 2026-03-08 (session 29)
+> Dernière mise à jour : 2026-03-09 (session 30)
 
 ---
 
@@ -456,6 +456,57 @@ ls -lh /home/cyberhealth/backups/
 - **GitHub Actions runner dans `/home/ubuntu/`** : le service tourne en tant que `cyberhealth` qui n'a pas accès à `/home/ubuntu/` → déplacer dans `/home/cyberhealth/actions-runner/` + `chown -R cyberhealth:cyberhealth`
 - **`VITE_GOOGLE_CLIENT_ID` manquant** : le bouton Google Sign-In n'apparaît pas si cette variable est absente de `.env.production` → à recréer à chaque migration
 - **Mauvais fichier `.env`** : le service lit `/home/cyberhealth/app/backend/.env` (défini dans `EnvironmentFile` du service systemd), PAS `/home/cyberhealth/app/.env` — toujours éditer `backend/.env`
+
+---
+
+## 🆕 Fonctionnalités récentes (2026-03-09, session 30)
+
+### Nouveaux checks de sécurité — scanner.py + extra_checks.py
+
+#### 8 nouvelles catégories de vérifications
+
+**`scanner.py` — Ports dangereux + DNS avancé + TLS avancé**
+
+- **Ports exposés critiques** : ajout de Docker-API (2375), Redis (6379), Elasticsearch (9200), MongoDB (27017) dans `MONITORED_PORTS` — chacun génère un finding CRITICAL p=30 indépendant (vs grouped penalty précédent)
+  - `PENALTY_TABLE["exposed_service"] = 30`
+  - Block `_analyze_open_ports` : findings individuels avec titre et explication spécifique par service
+
+- **DNSSEC** (`DNSAuditor._check_dnssec()`) : requête DNSKEY — LOW p=3 si absent
+- **CAA** (`DNSAuditor._check_caa()`) : requête CAA — LOW p=2 si absent
+
+- **TLS — Perfect Forward Secrecy** (dans `_check_ssl()`) :
+  - TLS 1.3 → always PFS (mandaté par la spec)
+  - TLS 1.2 : vérifie que le cipher name commence par ECDHE/DHE/EDH → MEDIUM p=8 si absent
+  - Fix critique : `has_pfs = (tls_ver == "TLSv1.3") or any(...)` — TLS 1.3 ciphers comme `AES256-GCM-SHA384` n'ont pas le préfixe ECDHE dans le nom mais utilisent ECDHE en interne
+
+- **TLS — Bits de clé faibles** (dans `_check_ssl()`) : `cipher[2] < 128` → HIGH p=15
+
+- **TLS — Ciphers faibles** (`SSLAuditor._check_weak_ciphers()`) :
+  - Tente une connexion SSL avec `3DES:DES:RC4:EXPORT:NULL:!aNULL`
+  - HIGH p=12 si le serveur accepte
+  - Silencieux si OpenSSL local ne supporte pas ces ciphers
+
+**`extra_checks.py` — Headers + HTTP→HTTPS + MTA-STS + Domain Expiry**
+
+- **Permissions-Policy** (dans `HttpHeaderAuditor._get_security_headers()`) : LOW p=2 si absent
+- **HTTP→HTTPS redirect** (`HttpHeaderAuditor._check_http_redirect()`) : connexion port 80 → HIGH p=10 si pas de redirect 3xx vers https://
+- **MTA-STS** (`EmailSecurityAuditor._check_mta_sts()`) : query TXT `_mta-sts.{domain}` → LOW p=2 si absent (et seulement si MX présent)
+- **DomainExpiryAuditor** (nouvelle classe) : requête RDAP `https://rdap.org/domain/{root}` — CRITICAL p=50 si expiré, CRITICAL p=30 si <14j, HIGH p=15 si <30j, MEDIUM p=5 si <60j
+  - Ajouté à `AuditManager.all_base` → disponible tous plans
+  - Extrait le root domain (`parts[-2:]`) pour éviter les requêtes sur sous-domaines
+
+#### Mise à jour tests (1070 tests, 0 échec)
+- `_all_auditor_patches()` : ajout `DomainExpiryAuditor` mock, compteur 7→8
+- `_ALL_SECURE_HEADERS` fixture : ajout `Permissions-Policy`
+- `TestSSLAuditor::test_valid_cert_no_findings` : mock `("AES256-GCM-SHA384", "TLSv1.3", 256)` — fix PFS TLS 1.3
+
+### Fix — Navbar Dashboard
+- Suppression du bouton "Mon espace" de la top navbar (présent en doublon : navbar + dropdown)
+- Remplacé par "Historique" pour tous les utilisateurs connectés (commit `d3bdaa7`)
+
+### Fix — CORS sur `/auth/google`
+- `response_model=TokenResponse` sur `@router.post("/google")` causait un `ResponseValidationError` (500) quand le 2FA était requis (`{"mfa_required": True, ...}` ≠ `TokenResponse`)
+- Fix : retrait de `response_model=TokenResponse` (commit `526cb6d`)
 
 ---
 

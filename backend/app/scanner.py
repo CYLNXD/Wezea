@@ -464,6 +464,14 @@ class SSLAuditor(BaseAuditor):
     async def audit(self) -> list[Finding]:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self._check_ssl)
+        # Check ciphers faibles (connexion séparée, silencieuse si OpenSSL ne supporte pas)
+        try:
+            await asyncio.wait_for(
+                loop.run_in_executor(None, self._check_weak_ciphers),
+                timeout=SCAN_TIMEOUT_SEC + 2,
+            )
+        except (asyncio.TimeoutError, Exception):
+            pass
         return self._findings
 
     def _check_ssl(self) -> None:
@@ -577,6 +585,86 @@ class SSLAuditor(BaseAuditor):
                         ),
                     ))
 
+                # ── Perfect Forward Secrecy ───────────────────────────────────
+                cipher_name = cipher[0] if cipher else ""
+                # TLS 1.3 mandates ECDHE key exchange → always PFS regardless of cipher name
+                # TLS 1.2 PFS ciphers start with ECDHE- or DHE-/EDH-
+                has_pfs = (tls_ver == "TLSv1.3") or any(
+                    cipher_name.upper().startswith(p)
+                    for p in ("ECDHE", "DHE", "EDH", "TLS_AES", "TLS_CHACHA20")
+                )
+                if cipher_name and not has_pfs:
+                    self._findings.append(Finding(
+                        category="SSL / HTTPS",
+                        severity="MEDIUM",
+                        title=self._t(
+                            f"Confidentialité persistante absente (PFS) — {cipher_name}",
+                            f"Perfect Forward Secrecy missing (PFS) — {cipher_name}"
+                        ),
+                        technical_detail=self._t(
+                            f"Cipher négocié : {cipher_name}. "
+                            "Ce cipher utilise un échange de clé RSA statique (pas ECDHE/DHE). "
+                            "Un attaquant qui capture le trafic et obtient plus tard la clé privée "
+                            "peut déchiffrer rétroactivement toutes les communications passées.",
+                            f"Negotiated cipher: {cipher_name}. "
+                            "This cipher uses a static RSA key exchange (not ECDHE/DHE). "
+                            "An attacker who captures traffic and later obtains the private key "
+                            "can retroactively decrypt all past communications."
+                        ),
+                        plain_explanation=self._t(
+                            "Sans PFS, si quelqu'un vole un jour votre clé privée SSL, "
+                            "il pourra déchiffrer toutes les conversations que vos clients ont eues "
+                            "sur votre site depuis des années. PFS génère une clé unique par session "
+                            "qui n'est jamais transmise ni stockée.",
+                            "Without PFS, if someone ever steals your SSL private key, "
+                            "they can decrypt all conversations your customers have had "
+                            "on your site for years. PFS generates a unique key per session "
+                            "that is never transmitted or stored."
+                        ),
+                        penalty=8,
+                        recommendation=self._t(
+                            "Configurez votre serveur pour prioriser les ciphers ECDHE. "
+                            "Nginx : ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:...'; "
+                            "ssl_prefer_server_ciphers on;",
+                            "Configure your server to prioritize ECDHE ciphers. "
+                            "Nginx: ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:...'; "
+                            "ssl_prefer_server_ciphers on;"
+                        ),
+                    ))
+
+                # ── Clé de chiffrement trop courte ────────────────────────────
+                key_bits = cipher[2] if cipher and len(cipher) > 2 else None
+                if key_bits and key_bits < 128:
+                    self._findings.append(Finding(
+                        category="SSL / HTTPS",
+                        severity="HIGH",
+                        title=self._t(
+                            f"Clé de chiffrement trop faible : {key_bits} bits",
+                            f"Cipher key too short: {key_bits} bits"
+                        ),
+                        technical_detail=self._t(
+                            f"Le cipher négocié utilise une clé de seulement {key_bits} bits "
+                            f"({cipher_name}). Les standards modernes exigent 128 bits minimum.",
+                            f"The negotiated cipher uses only a {key_bits}-bit key "
+                            f"({cipher_name}). Modern standards require at least 128 bits."
+                        ),
+                        plain_explanation=self._t(
+                            f"Votre chiffrement SSL utilise une clé de {key_bits} bits, "
+                            "considérée comme insuffisante face aux capacités de calcul actuelles. "
+                            "Cette configuration peut permettre une attaque par force brute.",
+                            f"Your SSL encryption uses a {key_bits}-bit key, "
+                            "considered insufficient against modern computing power. "
+                            "This configuration may allow a brute-force attack."
+                        ),
+                        penalty=15,
+                        recommendation=self._t(
+                            "Désactivez les ciphers < 128 bits et configurez des suites AES-128 ou AES-256. "
+                            "Nginx : ssl_ciphers 'HIGH:!aNULL:!MD5:!RC4:!3DES:!EXPORT';",
+                            "Disable ciphers < 128 bits and configure AES-128 or AES-256 suites. "
+                            "Nginx: ssl_ciphers 'HIGH:!aNULL:!MD5:!RC4:!3DES:!EXPORT';"
+                        ),
+                    ))
+
         except ssl.SSLCertVerificationError as exc:
             is_self_signed = "self-signed" in str(exc).lower()
             label_fr = "auto-signé" if is_self_signed else "invalide / non approuvé"
@@ -636,6 +724,69 @@ class SSLAuditor(BaseAuditor):
                 ),
             ))
             self._details = {"status": "unreachable", "error": str(exc)}
+
+    def _check_weak_ciphers(self) -> None:
+        """
+        Tente une connexion avec des ciphers faibles connus (3DES/SWEET32).
+        Si le serveur accepte la connexion → cipher faible supporté → finding HIGH.
+        Silencieux si OpenSSL ne supporte pas ces ciphers côté client.
+        """
+        weak_suites = "3DES:DES:RC4:EXPORT:NULL:!aNULL"
+        try:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.check_hostname = False
+            ctx.verify_mode    = ssl.CERT_NONE
+            ctx.set_ciphers(weak_suites)
+        except ssl.SSLError:
+            # OpenSSL a supprimé ces ciphers → impossible de tester → skip
+            return
+
+        try:
+            conn = socket.create_connection((self.domain, SSL_PORT), timeout=SCAN_TIMEOUT_SEC)
+            with ctx.wrap_socket(conn, server_hostname=self.domain) as tls_sock:
+                weak_cipher = tls_sock.cipher()[0] if tls_sock.cipher() else "inconnu"
+        except (ssl.SSLError, ConnectionRefusedError, OSError):
+            # Serveur refuse les ciphers faibles → bonne pratique → pas de finding
+            return
+        except Exception:
+            return
+
+        # Si on arrive ici → le serveur a accepté un cipher faible
+        self._findings.append(Finding(
+            category="SSL / HTTPS",
+            severity="HIGH",
+            title=self._t(
+                f"Cipher faible accepté : {weak_cipher}",
+                f"Weak cipher accepted: {weak_cipher}"
+            ),
+            technical_detail=self._t(
+                f"Le serveur accepte le cipher {weak_cipher}, connu comme vulnérable. "
+                "3DES est vulnérable à l'attaque SWEET32 (CVE-2016-2183). "
+                "RC4 est cassé depuis 2015 (RFC 7465).",
+                f"The server accepts cipher {weak_cipher}, known to be vulnerable. "
+                "3DES is vulnerable to the SWEET32 attack (CVE-2016-2183). "
+                "RC4 has been broken since 2015 (RFC 7465)."
+            ),
+            plain_explanation=self._t(
+                "Votre serveur accepte des algorithmes de chiffrement obsolètes et cassés. "
+                "Des attaquants peuvent exploiter ces failles pour déchiffrer vos communications "
+                "SSL en capturant suffisamment de trafic.",
+                "Your server accepts outdated and broken encryption algorithms. "
+                "Attackers can exploit these flaws to decrypt your SSL communications "
+                "by capturing enough traffic."
+            ),
+            penalty=12,
+            recommendation=self._t(
+                "Désactivez 3DES, RC4 et NULL dans votre configuration SSL. "
+                "Nginx : ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:"
+                "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:!3DES:!RC4'; "
+                "ssl_prefer_server_ciphers on;",
+                "Disable 3DES, RC4 and NULL in your SSL configuration. "
+                "Nginx: ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:"
+                "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:!3DES:!RC4'; "
+                "ssl_prefer_server_ciphers on;"
+            ),
+        ))
 
     @staticmethod
     def _flatten_dn(dn: list) -> dict[str, str]:
