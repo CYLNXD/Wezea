@@ -489,7 +489,19 @@ class TechExposureAuditor(BaseAuditor):
         body_lower = body.lower()
 
         # ── WordPress ──────────────────────────────────────────────────────────
-        is_wp = "wp-content" in body_lower or "wp-json" in body_lower or "wordpress" in body_lower
+        # Patterns spécifiques pour éviter les faux positifs sur des mots communs :
+        # - Slashes autour de /wp-content/ et /wp-json/ → chemins réels (pas mentions textuelles)
+        # - wordpress.org → marqueur de lien/meta fiable
+        # - content=["']wordpress → balise <meta generator>
+        # - wp-login.php → page de connexion
+        is_wp = (
+            "/wp-content/" in body_lower
+            or "/wp-json/" in body_lower
+            or "wordpress.org" in body_lower
+            or "content='wordpress" in body_lower
+            or 'content="wordpress' in body_lower
+            or "wp-login.php" in body_lower
+        )
         if is_wp:
             findings.append(Finding(
                 category          = "Exposition Technologique",
@@ -542,7 +554,19 @@ class TechExposureAuditor(BaseAuditor):
                 pass
 
         # ── Drupal ────────────────────────────────────────────────────────────
-        if "drupal" in body_lower or "drupal" in str(headers):
+        # Patterns spécifiques : fichiers JS Drupal, attributs data-drupal, meta generator,
+        # ou headers X-Drupal-* — évite de détecter des mentions textuelles du mot "drupal"
+        headers_str = str(headers).lower()
+        is_drupal = (
+            "drupal.js" in body_lower
+            or "/sites/default/files/" in body_lower
+            or "data-drupal" in body_lower
+            or "content='drupal" in body_lower
+            or 'content="drupal' in body_lower
+            or "x-drupal-" in headers_str
+            or "drupal/" in headers_str
+        )
+        if is_drupal:
             findings.append(Finding(
                 category          = "Exposition Technologique",
                 severity          = "MEDIUM",

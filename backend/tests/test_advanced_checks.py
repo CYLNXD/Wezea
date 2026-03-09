@@ -461,7 +461,7 @@ class TestTechExposureAuditor:
     def test_wordpress_admin_accessible_200_adds_high(self):
         """/wp-admin retourne 200 → MEDIUM WordPress + HIGH wp-admin."""
         auditor = TechExposureAuditor("example.com")
-        conn1 = self._make_conn(b"<html>wp-content/themes</html>")   # page principale
+        conn1 = self._make_conn(b"<html><link href='/wp-content/themes/style.css'></html>")
         conn2 = self._make_conn(b"", status=200)                      # /wp-admin
         with patch("http.client.HTTPSConnection", side_effect=[conn1, conn2]):
             findings = auditor._detect_tech_sync()
@@ -473,7 +473,7 @@ class TestTechExposureAuditor:
     def test_wordpress_admin_redirect_302_adds_high(self):
         """/wp-admin retournant 302 → HIGH finding quand même."""
         auditor = TechExposureAuditor("example.com")
-        conn1 = self._make_conn(b"wordpress detected")
+        conn1 = self._make_conn(b"<html><link href='/wp-content/plugins/plugin.js'></html>")
         conn2 = self._make_conn(b"", status=302)
         with patch("http.client.HTTPSConnection", side_effect=[conn1, conn2]):
             findings = auditor._detect_tech_sync()
@@ -483,7 +483,7 @@ class TestTechExposureAuditor:
     def test_wordpress_admin_404_no_high_finding(self):
         """/wp-admin retournant 404 → seulement le finding MEDIUM."""
         auditor = TechExposureAuditor("example.com")
-        conn1 = self._make_conn(b"<html>wp-content/themes</html>")
+        conn1 = self._make_conn(b"<html><link href='/wp-content/themes/style.css'></html>")
         conn2 = self._make_conn(b"", status=404)
         with patch("http.client.HTTPSConnection", side_effect=[conn1, conn2]):
             findings = auditor._detect_tech_sync()
@@ -491,7 +491,7 @@ class TestTechExposureAuditor:
         assert len(findings) == 1
 
     def test_drupal_in_body_medium(self):
-        """Marqueur 'drupal' dans le body → finding MEDIUM, pénalité 4."""
+        """Marqueur meta generator Drupal dans le body → finding MEDIUM, pénalité 4."""
         findings = self._run(b"<html><meta name='Generator' content='Drupal 9'></html>")
         drupal = [f for f in findings if "Drupal" in f.title]
         assert len(drupal) == 1
@@ -513,11 +513,11 @@ class TestTechExposureAuditor:
         assert len(php) == 0
 
     def test_https_fail_fallback_http_detects_markers(self):
-        """HTTPS échoue → fallback sur HTTP → marqueurs quand même détectés."""
+        """HTTPS échoue → fallback sur HTTP → marqueurs quand même détectés (via drupal.js)."""
         auditor = TechExposureAuditor("example.com")
         err_conn = MagicMock()
         err_conn.request.side_effect = ConnectionRefusedError("refused")
-        http_conn = self._make_conn(b"<html>drupal cms site</html>")
+        http_conn = self._make_conn(b"<html><script src='/misc/drupal.js'></script></html>")
         with patch("http.client.HTTPSConnection", return_value=err_conn), \
              patch("http.client.HTTPConnection", return_value=http_conn):
             findings = auditor._detect_tech_sync()
@@ -532,6 +532,18 @@ class TestTechExposureAuditor:
         severities = [f.severity for f in findings]
         assert "MEDIUM" in severities
         assert "LOW"    in severities
+
+    def test_wordpress_text_mention_no_false_positive(self):
+        """Mention textuelle 'wordpress' sans chemin → PAS de finding (évite faux positifs)."""
+        findings = self._run(b"<html><body>Powered by wordpress technology</body></html>")
+        wp = [f for f in findings if "WordPress" in f.title]
+        assert len(wp) == 0
+
+    def test_drupal_text_mention_no_false_positive(self):
+        """Mention textuelle 'drupal' sans marqueur technique → PAS de finding."""
+        findings = self._run(b"<html><body>We migrated from Drupal last year.</body></html>")
+        drupal = [f for f in findings if "Drupal" in f.title]
+        assert len(drupal) == 0
 
 
 # ═════════════════════════════════════════════════════════════════════════════

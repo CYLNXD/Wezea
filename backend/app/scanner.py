@@ -267,7 +267,9 @@ class DNSAuditor(BaseAuditor):
     # ── DMARC ─────────────────────────────────────────────────────────────────
 
     def _check_dmarc(self) -> None:
-        dmarc_domain = f"_dmarc.{self.domain}"
+        # DMARC vit sur la zone racine — évite les faux positifs sur les sous-domaines
+        root = self._root_domain(self.domain)
+        dmarc_domain = f"_dmarc.{root}"
         try:
             resolver = dns.resolver.Resolver()
             resolver.lifetime = DNS_LIFETIME_SEC
@@ -279,7 +281,7 @@ class DNSAuditor(BaseAuditor):
             ]
 
             if not dmarc_records:
-                self._add_dmarc_missing_finding()
+                self._add_dmarc_missing_finding(root)
                 self._details["dmarc"] = {"status": "missing", "records": []}
             else:
                 policy = ""
@@ -317,7 +319,7 @@ class DNSAuditor(BaseAuditor):
                 self._details["dmarc"] = {"status": "ok", "records": dmarc_records, "policy": policy}
 
         except dns.resolver.NXDOMAIN:
-            self._add_dmarc_missing_finding()
+            self._add_dmarc_missing_finding(root)
             self._details["dmarc"] = {"status": "missing", "records": []}
         except Exception as exc:
             self._details["dmarc"] = {"status": "error", "error": str(exc)}
@@ -429,7 +431,8 @@ class DNSAuditor(BaseAuditor):
         ))
         self._details["caa"] = {"status": "missing"}
 
-    def _add_dmarc_missing_finding(self) -> None:
+    def _add_dmarc_missing_finding(self, root: str | None = None) -> None:
+        checked = root or self.domain
         self._findings.append(Finding(
             category="DNS & Mail",
             severity="HIGH",
@@ -438,8 +441,8 @@ class DNSAuditor(BaseAuditor):
                 "DMARC missing — Anti-phishing protection absent"
             ),
             technical_detail=self._t(
-                f"Aucun enregistrement TXT DMARC trouvé pour _dmarc.{self.domain}.",
-                f"No DMARC TXT record found for _dmarc.{self.domain}."
+                f"Aucun enregistrement TXT DMARC trouvé pour _dmarc.{checked}.",
+                f"No DMARC TXT record found for _dmarc.{checked}."
             ),
             plain_explanation=self._t(
                 "Sans DMARC, votre domaine est une cible facile pour le phishing. "
