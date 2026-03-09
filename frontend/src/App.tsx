@@ -98,6 +98,7 @@ export default function App() {
             onGoClientSpace={(tab?, section?) => goClientSpace(tab as ClientSpaceTab | undefined, section as SettingsSection | undefined)}
             onGoContact={()      => setPage('contact')}
             onGoLegal={(s)       => { setLegalSection((s ?? 'mentions') as LegalSection); setPage('legal'); }}
+            onGoCompliance={()   => { window.history.pushState({}, '', '/conformite-nis2'); setPage('compliance'); }}
             initialScanUuid={pendingScanUuid}
             onScanUuidConsumed={() => setPendingScanUuid(null)}
           />
