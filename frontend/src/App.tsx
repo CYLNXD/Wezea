@@ -20,6 +20,51 @@ type Page = 'dashboard' | 'login' | 'history' | 'admin' | 'clientspace' | 'conta
 type ClientSpaceTab = 'overview' | 'monitoring' | 'apps' | 'history' | 'settings' | 'developer';
 type SettingsSection = 'profile' | 'billing' | 'whitelabel' | 'danger';
 
+// ── SEO — meta tags par page ──────────────────────────────────────────────────
+const DEFAULT_META = {
+  title:      'Wezea — Audit de sécurité web en 60 secondes | DAST · NIS2 · Secret Scanner',
+  desc:       "40+ vérifications de sécurité : SSL/TLS, DNS, DAST actif, Secret Scanner, conformité NIS2 & RGPD. Score /100 avec plan d'action priorisé et rapport PDF. Sans installation.",
+  keywords:   'audit sécurité web, scanner domaine, DAST, Secret Scanner, conformité NIS2, audit RGPD, SPF DMARC SSL, CVE, cybersécurité PME, agence web, MSP, rapport sécurité PDF',
+  canonical:  'https://wezea.net',
+  ogTitle:    'Wezea — Audit de sécurité web complet en 60 secondes',
+  ogDesc:     "40+ vérifications : SSL, DNS, DAST actif, Secret Scanner, conformité NIS2 & RGPD. Score /100 et plan d'action. Sans installation, sans accès serveur.",
+  ogUrl:      'https://wezea.net',
+  twTitle:    'Wezea — Audit de sécurité web en 60 secondes',
+  twDesc:     '40+ vérifications : DAST, Secret Scanner, NIS2, RGPD, SSL, DNS, CVE. Score /100 + rapport PDF. Gratuit pour les PME et agences.',
+} as const;
+
+const COMPLIANCE_META = {
+  title:      'Conformité NIS2 & RGPD — Diagnostic gratuit en 60s | Wezea',
+  desc:       'Vérifiez gratuitement la conformité de votre infrastructure aux directives NIS2 (art. 21) et RGPD (art. 25 & 32). 12 critères techniques analysés en 60 secondes. Sans installation.',
+  keywords:   'conformité NIS2, RGPD article 32, directive NIS2 PME, audit conformité cybersécurité, NIS2 checklist, RGPD sécurité traitement, diagnostic NIS2 gratuit, vérification NIS2',
+  canonical:  'https://wezea.net/conformite-nis2',
+  ogTitle:    'Conformité NIS2 & RGPD — Diagnostic gratuit en 60s | Wezea',
+  ogDesc:     '12 critères NIS2 (art. 21) et RGPD (art. 25 & 32) vérifiés en 60 secondes. Diagnostic gratuit de votre conformité réglementaire — sans installation, sans accès serveur.',
+  ogUrl:      'https://wezea.net/conformite-nis2',
+  twTitle:    'Conformité NIS2 & RGPD — Diagnostic gratuit | Wezea',
+  twDesc:     '12 critères réglementaires NIS2 et RGPD analysés en 60 secondes. Gratuit, sans installation, sans accès serveur.',
+} as const;
+
+interface MetaConfig {
+  title: string; desc: string; keywords: string; canonical: string;
+  ogTitle: string; ogDesc: string; ogUrl: string;
+  twTitle: string; twDesc: string;
+}
+
+function applyMeta(m: MetaConfig): void {
+  document.title = m.title;
+  const set = (sel: string, attr: string, val: string) =>
+    document.querySelector(sel)?.setAttribute(attr, val);
+  set('meta[name="description"]',         'content', m.desc);
+  set('meta[name="keywords"]',            'content', m.keywords);
+  set('link[rel="canonical"]',            'href',    m.canonical);
+  set('meta[property="og:title"]',        'content', m.ogTitle);
+  set('meta[property="og:description"]',  'content', m.ogDesc);
+  set('meta[property="og:url"]',          'content', m.ogUrl);
+  set('meta[name="twitter:title"]',       'content', m.twTitle);
+  set('meta[name="twitter:description"]', 'content', m.twDesc);
+}
+
 export default function App() {
   const [page, setPage]               = useState<Page>('dashboard');
   const [legalSection, setLegalSection] = useState<LegalSection>('mentions');
@@ -41,6 +86,11 @@ export default function App() {
     initClientId();
     restoreConsent(); // réactive PostHog si l'utilisateur avait déjà accepté
   }, []);
+
+  // Met à jour les meta OG/Twitter/canonical selon la page active
+  useEffect(() => {
+    applyMeta(page === 'compliance' ? COMPLIANCE_META : DEFAULT_META);
+  }, [page]);
 
   // Détecte les routes /r/{uuid} pour les rapports publics
   useEffect(() => {
