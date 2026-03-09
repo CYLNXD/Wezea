@@ -5,7 +5,7 @@ Pure logique : aucun réseau réel (urllib.request.urlopen mocké).
 import json
 from contextlib import contextmanager
 from io import BytesIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, patch as mock_patch
 
 import pytest
 
@@ -31,11 +31,16 @@ def _http_error(code: int):
     return err
 
 
-def _run(domain: str = "example.com", side_effect=None, return_value=None):
-    """Lance l'audit de manière synchrone avec urllib mocké."""
+def _run(domain: str = "example.com", side_effect=None, return_value=None, api_key: str = "test-key"):
+    """Lance l'audit de manière synchrone avec urllib mocké.
+
+    Par défaut, injecte une clé HIBP fictive pour éviter le court-circuit no_api_key.
+    Passer api_key="" pour tester le comportement sans clé.
+    """
     import asyncio
     auditor = BreachAuditor(domain)
-    with patch("urllib.request.urlopen") as mock_open:
+    env_patch = patch.dict("os.environ", {"HIBP_API_KEY": api_key})
+    with env_patch, patch("urllib.request.urlopen") as mock_open:
         if side_effect is not None:
             mock_open.side_effect = side_effect
         elif return_value is not None:
@@ -163,3 +168,48 @@ class TestBreachSilent:
         findings, details = _run(side_effect=_http_error(500))
         assert findings == []
         assert details == {}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TestBreachNoApiKey — comportement sans clé HIBP configurée
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBreachNoApiKey:
+    def test_no_key_returns_no_findings(self):
+        """Sans HIBP_API_KEY, aucun finding (pas de pénalité)."""
+        findings, _ = _run(api_key="")
+        assert findings == []
+
+    def test_no_key_sets_status_no_api_key(self):
+        """Sans clé, le status indique no_api_key."""
+        _, details = _run(api_key="")
+        assert details.get("status") == "no_api_key"
+
+    def test_no_key_does_not_call_urlopen(self):
+        """Sans clé, l'URL HIBP n'est jamais appelée."""
+        import asyncio
+        auditor = BreachAuditor("example.com")
+        with patch.dict("os.environ", {"HIBP_API_KEY": ""}), \
+             patch("urllib.request.urlopen") as mock_open:
+            asyncio.run(auditor.audit())
+        mock_open.assert_not_called()
+
+    def test_401_sets_status_no_api_key(self):
+        """Un 401 (clé invalide/expirée) retourne no_api_key sans pénalité."""
+        findings, details = _run(side_effect=_http_error(401))
+        assert findings == []
+        assert details.get("status") == "no_api_key"
+
+    def test_key_is_sent_as_header(self):
+        """La clé API est envoyée dans le header hibp-api-key."""
+        import asyncio
+        auditor = BreachAuditor("example.com")
+        captured_headers = {}
+        def capture_request(req, **kwargs):
+            captured_headers.update(req.headers)
+            raise _http_error(404)  # domaine propre
+        with patch.dict("os.environ", {"HIBP_API_KEY": "my-secret-key"}), \
+             patch("urllib.request.urlopen", side_effect=capture_request):
+            asyncio.run(auditor.audit())
+        # urllib normalise les noms de headers en Title-Case
+        assert captured_headers.get("Hibp-api-key") == "my-secret-key"

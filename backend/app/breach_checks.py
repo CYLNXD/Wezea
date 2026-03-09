@@ -3,9 +3,14 @@ CyberHealth Scanner — Breach Detection via HaveIBeenPwned
 =========================================================
 Vérifie si le domaine scanné apparaît dans des fuites de données connues.
 
-API utilisée (gratuite, sans clé) :
+API utilisée (clé optionnelle) :
   GET https://haveibeenpwned.com/api/v3/breacheddomain/{domain}
   → Retourne {BreachName: [email1, ...], ...} ou 404 si domaine propre
+  → Requiert une clé API HIBP (hibp-api-key header) — ≈ 3,50 $/mois
+
+Variable d'environnement : HIBP_API_KEY (optionnelle)
+  - Si absente → status "no_api_key" (aucune pénalité)
+  - Si présente → check complet
 
 Lecture seule — aucune donnée envoyée, uniquement le nom de domaine racine.
 """
@@ -14,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import ssl
 import urllib.error
 import urllib.request
@@ -45,6 +51,13 @@ class BreachAuditor(BaseAuditor):
     # ── Check principal ───────────────────────────────────────────────────────
 
     def _check_breaches(self) -> None:
+        api_key = os.environ.get("HIBP_API_KEY", "").strip()
+
+        # Clé absente → on signale mais sans pénalité
+        if not api_key:
+            self._details = {"status": "no_api_key"}
+            return
+
         root = self._root_domain()
         url = HIBP_DOMAIN_URL.format(domain=root)
 
@@ -52,7 +65,10 @@ class BreachAuditor(BaseAuditor):
             ctx = ssl.create_default_context()
             req = urllib.request.Request(
                 url,
-                headers={"User-Agent": "CyberHealth-Scanner/1.0"},
+                headers={
+                    "User-Agent": "CyberHealth-Scanner/1.0",
+                    "hibp-api-key": api_key,
+                },
             )
             with urllib.request.urlopen(req, timeout=SCAN_TIMEOUT_SEC, context=ctx) as resp:
                 data: dict = json.loads(resp.read())
@@ -61,6 +77,9 @@ class BreachAuditor(BaseAuditor):
             if e.code == 404:
                 # Domaine propre — aucune fuite connue
                 self._details = {"status": "clean", "breach_count": 0, "breach_names": []}
+            elif e.code == 401:
+                # Clé invalide ou expirée
+                self._details = {"status": "no_api_key"}
             # Toute autre erreur HTTP → silencieux (ne pas pénaliser)
             return
 

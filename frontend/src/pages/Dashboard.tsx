@@ -2025,8 +2025,33 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                               ))}
                             </div>
                           </div>
+                        ) : r.breach_details?.status === 'no_api_key' ? (
+                          /* Clé HIBP non configurée */
+                          <div className="flex flex-col items-center gap-4 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
+                            <SkuIcon color="#fbbf24" size={44}>
+                              <Database size={20} className="text-amber-300" />
+                            </SkuIcon>
+                            <div>
+                              <p className="text-slate-300 font-semibold text-sm">
+                                {lang === 'fr' ? 'Clé API HIBP non configurée' : 'HIBP API key not configured'}
+                              </p>
+                              <p className="text-slate-500 text-xs mt-1.5 max-w-sm mx-auto leading-relaxed">
+                                {lang === 'fr'
+                                  ? "Ajoutez HIBP_API_KEY dans les variables d'environnement du serveur pour activer la détection de fuites via HaveIBeenPwned."
+                                  : 'Add HIBP_API_KEY to the server environment variables to enable breach detection via HaveIBeenPwned.'}
+                              </p>
+                            </div>
+                            <a
+                              href="https://haveibeenpwned.com/API/Key"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors underline underline-offset-2"
+                            >
+                              haveibeenpwned.com/API/Key →
+                            </a>
+                          </div>
                         ) : (
-                          /* Données non disponibles (plan OK mais scan sans données breach) */
+                          /* Données non disponibles (scan ancien ou HIBP injoignable) */
                           <div className="flex flex-col items-center gap-3 py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
                             <SkuIcon color="#22d3ee" size={44}>
                               <Database size={20} className="text-cyan-300" />

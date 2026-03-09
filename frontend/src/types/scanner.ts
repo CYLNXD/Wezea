@@ -74,7 +74,7 @@ export interface ScanResult {
 }
 
 export interface BreachDetails {
-  status:        'clean' | 'breached';
+  status:        'clean' | 'breached' | 'no_api_key';
   breach_count?: number;
   breach_names?: string[];
 }
