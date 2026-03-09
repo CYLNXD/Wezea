@@ -144,7 +144,7 @@ export default function OnboardingWizard({ user, onStartScan, onGoClientSpace, o
           {/* CTA */}
           <button
             onClick={() => setStep(1)}
-            className="sku-btn-primary w-full flex items-center justify-center gap-2"
+            className="sku-btn-primary w-full flex items-center justify-center gap-2 rounded-xl"
             style={{ padding: '12px 24px', fontSize: '0.9rem' }}
           >
             <Zap size={16} />
@@ -201,7 +201,7 @@ export default function OnboardingWizard({ user, onStartScan, onGoClientSpace, o
 
             <button
               type="submit"
-              className="sku-btn-primary w-full flex items-center justify-center gap-2"
+              className="sku-btn-primary w-full flex items-center justify-center gap-2 rounded-xl"
               style={{ padding: '12px 24px', fontSize: '0.9rem' }}
             >
               <Shield size={16} />
