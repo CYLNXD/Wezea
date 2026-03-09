@@ -725,33 +725,47 @@ class SSLAuditor(BaseAuditor):
             ))
             self._details = {"status": "unreachable", "error": str(exc)}
 
+    # Préfixes des familles de ciphers réellement faibles
+    _WEAK_CIPHER_PREFIXES = ("DES", "3DES", "RC4", "EXP", "NULL", "ADH", "AECDH")
+
     def _check_weak_ciphers(self) -> None:
         """
-        Tente une connexion avec des ciphers faibles connus (3DES/SWEET32).
-        Si le serveur accepte la connexion → cipher faible supporté → finding HIGH.
-        Silencieux si OpenSSL ne supporte pas ces ciphers côté client.
+        Tente une connexion TLS 1.2 avec des ciphers faibles connus (3DES/SWEET32/RC4).
+        Si le serveur accepte ET que le cipher négocié est réellement faible → finding HIGH.
+
+        Note : `set_ciphers()` ne s'applique qu'à TLS 1.2. Si seul TLS 1.3 est disponible,
+        la connexion s'établit avec un cipher TLS 1.3 fort → pas de finding (serveur sécurisé).
         """
         weak_suites = "3DES:DES:RC4:EXPORT:NULL:!aNULL"
         try:
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             ctx.check_hostname = False
             ctx.verify_mode    = ssl.CERT_NONE
+            # Forcer TLS 1.2 max pour que set_ciphers() soit respecté
+            ctx.maximum_version = ssl.TLSVersion.TLSv1_2
             ctx.set_ciphers(weak_suites)
-        except ssl.SSLError:
-            # OpenSSL a supprimé ces ciphers → impossible de tester → skip
+        except (ssl.SSLError, AttributeError):
+            # OpenSSL a supprimé ces ciphers, ou TLSv1_2 non supporté → skip
             return
 
         try:
             conn = socket.create_connection((self.domain, SSL_PORT), timeout=SCAN_TIMEOUT_SEC)
             with ctx.wrap_socket(conn, server_hostname=self.domain) as tls_sock:
-                weak_cipher = tls_sock.cipher()[0] if tls_sock.cipher() else "inconnu"
+                weak_cipher = tls_sock.cipher()[0] if tls_sock.cipher() else ""
         except (ssl.SSLError, ConnectionRefusedError, OSError):
-            # Serveur refuse les ciphers faibles → bonne pratique → pas de finding
+            # Serveur refuse TLS 1.2 ou ces ciphers → bonne pratique → pas de finding
             return
         except Exception:
             return
 
-        # Si on arrive ici → le serveur a accepté un cipher faible
+        # Vérifier que le cipher négocié est réellement dans les familles faibles
+        # (évite les faux positifs si TLS 1.3 s'est négocié à la place)
+        if not weak_cipher or not any(
+            weak_cipher.upper().startswith(p) for p in self._WEAK_CIPHER_PREFIXES
+        ):
+            return
+
+        # Si on arrive ici → le serveur a accepté un cipher faible TLS 1.2
         self._findings.append(Finding(
             category="SSL / HTTPS",
             severity="HIGH",
