@@ -2442,6 +2442,141 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
               </div>
             </section>
 
+            {/* ── 3b. CAS D'USAGE CONCRETS ─────────────────────────────────── */}
+            <section>
+              <div className="text-center mb-10">
+                <span className="text-xs font-semibold text-amber-400 tracking-widest uppercase mb-3 block">
+                  {lang === 'fr' ? 'Situations réelles' : 'Real scenarios'}
+                </span>
+                <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
+                  {lang === 'fr' ? 'Ce que Wezea a découvert pour eux' : 'What Wezea found for them'}
+                </h2>
+                <p className="text-slate-500 text-sm max-w-md mx-auto">
+                  {lang === 'fr'
+                    ? 'Des vulnérabilités critiques détectées avant qu\'elles ne causent de vrais incidents.'
+                    : 'Critical vulnerabilities detected before they caused real incidents.'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-4xl mx-auto">
+                {/* Cas 1 — Port RDP exposé */}
+                <div className="rounded-2xl border border-red-500/20 bg-gradient-to-br from-red-950/30 to-slate-900/80 p-5 flex flex-col gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl shrink-0" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                      <AlertTriangle size={16} className="text-red-400" />
+                    </div>
+                    <div>
+                      <p className="text-red-400 text-xs font-semibold uppercase tracking-wider">Critical</p>
+                      <p className="text-white font-bold text-sm mt-0.5">
+                        {lang === 'fr' ? 'Port RDP 3389 exposé' : 'RDP port 3389 exposed'}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Mini scan result */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3 font-mono text-xs space-y-1.5">
+                    <p><span className="text-red-400">●</span> <span className="text-slate-500">Port 3389 :</span> <span className="text-red-300 font-semibold">OUVERT</span></p>
+                    <p><span className="text-amber-400">●</span> <span className="text-slate-500">Service :</span> <span className="text-amber-300">Remote Desktop</span></p>
+                    <p><span className="text-slate-600">→</span> <span className="text-slate-500">Risque :</span> <span className="text-slate-400">ransomware / brute-force</span></p>
+                  </div>
+                  <div className="border-t border-slate-800/60 pt-3 flex-1 flex flex-col justify-between gap-3">
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      {lang === 'fr'
+                        ? 'Un dev a scanné le serveur de son client. Le port était accessible depuis la mise en prod, 6 mois plus tôt. Fermé en 2h après le rapport.'
+                        : 'A developer scanned their client\'s server. The port had been open since launch, 6 months earlier. Closed within 2 hours of the report.'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle size={12} className="text-green-400 shrink-0" />
+                      <span className="text-green-400 text-xs font-medium">
+                        {lang === 'fr' ? 'Incident évité' : 'Incident prevented'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cas 2 — SPF / DMARC manquants */}
+                <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-950/25 to-slate-900/80 p-5 flex flex-col gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl shrink-0" style={{ background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.22)' }}>
+                      <Shield size={16} className="text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-amber-400 text-xs font-semibold uppercase tracking-wider">High</p>
+                      <p className="text-white font-bold text-sm mt-0.5">
+                        {lang === 'fr' ? 'SPF & DMARC manquants' : 'SPF & DMARC missing'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3 font-mono text-xs space-y-1.5">
+                    <p><span className="text-amber-400">●</span> <span className="text-slate-500">SPF :</span> <span className="text-amber-300 font-semibold">ABSENT</span></p>
+                    <p><span className="text-amber-400">●</span> <span className="text-slate-500">DMARC :</span> <span className="text-amber-300 font-semibold">ABSENT</span></p>
+                    <p><span className="text-slate-600">→</span> <span className="text-slate-500">Risque :</span> <span className="text-slate-400">email spoofing / phishing</span></p>
+                  </div>
+                  <div className="border-t border-slate-800/60 pt-3 flex-1 flex flex-col justify-between gap-3">
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      {lang === 'fr'
+                        ? 'Une PME recevait des plaintes de clients ayant reçu de faux emails en son nom. Wezea avait détecté la faille DNS 3 semaines avant les plaintes.'
+                        : 'An SMB was getting complaints from clients receiving fake emails in their name. Wezea had flagged the DNS gap 3 weeks before the complaints arrived.'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle size={12} className="text-green-400 shrink-0" />
+                      <span className="text-green-400 text-xs font-medium">
+                        {lang === 'fr' ? 'Réputation préservée' : 'Reputation preserved'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cas 3 — SSL expirant */}
+                <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/25 to-slate-900/80 p-5 flex flex-col gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl shrink-0" style={{ background: 'rgba(34,211,238,0.10)', border: '1px solid rgba(34,211,238,0.22)' }}>
+                      <Lock size={16} className="text-cyan-400" />
+                    </div>
+                    <div>
+                      <p className="text-cyan-400 text-xs font-semibold uppercase tracking-wider">High</p>
+                      <p className="text-white font-bold text-sm mt-0.5">
+                        {lang === 'fr' ? 'SSL expire dans 4 jours' : 'SSL expires in 4 days'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3 font-mono text-xs space-y-1.5">
+                    <p><span className="text-green-400">●</span> <span className="text-slate-500">SSL :</span> <span className="text-green-300">valide</span></p>
+                    <p><span className="text-amber-400">●</span> <span className="text-slate-500">Expiration :</span> <span className="text-amber-300 font-semibold">J&#8209;4</span></p>
+                    <p><span className="text-slate-600">→</span> <span className="text-slate-500">Risque :</span> <span className="text-slate-400">site hors ligne / alerte Chrome</span></p>
+                  </div>
+                  <div className="border-t border-slate-800/60 pt-3 flex-1 flex flex-col justify-between gap-3">
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      {lang === 'fr'
+                        ? 'L\'alerte monitoring Wezea a envoyé un email le lundi matin. Le certificat a été renouvelé avant que le moindre utilisateur ne voie une erreur.'
+                        : 'Wezea\'s monitoring alert sent an email Monday morning. The certificate was renewed before any user encountered an error.'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle size={12} className="text-green-400 shrink-0" />
+                      <span className="text-green-400 text-xs font-medium">
+                        {lang === 'fr' ? 'Zéro interruption' : 'Zero downtime'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* CTA inline */}
+              <div className="text-center mt-8">
+                <p className="text-slate-500 text-sm mb-4">
+                  {lang === 'fr'
+                    ? 'Et votre domaine, il cacherait quoi ?'
+                    : 'What would your domain reveal?'}
+                </p>
+                <button
+                  onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
+                >
+                  <Search size={14} />
+                  {lang === 'fr' ? 'Scanner mon domaine gratuitement →' : 'Scan my domain for free →'}
+                </button>
+              </div>
+            </section>
+
             {/* ── 4. AGENCES & MSP ─────────────────────────────────────────── */}
             <section className="max-w-4xl mx-auto w-full">
               <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/40 to-slate-900 p-8 md:p-10">
