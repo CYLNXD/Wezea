@@ -342,6 +342,13 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     if (scanner.status === 'scanning') {
       setPreviousScore(null);   // reset à chaque nouveau scan
       setDomainHistory([]);
+      // Scroll vers ScanConsole quel que soit l'origine (premier scan, rescan,
+      // scan depuis l'onboarding, scan depuis CompliancePage, etc.)
+      // Délai 150ms : laisse AnimatePresence démarrer l'exit des résultats précédents
+      // + laisse la pré-position instant de handleSubmit s'appliquer d'abord.
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
     }
     if (scanner.status === 'error') {
       // Scroll vers la zone d'erreur — sans ça, la page peut rester sur le hero
@@ -390,12 +397,11 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     if (!target) return;
     setDomain(target);
     captureScanStarted(target);
-    // Scroll vers la zone de scan avant de démarrer — l'animation est visible
-    // même si l'utilisateur était scrollé dans les résultats d'un scan précédent
-    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Pré-position instantanée vers la zone de scan (pas de smooth — évite le conflit
+    // avec AnimatePresence quand les résultats précédents sont en cours d'exit)
+    resultsRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
     await scanner.startScan(target, lang);
-    // Note : le scroll post-scan est géré dans le useEffect sur scanner.status === 'success'
-    // pour éviter de scroller pendant la transition AnimatePresence (zone vide visible)
+    // Note : le scroll vers ScanConsole est géré dans le useEffect sur scanner.status === 'scanning'
   };
 
   // ── Lancer un scan depuis l'onboarding wizard ──────────────────────────────
@@ -403,7 +409,9 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     closeOnboarding();
     setDomain(d);
     const fakeEvent = { preventDefault: () => {} } as FormEvent;
-    handleSubmit(fakeEvent, d);
+    // Délai 350ms : laisse l'animation d'exit de la modale onboarding se terminer
+    // avant de démarrer le scan, sinon le scroll/ScanConsole se produisent derrière l'overlay.
+    setTimeout(() => handleSubmit(fakeEvent, d), 350);
   };
 
   // Grouper les findings par catégorie
