@@ -60,6 +60,8 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
       gsi.initialize({
         client_id: clientId,
         cancel_on_tap_outside: false,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(({ use_fedcm_for_prompt: true }) as any),
         callback: async (resp: { credential: string }) => {
           setError('');
           setLoading(true);
@@ -80,6 +82,18 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
           }
         },
       });
+
+      // Rendre le bouton Google officiel dans un div caché — compatibilité FedCM
+      const hiddenDiv = document.getElementById('google-signin-hidden');
+      if (hiddenDiv) {
+        (gsi as any).renderButton(hiddenDiv, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'continue_with',
+          locale: 'fr',
+        });
+      }
 
       setGsiReady(true);
       return true;
@@ -106,17 +120,16 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
   }, []);
 
   const handleGoogleClick = () => {
-    const gsi = window.google?.accounts?.id;
-    if (!gsi) return;
-    (gsi.prompt as any)((notification: any) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        setError(
-          lang === 'fr'
-            ? 'Connexion Google indisponible. Réessayez dans quelques secondes.'
-            : 'Google sign-in unavailable. Please try again in a few seconds.'
-        );
-      }
-    });
+    // Déléguer au bouton Google officiel (rendu caché) — compatible FedCM
+    const hiddenBtn = document.querySelector('#google-signin-hidden div[role="button"]') as HTMLElement | null;
+    if (hiddenBtn) {
+      hiddenBtn.click();
+    } else {
+      // Fallback : One Tap prompt si le bouton rendu n'est pas encore disponible
+      const gsi = window.google?.accounts?.id;
+      if (!gsi) return;
+      (gsi.prompt as any)(() => {});
+    }
   };
 
   async function handleSubmit(e: FormEvent) {
@@ -597,6 +610,9 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
             </span>
             <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
           </div>
+
+          {/* Div caché pour le bouton Google officiel (compatibilité FedCM) */}
+          <div id="google-signin-hidden" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', overflow: 'hidden', width: 1, height: 1 }} />
 
           {/* ── Bouton Google ── */}
           <div className="mt-4">
