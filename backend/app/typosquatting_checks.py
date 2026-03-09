@@ -207,13 +207,15 @@ class TyposquattingAuditor(BaseAuditor):
             ),
             penalty       = penalty,
             recommendation = self._t(
-                "Enregistrez les TLDs principaux de votre domaine (.com, .fr, .org) "
-                "pour bloquer l'usurpation. Signalez les domaines actifs à votre "
-                "registrar. Activez DMARC (p=reject) pour protéger votre marque contre "
-                "le phishing par email.",
-                "Register the main TLDs of your domain (.com, .fr, .org) to block "
-                "impersonation. Report active domains to your registrar. Enable DMARC "
-                "(p=reject) to protect your brand against email phishing.",
+                "Signalez les domaines actifs à votre registrar et aux services "
+                "anti-phishing (Google Safe Browsing, ICANN UDRP). Enregistrez les "
+                "TLDs stratégiques manquants (.com, .fr, .net) si votre marque le "
+                "justifie. Sensibilisez vos utilisateurs à vérifier l'URL exacte "
+                "avant de saisir leurs identifiants.",
+                "Report active lookalike domains to your registrar and anti-phishing "
+                "services (Google Safe Browsing, ICANN UDRP). Register strategic "
+                "missing TLDs (.com, .fr, .net) if your brand warrants it. Train "
+                "users to verify the exact URL before entering credentials.",
             ),
         ))
 
@@ -261,6 +263,15 @@ class TyposquattingAuditor(BaseAuditor):
     # ── Utilitaire ────────────────────────────────────────────────────────────
 
     def _root_domain(self) -> str:
-        """Extrait le domaine racine (sub.example.com → example.com)."""
+        """
+        Extrait le domaine racine (sub.example.com → example.com).
+        Gère les ccTLD à deux niveaux (example.co.uk → example.co.uk,
+        example.com.br → example.com.br).
+        """
         parts = self.domain.split(".")
-        return ".".join(parts[-2:]) if len(parts) >= 2 else self.domain
+        if len(parts) < 2:
+            return self.domain
+        # ccTLD 2-level : pays (2 chars) + registre (≤ 3 chars) → 3 dernières parties
+        if len(parts) >= 3 and len(parts[-1]) == 2 and len(parts[-2]) <= 3:
+            return ".".join(parts[-3:])
+        return ".".join(parts[-2:])
