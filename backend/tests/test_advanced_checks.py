@@ -230,9 +230,10 @@ class TestHttpHeaderAuditor:
         "Permissions-Policy":        "camera=(), microphone=(), geolocation=()",
     }
 
-    async def _audit(self, headers: dict | None) -> list:
+    async def _audit(self, headers: dict | None, http_redirects: bool | None = True) -> list:
         auditor = HttpHeaderAuditor("example.com")
-        with patch.object(auditor, "_fetch_headers_sync", return_value=headers):
+        with patch.object(auditor, "_fetch_headers_sync", return_value=headers), \
+             patch.object(auditor, "_check_http_redirect", return_value=http_redirects):
             return await auditor.audit()
 
     async def test_all_security_headers_present_no_findings(self):
