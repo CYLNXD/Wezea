@@ -1821,6 +1821,114 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                         )}
 
 
+                        {/* Typosquatting */}
+                        {(user?.plan === 'starter' || user?.plan === 'pro' || user?.plan === 'dev') ? (() => {
+                          const ts = r.typosquat_details;
+                          return (
+                            <div className="flex flex-col gap-4">
+                              <div className="flex items-center gap-2">
+                                <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                  <Globe size={14} className="text-amber-400" />
+                                </div>
+                                <h3 className="text-white font-bold text-sm">
+                                  {lang === 'fr' ? 'Domaines sosies (typosquatting)' : 'Lookalike domains (typosquatting)'}
+                                </h3>
+                                <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded-full">Starter & Pro</span>
+                              </div>
+
+                              {!ts ? (
+                                <div className="flex items-center gap-3 py-4 px-4 bg-slate-900/50 rounded-xl border border-slate-800">
+                                  <div className="p-2 rounded-full bg-blue-500/10 border border-blue-500/20">
+                                    <Globe size={16} className="text-blue-400" />
+                                  </div>
+                                  <p className="text-slate-400 text-xs">
+                                    {lang === 'fr' ? 'Données non disponibles — relancez une analyse.' : 'Data unavailable — re-run the scan.'}
+                                  </p>
+                                </div>
+                              ) : ts.status === 'clean' ? (
+                                <div className="flex items-center gap-3 py-4 px-4 bg-green-500/5 rounded-xl border border-green-500/20">
+                                  <div className="p-2 rounded-full bg-green-500/10 border border-green-500/20">
+                                    <Shield size={16} className="text-green-400" />
+                                  </div>
+                                  <div>
+                                    <p className="text-green-400 font-bold text-sm">
+                                      {lang === 'fr' ? 'Aucun domaine sosie détecté' : 'No lookalike domains detected'}
+                                    </p>
+                                    <p className="text-slate-500 text-xs">
+                                      {lang === 'fr'
+                                        ? `${ts.checked} variantes vérifiées par résolution DNS — votre domaine ne semble pas ciblé.`
+                                        : `${ts.checked} variants checked via DNS — your domain does not appear to be targeted.`}
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-3">
+                                  <div className="flex items-center gap-3 py-3 px-4 bg-orange-500/5 rounded-xl border border-orange-500/20">
+                                    <div className="p-2 rounded-full bg-orange-500/10 border border-orange-500/20">
+                                      <Globe size={16} className="text-orange-400" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-orange-400 font-bold text-sm">
+                                        {lang === 'fr'
+                                          ? `${ts.hit_count} domaine${ts.hit_count > 1 ? 's sosies' : ' sosie'} enregistré${ts.hit_count > 1 ? 's' : ''}`
+                                          : `${ts.hit_count} lookalike domain${ts.hit_count > 1 ? 's' : ''} registered`}
+                                      </p>
+                                      <p className="text-slate-500 text-xs">
+                                        {lang === 'fr'
+                                          ? `Sur ${ts.checked} variantes vérifiées — ces domaines peuvent être utilisés pour du phishing.`
+                                          : `Out of ${ts.checked} variants checked — these domains may be used for phishing.`}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-col gap-2">
+                                    {ts.hits.map((hit, i) => (
+                                      <div key={i} className="flex items-center gap-3 px-4 py-2.5 bg-slate-900/60 rounded-lg border border-slate-800">
+                                        <div className="flex-1 min-w-0">
+                                          <span className="font-mono text-sm text-orange-300">{hit.domain}</span>
+                                          <span className="ml-2 text-xs text-slate-600">→ {hit.ip}</span>
+                                        </div>
+                                        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full border font-mono
+                                          bg-slate-800 border-slate-700 text-slate-400">
+                                          {hit.variant_type}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                  <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 text-xs text-amber-300/80">
+                                    <span className="font-semibold">
+                                      {lang === 'fr' ? '💡 Recommandation : ' : '💡 Recommendation: '}
+                                    </span>
+                                    {lang === 'fr'
+                                      ? 'Enregistrez les TLDs principaux (.com, .fr, .org) et signalez les domaines abusifs à votre registrar. Activez DMARC p=reject.'
+                                      : 'Register the main TLDs (.com, .fr, .org) and report abusive domains to your registrar. Enable DMARC p=reject.'}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })() : (
+                          <div className="rounded-lg border border-dashed border-slate-600/60 bg-slate-800/30 p-5 flex flex-col gap-3">
+                            <div className="flex items-center gap-2 text-slate-400 text-sm font-semibold">
+                              <Globe size={14} className="text-amber-500" />
+                              <span className="text-slate-300">
+                                {lang === 'fr' ? 'Domaines sosies — Starter & Pro' : 'Lookalike domains — Starter & Pro'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              {lang === 'fr'
+                                ? 'Détecte les domaines typosquattés enregistrés par des tiers (variantes de TLD, fautes de frappe, homoglyphes) via résolution DNS.'
+                                : 'Detects typosquatted domains registered by third parties (TLD variants, typos, homoglyphs) via DNS resolution.'}
+                            </p>
+                            <button onClick={() => openPricing('upgrade_banner')} className="self-start mt-1 text-xs font-semibold px-3 py-1.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors flex items-center gap-1.5">
+                              <Lock size={11} />
+                              {lang === 'fr' ? 'Débloquer avec Starter — 9,90€/mois' : 'Unlock with Starter — €9.90/month'}
+                              <ArrowRight size={11} />
+                            </button>
+                          </div>
+                        )}
+
                       </motion.div>
                     )}
 

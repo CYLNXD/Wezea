@@ -71,6 +71,7 @@ export interface ScanResult {
   subdomain_details: SubdomainDetails | Record<string, never>;
   vuln_details:      VulnDetails      | Record<string, never>;
   breach_details?:   BreachDetails;
+  typosquat_details?: TyposquatDetails;
   // Conformité réglementaire — tous plans
   compliance?:       ComplianceData;
 }
@@ -98,6 +99,19 @@ export interface BreachDetails {
   status:        'clean' | 'breached' | 'no_api_key';
   breach_count?: number;
   breach_names?: string[];
+}
+
+export interface TyposquatHit {
+  domain:       string;
+  variant_type: 'tld' | 'missing' | 'double' | 'transposition' | 'homoglyph' | 'keyboard';
+  ip:           string;
+}
+
+export interface TyposquatDetails {
+  status:    'clean' | 'squatted';
+  checked:   number;
+  hit_count: number;
+  hits:      TyposquatHit[];
 }
 
 export interface ConsoleLog {

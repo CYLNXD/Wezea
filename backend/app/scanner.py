@@ -124,6 +124,7 @@ class ScanResult:
     subdomain_details: dict[str, Any]     = field(default_factory=dict)
     vuln_details:      dict[str, Any]     = field(default_factory=dict)
     breach_details:    dict[str, Any]     = field(default_factory=dict)
+    typosquat_details: dict[str, Any]    = field(default_factory=dict)
     # Conformité réglementaire — tous plans
     compliance:        dict[str, Any]     = field(default_factory=dict)
 
@@ -142,6 +143,7 @@ class ScanResult:
             "subdomain_details":  self.subdomain_details,
             "vuln_details":       self.vuln_details,
             "breach_details":     self.breach_details,
+            "typosquat_details":  self.typosquat_details,
             "compliance":         self.compliance,
         }
 
@@ -1275,14 +1277,20 @@ class AuditManager:
         if plan in ("starter", "pro", "dev"):
             from app.advanced_checks import SubdomainAuditor, VulnVersionAuditor
             from app.breach_checks import BreachAuditor
-            self._subdomain_auditor = SubdomainAuditor(self.domain, lang)
-            self._vuln_auditor      = VulnVersionAuditor(self.domain, lang)
-            self._breach_auditor    = BreachAuditor(self.domain, lang)
-            self._premium_auditors  = [self._subdomain_auditor, self._vuln_auditor, self._breach_auditor]
+            from app.typosquatting_checks import TyposquattingAuditor
+            self._subdomain_auditor   = SubdomainAuditor(self.domain, lang)
+            self._vuln_auditor        = VulnVersionAuditor(self.domain, lang)
+            self._breach_auditor      = BreachAuditor(self.domain, lang)
+            self._typosquat_auditor   = TyposquattingAuditor(self.domain, lang)
+            self._premium_auditors    = [
+                self._subdomain_auditor, self._vuln_auditor,
+                self._breach_auditor, self._typosquat_auditor,
+            ]
         else:
             self._subdomain_auditor = None
             self._vuln_auditor      = None
             self._breach_auditor    = None
+            self._typosquat_auditor = None
 
     async def run(self) -> ScanResult:
         """Lance tous les scans en parallèle et agrège les résultats."""
@@ -1316,12 +1324,15 @@ class AuditManager:
         subdomain_details: dict = {}
         vuln_details: dict = {}
         breach_details: dict = {}
+        typosquat_details: dict = {}
         if self.plan in ("starter", "pro", "dev") and self._subdomain_auditor:
             subdomain_details = self._subdomain_auditor.get_details()
         if self.plan in ("starter", "pro", "dev") and self._vuln_auditor:
             vuln_details = self._vuln_auditor.get_details()
         if self.plan in ("starter", "pro", "dev") and self._breach_auditor:
             breach_details = self._breach_auditor.get_details()
+        if self.plan in ("starter", "pro", "dev") and self._typosquat_auditor:
+            typosquat_details = self._typosquat_auditor.get_details()
 
         # Conformité NIS2 + RGPD — calculée sur TOUS les findings (tous plans)
         from app.compliance_mapper import ComplianceMapper
@@ -1344,6 +1355,7 @@ class AuditManager:
             subdomain_details  = subdomain_details,
             vuln_details       = vuln_details,
             breach_details     = breach_details,
+            typosquat_details  = typosquat_details,
             compliance         = compliance,
         )
 
