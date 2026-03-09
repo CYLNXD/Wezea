@@ -155,6 +155,24 @@ interface AppScanFinding {
   penalty?: number;
 }
 
+interface DastFindingDetail {
+  test_type: 'xss' | 'sqli' | 'csrf';
+  severity: string;
+  penalty: number;
+  title: string;
+  detail: string;
+  evidence?: string | null;
+  form_action?: string | null;
+  field_name?: string | null;
+}
+
+interface DastDetails {
+  forms_found: number;
+  forms_tested: number;
+  error?: string | null;
+  findings: DastFindingDetail[];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers visuels
 // ─────────────────────────────────────────────────────────────────────────────
@@ -403,6 +421,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
   const [appVerifyMsg, setAppVerifyMsg]         = useState<Record<number, { ok: boolean; msg: string }>>({});
   const [appScanLoading, setAppScanLoading]     = useState<number | null>(null);
   const [appScanResults, setAppScanResults]     = useState<Record<number, AppScanFinding[]>>({});
+  const [appScanDetails, setAppScanDetails]     = useState<Record<number, { dast?: DastDetails }>>({});
   const [appExpandedId, setAppExpandedId]       = useState<number | null>(null);
   const [appVerifyInfo, setAppVerifyInfo]       = useState<Record<number, boolean>>({});
 
@@ -473,6 +492,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
       await apiClient.delete(`/apps/${appId}`);
       await fetchApps();
       setAppScanResults(prev => { const n = { ...prev }; delete n[appId]; return n; });
+      setAppScanDetails(prev => { const n = { ...prev }; delete n[appId]; return n; });
     } catch { /* silencieux */ }
   };
 
@@ -495,6 +515,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
     try {
       const { data } = await apiClient.post(`/apps/${appId}/scan`);
       setAppScanResults(prev => ({ ...prev, [appId]: data.findings ?? [] }));
+      setAppScanDetails(prev => ({ ...prev, [appId]: { dast: data.details?.dast } }));
       setAppExpandedId(appId);
       await fetchApps();
     } catch (e: any) {
@@ -1197,6 +1218,7 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                       {apps.map(app => {
                         const isExpanded = appExpandedId === app.id;
                         const scanResult = appScanResults[app.id];
+                        const scanDetails = appScanDetails[app.id];
                         const verifyMsg  = appVerifyMsg[app.id];
                         const showVerifyInfo = appVerifyInfo[app.id];
 
@@ -1332,46 +1354,136 @@ export default function ClientSpace({ onBack, onGoHistory, onGoAdmin, onGoContac
                             )}
 
                             {/* ── Findings ─────────────────────────────────── */}
-                            {isExpanded && scanResult && (
-                              <div className="border-t border-slate-800 px-4 py-4 flex flex-col gap-2">
-                                <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mb-2">
-                                  {scanResult.length === 0
-                                    ? (lang === 'fr' ? 'Aucune vulnérabilité détectée' : 'No vulnerability detected')
-                                    : `${scanResult.length} finding${scanResult.length > 1 ? 's' : ''}`
-                                  }
-                                </p>
-                                {scanResult.map((f, i) => {
-                                  const sevColors: Record<string, string> = {
-                                    CRITICAL: 'border-l-red-500 bg-red-500/5',
-                                    HIGH:     'border-l-orange-500 bg-orange-500/5',
-                                    MEDIUM:   'border-l-yellow-500 bg-yellow-500/5',
-                                    LOW:      'border-l-blue-500 bg-blue-500/5',
-                                    INFO:     'border-l-slate-500 bg-slate-800/30',
-                                  };
-                                  const sevText: Record<string, string> = {
-                                    CRITICAL: 'text-red-400', HIGH: 'text-orange-400',
-                                    MEDIUM: 'text-yellow-400', LOW: 'text-blue-400', INFO: 'text-slate-400',
-                                  };
-                                  return (
-                                    <div key={i} className={`border-l-2 rounded-r-lg p-3 ${sevColors[f.severity] ?? sevColors.INFO}`}>
-                                      <div className="flex items-start justify-between gap-2">
-                                        <p className="text-white text-sm font-semibold leading-snug">{f.title}</p>
-                                        <span className={`text-xs font-bold font-mono shrink-0 ${sevText[f.severity] ?? sevText.INFO}`}>
-                                          {f.severity}
-                                          {(f.penalty ?? 0) > 0 && <span className="text-slate-500 font-normal ml-1">−{f.penalty}pt</span>}
-                                        </span>
+                            {isExpanded && scanResult && (() => {
+                              const sevColors: Record<string, string> = {
+                                CRITICAL: 'border-l-red-500 bg-red-500/5',
+                                HIGH:     'border-l-orange-500 bg-orange-500/5',
+                                MEDIUM:   'border-l-yellow-500 bg-yellow-500/5',
+                                LOW:      'border-l-blue-500 bg-blue-500/5',
+                                INFO:     'border-l-slate-500 bg-slate-800/30',
+                              };
+                              const sevText: Record<string, string> = {
+                                CRITICAL: 'text-red-400', HIGH: 'text-orange-400',
+                                MEDIUM: 'text-yellow-400', LOW: 'text-blue-400', INFO: 'text-slate-400',
+                              };
+                              // Séparer findings App Scan vs DAST
+                              const appFindings  = scanResult.filter(f => !f.category?.startsWith('DAST'));
+                              const dastFindings = scanResult.filter(f => f.category?.startsWith('DAST'));
+                              const dast = scanDetails?.dast;
+                              return (
+                                <div className="border-t border-slate-800 px-4 py-4 flex flex-col gap-4">
+
+                                  {/* App Scan findings */}
+                                  <div className="flex flex-col gap-2">
+                                    <p className="text-slate-500 text-xs font-mono uppercase tracking-wider">
+                                      {lang === 'fr' ? 'Scan applicatif passif' : 'Passive app scan'}
+                                      {' — '}
+                                      {appFindings.length === 0
+                                        ? (lang === 'fr' ? 'aucune vulnérabilité' : 'no vulnerability')
+                                        : `${appFindings.length} finding${appFindings.length > 1 ? 's' : ''}`
+                                      }
+                                    </p>
+                                    {appFindings.map((f, i) => (
+                                      <div key={i} className={`border-l-2 rounded-r-lg p-3 ${sevColors[f.severity] ?? sevColors.INFO}`}>
+                                        <div className="flex items-start justify-between gap-2">
+                                          <p className="text-white text-sm font-semibold leading-snug">{f.title}</p>
+                                          <span className={`text-xs font-bold font-mono shrink-0 ${sevText[f.severity] ?? sevText.INFO}`}>
+                                            {f.severity}
+                                            {(f.penalty ?? 0) > 0 && <span className="text-slate-500 font-normal ml-1">−{f.penalty}pt</span>}
+                                          </span>
+                                        </div>
+                                        {f.plain_explanation && (
+                                          <p className="text-slate-400 text-xs mt-1 leading-relaxed">{f.plain_explanation}</p>
+                                        )}
+                                        {f.recommendation && (
+                                          <p className="text-cyan-400/70 text-xs mt-1.5 font-mono">{f.recommendation}</p>
+                                        )}
                                       </div>
-                                      {f.plain_explanation && (
-                                        <p className="text-slate-400 text-xs mt-1 leading-relaxed">{f.plain_explanation}</p>
-                                      )}
-                                      {f.recommendation && (
-                                        <p className="text-cyan-400/70 text-xs mt-1.5 font-mono">{f.recommendation}</p>
+                                    ))}
+                                  </div>
+
+                                  {/* DAST section */}
+                                  <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-violet-400 text-xs font-mono uppercase tracking-wider">
+                                        DAST — {lang === 'fr' ? 'Tests actifs sur formulaires' : 'Active form tests'}
+                                      </p>
+                                      {dast && (
+                                        <span className="text-[10px] font-mono text-slate-600">
+                                          {lang === 'fr'
+                                            ? `${dast.forms_found} form${dast.forms_found > 1 ? 's' : ''} trouvé${dast.forms_found > 1 ? 's' : ''}, ${dast.forms_tested} testé${dast.forms_tested > 1 ? 's' : ''}`
+                                            : `${dast.forms_found} form${dast.forms_found !== 1 ? 's' : ''} found, ${dast.forms_tested} tested`
+                                          }
+                                        </span>
                                       )}
                                     </div>
-                                  );
-                                })}
-                              </div>
-                            )}
+
+                                    {/* Error / no forms */}
+                                    {dast?.error && (
+                                      <p className="text-amber-400/70 text-xs font-mono">{dast.error}</p>
+                                    )}
+                                    {dast && !dast.error && dast.forms_found === 0 && (
+                                      <p className="text-slate-600 text-xs italic">
+                                        {lang === 'fr' ? 'Aucun formulaire HTML découvert.' : 'No HTML form discovered.'}
+                                      </p>
+                                    )}
+                                    {dast && !dast.error && dast.forms_found > 0 && dastFindings.length === 0 && (
+                                      <p className="text-green-400/70 text-xs flex items-center gap-1">
+                                        <Check size={11} />
+                                        {lang === 'fr' ? 'Aucune vulnérabilité détectée (XSS, SQLi, CSRF)' : 'No vulnerability detected (XSS, SQLi, CSRF)'}
+                                      </p>
+                                    )}
+
+                                    {/* DAST findings avec evidence */}
+                                    {dast?.findings?.filter(df => df.severity !== 'INFO').map((df, i) => (
+                                      <div key={i} className={`border-l-2 rounded-r-lg p-3 ${sevColors[df.severity] ?? sevColors.INFO}`}>
+                                        <div className="flex items-start justify-between gap-2 mb-1">
+                                          <p className="text-white text-sm font-semibold leading-snug">{df.title}</p>
+                                          <div className="flex items-center gap-1.5 shrink-0">
+                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                                              df.test_type === 'xss'  ? 'text-orange-300 border-orange-500/30 bg-orange-500/10' :
+                                              df.test_type === 'sqli' ? 'text-red-300 border-red-500/30 bg-red-500/10' :
+                                              'text-yellow-300 border-yellow-500/30 bg-yellow-500/10'
+                                            }`}>
+                                              {df.test_type.toUpperCase()}
+                                            </span>
+                                            <span className={`text-xs font-bold font-mono ${sevText[df.severity] ?? sevText.INFO}`}>
+                                              {df.severity}
+                                              {df.penalty > 0 && <span className="text-slate-500 font-normal ml-1">−{df.penalty}pt</span>}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        {/* Champ + URL action */}
+                                        {(df.field_name || df.form_action) && (
+                                          <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500 mb-1.5">
+                                            {df.field_name && (
+                                              <span>
+                                                <span className="text-slate-600">{lang === 'fr' ? 'Champ :' : 'Field:'} </span>
+                                                <span className="text-cyan-400/70">{df.field_name}</span>
+                                              </span>
+                                            )}
+                                            {df.form_action && (
+                                              <span className="truncate max-w-[200px]">
+                                                <span className="text-slate-600">{lang === 'fr' ? 'Action :' : 'Action:'} </span>
+                                                <span className="text-slate-400">{df.form_action}</span>
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                        {/* Evidence */}
+                                        {df.evidence && (
+                                          <div className="bg-slate-900 rounded px-2.5 py-1.5 font-mono text-[10px] text-amber-300/80 break-all mb-1.5">
+                                            {df.evidence}
+                                          </div>
+                                        )}
+                                        <p className="text-slate-400 text-xs leading-relaxed">{df.detail}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })}

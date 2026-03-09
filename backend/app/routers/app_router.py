@@ -364,6 +364,26 @@ async def verify_ownership(
         }
 
 
+def _dast_recommendation(test_type: str) -> str:
+    return {
+        "xss": (
+            "Encoder toutes les sorties utilisateur avec htmlspecialchars() / html.escape() "
+            "avant de les afficher. Implémenter une Content-Security-Policy stricte "
+            "(script-src 'self') pour limiter l'exécution de scripts non autorisés."
+        ),
+        "sqli": (
+            "Utiliser des requêtes paramétrées (prepared statements) plutôt que la "
+            "concaténation de chaînes SQL. Ex. : SQLAlchemy ORM, PDO en PHP, "
+            "pg.query('SELECT … WHERE id=$1', [id]) en Node.js."
+        ),
+        "csrf": (
+            "Ajouter un token CSRF unique par session à tous les formulaires POST. "
+            "Django : {% csrf_token %} — Express : csurf middleware — "
+            "Rails : protect_from_forgery. Vérifier le token côté serveur avant traitement."
+        ),
+    }.get(test_type, "Corriger la vulnérabilité détectée par le test DAST.")
+
+
 @router.post("/{app_id}/scan")
 @limiter.limit("3/hour")
 async def scan_app(
@@ -387,11 +407,36 @@ async def scan_app(
         )
 
     from app.app_checks import AppAuditor
+    from app.dast_checks import DastAuditor
+    from app.scanner import Finding as ScannerFinding
 
     try:
-        auditor = AppAuditor(domain=app.domain)
+        # ── 1. Scan passif (AppAuditor) ────────────────────────────────────────
+        auditor  = AppAuditor(domain=app.domain)
         findings = await auditor.audit()
-        details = auditor.get_details()
+        details  = auditor.get_details()
+
+        # ── 2. DAST actif sur formulaires (app.url = URL complète vérifiée) ───
+        loop = asyncio.get_event_loop()
+        dast_result = await loop.run_in_executor(
+            None, lambda: DastAuditor(app.url).run()
+        )
+        details["dast"] = dast_result.to_dict()
+
+        # Convertir les DastFindings en Finding scanner pour le ScoreEngine
+        for df in dast_result.findings:
+            findings.append(ScannerFinding(
+                category         = f"DAST — {df.test_type.upper()}",
+                severity         = df.severity,
+                title            = df.title,
+                technical_detail = df.detail,
+                plain_explanation = (
+                    "Détecté par test actif (DAST) sur les formulaires de l'application vérifiée."
+                ),
+                penalty          = df.penalty,
+                recommendation   = _dast_recommendation(df.test_type),
+            ))
+
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erreur pendant le scan : {exc}") from exc
 
