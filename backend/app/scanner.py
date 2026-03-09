@@ -44,18 +44,22 @@ SSL_PORT: int = int(os.getenv("SSL_PORT", "443"))
 
 # Ports à scanner avec (service, catégorie_pénalité, niveau_de_risque)
 MONITORED_PORTS: dict[int, tuple[str, str | None, str]] = {
-    21:   ("FTP",         "ftp_telnet",  "HIGH"),
-    22:   ("SSH",         None,          "INFO"),
-    23:   ("Telnet",      "ftp_telnet",  "HIGH"),
-    25:   ("SMTP",        None,          "INFO"),
-    80:   ("HTTP",        None,          "INFO"),
-    443:  ("HTTPS",       None,          "INFO"),
-    445:  ("SMB",         "rdp_smb",     "CRITICAL"),
-    3306: ("MySQL",       "database",    "CRITICAL"),
-    3389: ("RDP",         "rdp_smb",     "CRITICAL"),
-    5432: ("PostgreSQL",  "database",    "CRITICAL"),
-    8080: ("HTTP-Alt",    None,          "INFO"),
-    8443: ("HTTPS-Alt",   None,          "INFO"),
+    21:    ("FTP",           "ftp_telnet",      "HIGH"),
+    22:    ("SSH",           None,              "INFO"),
+    23:    ("Telnet",        "ftp_telnet",      "HIGH"),
+    25:    ("SMTP",          None,              "INFO"),
+    80:    ("HTTP",          None,              "INFO"),
+    443:   ("HTTPS",         None,              "INFO"),
+    445:   ("SMB",           "rdp_smb",         "CRITICAL"),
+    2375:  ("Docker-API",    "exposed_service", "CRITICAL"),
+    3306:  ("MySQL",         "database",        "CRITICAL"),
+    3389:  ("RDP",           "rdp_smb",         "CRITICAL"),
+    5432:  ("PostgreSQL",    "database",        "CRITICAL"),
+    6379:  ("Redis",         "exposed_service", "CRITICAL"),
+    8080:  ("HTTP-Alt",      None,              "INFO"),
+    8443:  ("HTTPS-Alt",     None,              "INFO"),
+    9200:  ("Elasticsearch", "exposed_service", "CRITICAL"),
+    27017: ("MongoDB",       "exposed_service", "CRITICAL"),
 }
 
 # Table des pénalités — modifiable sans toucher à la logique métier
@@ -69,6 +73,7 @@ PENALTY_TABLE: dict[str, int] = {
     "rdp_smb":                  40,
     "ftp_telnet":               20,
     "database":                 25,
+    "exposed_service":          30,
 }
 
 
@@ -176,9 +181,10 @@ class DNSAuditor(BaseAuditor):
 
     async def audit(self) -> list[Finding]:
         loop = asyncio.get_event_loop()
-        # Les deux vérifications sont séquentielles (I/O réseau léger)
         await loop.run_in_executor(None, self._check_spf)
         await loop.run_in_executor(None, self._check_dmarc)
+        await loop.run_in_executor(None, self._check_dnssec)
+        await loop.run_in_executor(None, self._check_caa)
         return self._findings
 
     # ── SPF ──────────────────────────────────────────────────────────────────
@@ -315,6 +321,103 @@ class DNSAuditor(BaseAuditor):
             self._details["dmarc"] = {"status": "missing", "records": []}
         except Exception as exc:
             self._details["dmarc"] = {"status": "error", "error": str(exc)}
+
+    # ── DNSSEC ────────────────────────────────────────────────────────────────
+
+    def _check_dnssec(self) -> None:
+        """Vérifie si DNSSEC est activé sur la zone DNS du domaine."""
+        try:
+            resolver = dns.resolver.Resolver()
+            resolver.lifetime = DNS_LIFETIME_SEC
+            # Demander les enregistrements DNSKEY — leur présence indique DNSSEC actif
+            answers = resolver.resolve(self.domain, "DNSKEY")
+            if answers:
+                self._details["dnssec"] = {"status": "ok"}
+                return
+        except dns.resolver.NoAnswer:
+            pass
+        except Exception:
+            self._details["dnssec"] = {"status": "error"}
+            return
+
+        # DNSKEY absent → DNSSEC non configuré
+        self._findings.append(Finding(
+            category="DNS & Mail",
+            severity="LOW",
+            title=self._t(
+                "DNSSEC non activé",
+                "DNSSEC not enabled"
+            ),
+            technical_detail=self._t(
+                f"Aucun enregistrement DNSKEY trouvé pour {self.domain}. "
+                "La zone DNS n'est pas signée cryptographiquement.",
+                f"No DNSKEY record found for {self.domain}. "
+                "The DNS zone is not cryptographically signed."
+            ),
+            plain_explanation=self._t(
+                "Sans DNSSEC, un attaquant peut falsifier les réponses DNS de votre domaine "
+                "(cache poisoning) et rediriger vos visiteurs vers de faux sites sans que personne ne s'en aperçoive.",
+                "Without DNSSEC, an attacker can forge DNS responses for your domain "
+                "(cache poisoning) and redirect your visitors to fake sites without anyone noticing."
+            ),
+            penalty=3,
+            recommendation=self._t(
+                "Activez DNSSEC chez votre bureau d'enregistrement de domaine (Infomaniak, OVH, Gandi…). "
+                "La procédure prend moins de 5 minutes depuis l'interface d'administration.",
+                "Enable DNSSEC at your domain registrar (Infomaniak, OVH, Gandi…). "
+                "The process takes less than 5 minutes from the admin interface."
+            ),
+        ))
+        self._details["dnssec"] = {"status": "missing"}
+
+    # ── CAA ───────────────────────────────────────────────────────────────────
+
+    def _check_caa(self) -> None:
+        """Vérifie la présence d'un enregistrement CAA limitant les autorités de certification."""
+        try:
+            resolver = dns.resolver.Resolver()
+            resolver.lifetime = DNS_LIFETIME_SEC
+            answers = resolver.resolve(self.domain, "CAA")
+            if answers:
+                caa_records = [r.to_text() for r in answers]
+                self._details["caa"] = {"status": "ok", "records": caa_records}
+                return
+        except dns.resolver.NoAnswer:
+            pass
+        except Exception:
+            self._details["caa"] = {"status": "error"}
+            return
+
+        self._findings.append(Finding(
+            category="DNS & Mail",
+            severity="LOW",
+            title=self._t(
+                "Enregistrement CAA absent",
+                "CAA record missing"
+            ),
+            technical_detail=self._t(
+                f"Aucun enregistrement CAA (Certification Authority Authorization) trouvé pour {self.domain}. "
+                "N'importe quelle autorité de certification peut émettre un certificat SSL pour ce domaine.",
+                f"No CAA (Certification Authority Authorization) record found for {self.domain}. "
+                "Any certificate authority can issue an SSL certificate for this domain."
+            ),
+            plain_explanation=self._t(
+                "Sans CAA, une autorité de certification malveillante ou compromise pourrait émettre "
+                "un faux certificat SSL pour votre domaine, permettant des attaques de type 'man-in-the-middle'.",
+                "Without CAA, a malicious or compromised certificate authority could issue "
+                "a fake SSL certificate for your domain, enabling man-in-the-middle attacks."
+            ),
+            penalty=2,
+            recommendation=self._t(
+                "Ajoutez un enregistrement CAA : "
+                "votredomaine.com. CAA 0 issue \"letsencrypt.org\" "
+                "(remplacez par votre AC — Let's Encrypt, DigiCert, Sectigo…).",
+                "Add a CAA record: "
+                "yourdomain.com. CAA 0 issue \"letsencrypt.org\" "
+                "(replace with your CA — Let's Encrypt, DigiCert, Sectigo…)."
+            ),
+        ))
+        self._details["caa"] = {"status": "missing"}
 
     def _add_dmarc_missing_finding(self) -> None:
         self._findings.append(Finding(
@@ -661,7 +764,7 @@ class PortAuditor(BaseAuditor):
         """
         open_critical = [
             p for p, v in port_map.items()
-            if v.get("open") and p in (21, 23, 445, 3306, 3389, 5432)
+            if v.get("open") and p in (21, 23, 445, 2375, 3306, 3389, 5432, 6379, 9200, 27017)
         ]
         if open_critical:
             self._findings.append(Finding(
@@ -835,6 +938,46 @@ class PortAuditor(BaseAuditor):
                 ),
             ))
 
+        # ── Services exposés — Elasticsearch / Redis / MongoDB / Docker API ────
+        _svc_labels = {
+            6379:  "Redis",
+            9200:  "Elasticsearch",
+            27017: "MongoDB",
+            2375:  "Docker API",
+        }
+        exposed_svcs = sorted(open_nums & set(_svc_labels))
+        for svc_port in exposed_svcs:
+            svc_name = _svc_labels[svc_port]
+            self._findings.append(Finding(
+                category="Exposition des Ports",
+                severity="CRITICAL",
+                title=self._t(
+                    f"{svc_name} accessible depuis internet (port {svc_port})",
+                    f"{svc_name} accessible from the internet (port {svc_port})"
+                ),
+                technical_detail=self._t(
+                    f"Le port {svc_port} ({svc_name}) est ouvert sur l'IP publique du domaine. "
+                    f"Ce service ne dispose généralement pas d'authentification par défaut.",
+                    f"Port {svc_port} ({svc_name}) is open on the domain's public IP. "
+                    f"This service typically has no authentication enabled by default."
+                ),
+                plain_explanation=self._t(
+                    f"{svc_name} est une base de données/service interne qui ne devrait jamais être accessible depuis internet. "
+                    "Sans protection, un attaquant peut lire, modifier ou supprimer toutes vos données en quelques secondes — sans mot de passe.",
+                    f"{svc_name} is an internal database/service that should never be accessible from the internet. "
+                    "Without protection, an attacker can read, modify, or delete all your data within seconds — with no password required."
+                ),
+                penalty=PENALTY_TABLE["exposed_service"],
+                recommendation=self._t(
+                    f"Bloquez immédiatement le port {svc_port} dans votre pare-feu. "
+                    f"{svc_name} doit être accessible uniquement en réseau privé (127.0.0.1 ou VPC). "
+                    "Activez l'authentification et le chiffrement TLS sur le service.",
+                    f"Immediately block port {svc_port} in your firewall. "
+                    f"{svc_name} must only be accessible on a private network (127.0.0.1 or VPC). "
+                    "Enable authentication and TLS encryption on the service."
+                ),
+            ))
+
         # ── SSH exposé — observation (pas de pénalité) ───────────────────────
         if 22 in open_nums:
             self._findings.append(Finding(
@@ -923,6 +1066,7 @@ class AuditManager:
             EmailSecurityAuditor,
             TechExposureAuditor,
             ReputationAuditor,
+            DomainExpiryAuditor,
         )
 
         # Map clé → auditeur
@@ -934,6 +1078,7 @@ class AuditManager:
             ("email",      EmailSecurityAuditor(self.domain, lang)),
             ("tech",       TechExposureAuditor(self.domain, lang)),
             ("reputation", ReputationAuditor(self.domain, lang)),
+            ("expiry",     DomainExpiryAuditor(self.domain, lang)),
         ]
 
         # Filtrer selon checks_config si fourni (True = activé par défaut)

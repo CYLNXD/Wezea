@@ -508,22 +508,23 @@ def _mock_auditor(findings=None, details=None):
 def _all_auditor_patches(
     dns_mock=None, ssl_mock=None, port_mock=None,
     header_mock=None, email_mock=None, tech_mock=None, rep_mock=None,
-    sub_mock=None, vuln_mock=None,
+    expiry_mock=None, sub_mock=None, vuln_mock=None,
 ):
     """
     Retourne une liste de patch() pour tous les auditeurs.
     Chaque auditeur peut être remplacé par un mock personnalisé.
     """
     return [
-        patch("app.scanner.DNSAuditor",               return_value=dns_mock    or _mock_auditor()),
-        patch("app.scanner.SSLAuditor",               return_value=ssl_mock    or _mock_auditor()),
-        patch("app.scanner.PortAuditor",              return_value=port_mock   or _mock_auditor()),
-        patch("app.extra_checks.HttpHeaderAuditor",   return_value=header_mock or _mock_auditor()),
-        patch("app.extra_checks.EmailSecurityAuditor",return_value=email_mock  or _mock_auditor()),
-        patch("app.extra_checks.TechExposureAuditor", return_value=tech_mock   or _mock_auditor()),
-        patch("app.extra_checks.ReputationAuditor",   return_value=rep_mock    or _mock_auditor()),
-        patch("app.advanced_checks.SubdomainAuditor", return_value=sub_mock    or _mock_auditor()),
-        patch("app.advanced_checks.VulnVersionAuditor",return_value=vuln_mock  or _mock_auditor()),
+        patch("app.scanner.DNSAuditor",                  return_value=dns_mock    or _mock_auditor()),
+        patch("app.scanner.SSLAuditor",                  return_value=ssl_mock    or _mock_auditor()),
+        patch("app.scanner.PortAuditor",                 return_value=port_mock   or _mock_auditor()),
+        patch("app.extra_checks.HttpHeaderAuditor",      return_value=header_mock or _mock_auditor()),
+        patch("app.extra_checks.EmailSecurityAuditor",   return_value=email_mock  or _mock_auditor()),
+        patch("app.extra_checks.TechExposureAuditor",    return_value=tech_mock   or _mock_auditor()),
+        patch("app.extra_checks.ReputationAuditor",      return_value=rep_mock    or _mock_auditor()),
+        patch("app.extra_checks.DomainExpiryAuditor",    return_value=expiry_mock or _mock_auditor()),
+        patch("app.advanced_checks.SubdomainAuditor",    return_value=sub_mock    or _mock_auditor()),
+        patch("app.advanced_checks.VulnVersionAuditor",  return_value=vuln_mock   or _mock_auditor()),
     ]
 
 
@@ -531,25 +532,25 @@ class TestAuditManagerInit:
     """Tests pour AuditManager.__init__ (sélection des auditeurs)."""
 
     def test_free_plan_no_premium_auditors(self):
-        """Plan free → 7 auditeurs de base, 0 premium."""
+        """Plan free → 8 auditeurs de base, 0 premium."""
         from app.scanner import AuditManager
         with ExitStack() as stack:
             for p in _all_auditor_patches():
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="free")
-        assert len(manager._auditors)         == 7
+        assert len(manager._auditors)         == 8
         assert len(manager._premium_auditors) == 0
         assert manager._subdomain_auditor     is None
         assert manager._vuln_auditor          is None
 
     def test_starter_plan_has_premium_auditors(self):
-        """Plan starter → 7 de base + 2 premium (subdomain + vuln)."""
+        """Plan starter → 8 de base + 2 premium (subdomain + vuln)."""
         from app.scanner import AuditManager
         with ExitStack() as stack:
             for p in _all_auditor_patches():
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="starter")
-        assert len(manager._auditors)         == 7
+        assert len(manager._auditors)         == 8
         assert len(manager._premium_auditors) == 2
         assert manager._subdomain_auditor     is not None
         assert manager._vuln_auditor          is not None
@@ -596,21 +597,21 @@ class TestAuditManagerInit:
                 "example.com", plan="free",
                 checks_config={"dns": False, "ssl": True, "ports": True,
                                "headers": True, "email": True, "tech": True,
-                               "reputation": True},
+                               "reputation": True, "expiry": True},
             )
-        # DNS exclu → 6 auditeurs au lieu de 7
-        assert len(manager._auditors) == 6
+        # DNS exclu → 7 auditeurs au lieu de 8
+        assert len(manager._auditors) == 7
         # La classe DNS n'a pas été utilisée dans _auditors
         dns_cls.assert_called_once()  # instancié mais pas inclus
 
     def test_no_checks_config_uses_all_auditors(self):
-        """Sans checks_config → les 7 auditeurs sont inclus."""
+        """Sans checks_config → les 8 auditeurs sont inclus."""
         from app.scanner import AuditManager
         with ExitStack() as stack:
             for p in _all_auditor_patches():
                 stack.enter_context(p)
             manager = AuditManager("example.com")
-        assert len(manager._auditors) == 7
+        assert len(manager._auditors) == 8
 
 
 class TestAuditManagerRun:

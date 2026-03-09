@@ -122,20 +122,87 @@ class HttpHeaderAuditor(BaseAuditor):
                     "Add Referrer-Policy: strict-origin-when-cross-origin."
                 ),
             },
+            {
+                "name":             "Permissions-Policy",
+                "penalty":          2,
+                "severity":         "LOW",
+                "title":            self._t("Permissions-Policy absent", "Permissions-Policy missing"),
+                "technical_detail": self._t(
+                    "L'en-tête Permissions-Policy est absent. "
+                    "Aucune restriction n'est définie sur l'accès aux APIs sensibles du navigateur.",
+                    "The Permissions-Policy header is missing. "
+                    "No restrictions are defined on access to sensitive browser APIs."
+                ),
+                "plain_explanation": self._t(
+                    "Sans Permissions-Policy, du code tiers embarqué (publicités, trackers) peut accéder "
+                    "à la caméra, au microphone ou à la géolocalisation de vos visiteurs sans leur consentement explicite.",
+                    "Without Permissions-Policy, embedded third-party code (ads, trackers) may access "
+                    "your visitors' camera, microphone, or geolocation without explicit consent."
+                ),
+                "recommendation":   self._t(
+                    "Ajouter Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=() "
+                    "pour désactiver les APIs non utilisées.",
+                    "Add Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=() "
+                    "to disable unused browser APIs."
+                ),
+            },
         ]
 
     async def audit(self) -> list[Finding]:
+        loop = asyncio.get_event_loop()
+
+        # ── Check HTTP → HTTPS redirect ──────────────────────────────────────
         try:
-            loop = asyncio.get_event_loop()
+            redirects_to_https = await asyncio.wait_for(
+                loop.run_in_executor(None, self._check_http_redirect),
+                timeout=SCAN_TIMEOUT_SEC + 2,
+            )
+            if redirects_to_https is False:
+                self._findings.append(Finding(
+                    category="En-têtes HTTP",
+                    severity="HIGH",
+                    title=self._t(
+                        "Pas de redirection HTTP → HTTPS",
+                        "No HTTP → HTTPS redirect"
+                    ),
+                    technical_detail=self._t(
+                        f"Le serveur répond sur http://{self.domain} sans rediriger vers HTTPS. "
+                        "Les connexions non chiffrées sont acceptées.",
+                        f"The server responds on http://{self.domain} without redirecting to HTTPS. "
+                        "Unencrypted connections are accepted."
+                    ),
+                    plain_explanation=self._t(
+                        "Vos visiteurs qui tapent votre adresse sans 'https://' se connectent en clair. "
+                        "Leurs données (formulaires, cookies, mots de passe) circulent sans chiffrement "
+                        "et peuvent être interceptées sur n'importe quel réseau Wi-Fi.",
+                        "Visitors who type your address without 'https://' connect in plaintext. "
+                        "Their data (forms, cookies, passwords) travels unencrypted "
+                        "and can be intercepted on any Wi-Fi network."
+                    ),
+                    penalty=10,
+                    recommendation=self._t(
+                        "Configurez une redirection 301 permanente de HTTP vers HTTPS dans votre serveur web "
+                        "(nginx: return 301 https://$host$request_uri; / Apache: RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]). "
+                        "Activez également HSTS pour verrouiller les connexions futures.",
+                        "Configure a permanent 301 redirect from HTTP to HTTPS in your web server "
+                        "(nginx: return 301 https://$host$request_uri; / Apache: RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]). "
+                        "Also enable HSTS to lock future connections."
+                    ),
+                ))
+        except (asyncio.TimeoutError, Exception):
+            pass
+
+        # ── En-têtes de sécurité HTTPS ───────────────────────────────────────
+        try:
             headers = await asyncio.wait_for(
                 loop.run_in_executor(None, self._fetch_headers_sync),
                 timeout=SCAN_TIMEOUT_SEC + 3,
             )
         except (asyncio.TimeoutError, Exception):
-            return []
+            return self._findings
 
         if headers is None:
-            return []
+            return self._findings
 
         lower_headers = {k.lower(): v for k, v in headers.items()}
         findings: list[Finding] = []
@@ -196,7 +263,26 @@ class HttpHeaderAuditor(BaseAuditor):
                 ),
             ))
 
-        return findings
+        return self._findings + findings
+
+    def _check_http_redirect(self) -> bool | None:
+        """
+        Vérifie si une requête HTTP (port 80) redirige vers HTTPS.
+        Retourne True si redirection HTTPS, False si pas de redirection, None si port 80 fermé.
+        """
+        try:
+            conn = http.client.HTTPConnection(self.domain, timeout=SCAN_TIMEOUT_SEC)
+            conn.request("HEAD", "/", headers={"User-Agent": "Mozilla/5.0 (CyberHealth Security Audit)"})
+            resp = conn.getresponse()
+            conn.close()
+            # Redirection (3xx) vers https://
+            if resp.status in (301, 302, 307, 308):
+                location = resp.getheader("Location", "")
+                return location.lower().startswith("https://")
+            # Réponse 200 directement sur HTTP → pas de redirection
+            return False
+        except Exception:
+            return None  # Port 80 fermé ou inaccessible — pas de finding
 
     def _fetch_headers_sync(self) -> dict[str, str] | None:
         """Tente HTTPS puis HTTP pour récupérer les en-têtes de réponse."""
@@ -257,11 +343,13 @@ class EmailSecurityAuditor(BaseAuditor):
             pass
 
         # MX
+        mx_present = False
         try:
             mx_found = await asyncio.wait_for(
                 loop.run_in_executor(None, self._check_mx),
                 timeout=SCAN_TIMEOUT_SEC,
             )
+            mx_present = mx_found
             if not mx_found:
                 findings.append(Finding(
                     category          = "Sécurité Email",
@@ -284,6 +372,45 @@ class EmailSecurityAuditor(BaseAuditor):
         except (asyncio.TimeoutError, Exception):
             pass
 
+        # MTA-STS — seulement si le domaine a des serveurs mail (MX présents)
+        if mx_present:
+            try:
+                mta_sts_found = await asyncio.wait_for(
+                    loop.run_in_executor(None, self._check_mta_sts),
+                    timeout=SCAN_TIMEOUT_SEC,
+                )
+                if not mta_sts_found:
+                    findings.append(Finding(
+                        category          = "Sécurité Email",
+                        severity          = "LOW",
+                        title             = self._t("MTA-STS non configuré", "MTA-STS not configured"),
+                        technical_detail  = self._t(
+                            f"Aucun enregistrement TXT _mta-sts.{self.domain} détecté. "
+                            "Le chiffrement TLS des connexions SMTP entrantes n'est pas imposé.",
+                            f"No TXT record found for _mta-sts.{self.domain}. "
+                            "TLS encryption for incoming SMTP connections is not enforced."
+                        ),
+                        plain_explanation = self._t(
+                            "Sans MTA-STS, les emails envoyés vers votre serveur peuvent transiter "
+                            "en clair si un attaquant effectue une attaque de downgrade TLS. "
+                            "Vos emails entrants ne sont pas garantis chiffrés bout-en-bout.",
+                            "Without MTA-STS, emails sent to your server may travel in plaintext "
+                            "if an attacker performs a TLS downgrade attack. "
+                            "Your incoming emails are not guaranteed to be encrypted end-to-end."
+                        ),
+                        penalty           = 2,
+                        recommendation    = self._t(
+                            "Configurez MTA-STS : créez l'enregistrement TXT _mta-sts.votredomaine.com "
+                            "avec 'v=STSv1; id=YYYYMMDD01' et hébergez le fichier de politique sur "
+                            "https://mta-sts.votredomaine.com/.well-known/mta-sts.txt.",
+                            "Configure MTA-STS: create the TXT record _mta-sts.yourdomain.com "
+                            "with 'v=STSv1; id=YYYYMMDD01' and host the policy file at "
+                            "https://mta-sts.yourdomain.com/.well-known/mta-sts.txt."
+                        ),
+                    ))
+            except (asyncio.TimeoutError, Exception):
+                pass
+
         return findings
 
     def _check_dkim(self) -> bool:
@@ -303,6 +430,19 @@ class EmailSecurityAuditor(BaseAuditor):
             resolver.lifetime = DNS_LIFETIME_SEC  # aligné sur SPF/DMARC (était 4.0, trop court)
             resolver.resolve(self.domain, "MX")
             return True
+        except Exception:
+            return False
+
+    def _check_mta_sts(self) -> bool:
+        """Vérifie la présence de l'enregistrement TXT MTA-STS."""
+        try:
+            resolver = dns.resolver.Resolver()
+            resolver.lifetime = DNS_LIFETIME_SEC
+            answers = resolver.resolve(f"_mta-sts.{self.domain}", "TXT")
+            for r in answers:
+                if "v=STSv1" in r.to_text():
+                    return True
+            return False
         except Exception:
             return False
 
@@ -543,3 +683,181 @@ class ReputationAuditor(BaseAuditor):
             except Exception:
                 continue
         return blacklisted
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DomainExpiryAuditor — Expiration du nom de domaine
+# ─────────────────────────────────────────────────────────────────────────────
+
+import json as _json
+import urllib.request as _urllib_request
+import urllib.error as _urllib_error
+from datetime import datetime as _datetime, timezone as _timezone
+
+class DomainExpiryAuditor(BaseAuditor):
+    """
+    Vérifie la date d'expiration du nom de domaine via RDAP (rdap.org).
+    Génère un finding CRITICAL si < 14 jours, HIGH si < 30 jours, MEDIUM si < 60 jours.
+    """
+
+    CRITICAL_DAYS = 14
+    HIGH_DAYS     = 30
+    MEDIUM_DAYS   = 60
+
+    async def audit(self) -> list[Finding]:
+        loop = asyncio.get_event_loop()
+        try:
+            await asyncio.wait_for(
+                loop.run_in_executor(None, self._check_expiry),
+                timeout=SCAN_TIMEOUT_SEC + 4,
+            )
+        except (asyncio.TimeoutError, Exception):
+            pass
+        return self._findings
+
+    def _check_expiry(self) -> None:
+        """Interroge l'API RDAP pour obtenir la date d'expiration du domaine."""
+        try:
+            # Extraire le domaine racine (supprimer sous-domaines) pour la requête RDAP
+            parts = self.domain.split(".")
+            root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else self.domain
+
+            url = f"https://rdap.org/domain/{root_domain}"
+            req = _urllib_request.Request(
+                url,
+                headers={
+                    "Accept": "application/rdap+json",
+                    "User-Agent": "CyberHealth-Scanner/1.0 (security audit)",
+                },
+            )
+            with _urllib_request.urlopen(req, timeout=SCAN_TIMEOUT_SEC + 2) as resp:
+                data = _json.loads(resp.read())
+
+            # Chercher la date d'expiration dans les events RDAP
+            expiry_str: str | None = None
+            for event in data.get("events", []):
+                if event.get("eventAction") in ("expiration", "registrar expiration"):
+                    expiry_str = event.get("eventDate")
+                    break
+
+            if not expiry_str:
+                self._details["domain_expiry"] = {"status": "unknown"}
+                return
+
+            # Parser la date (format ISO 8601 : 2026-12-31T00:00:00Z)
+            expiry_dt = _datetime.fromisoformat(
+                expiry_str.replace("Z", "+00:00")
+            ).replace(tzinfo=_timezone.utc)
+            now = _datetime.now(_timezone.utc)
+            days_left = (expiry_dt - now).days
+
+            self._details["domain_expiry"] = {
+                "status": "ok" if days_left > self.MEDIUM_DAYS else "warning",
+                "days_left": days_left,
+                "expiry_date": expiry_str[:10],
+            }
+
+            if days_left <= 0:
+                self._findings.append(Finding(
+                    category="Infrastructure",
+                    severity="CRITICAL",
+                    title=self._t(
+                        f"Domaine expiré depuis {abs(days_left)} jours !",
+                        f"Domain expired {abs(days_left)} days ago!"
+                    ),
+                    technical_detail=self._t(
+                        f"Le domaine {root_domain} a expiré le {expiry_str[:10]}.",
+                        f"Domain {root_domain} expired on {expiry_str[:10]}."
+                    ),
+                    plain_explanation=self._t(
+                        "Votre domaine n'est plus actif. Votre site, vos emails et tous vos services "
+                        "sont inaccessibles. Le domaine peut être réenregistré par quelqu'un d'autre.",
+                        "Your domain is no longer active. Your website, emails and all services "
+                        "are unreachable. The domain may be re-registered by someone else."
+                    ),
+                    penalty=50,
+                    recommendation=self._t(
+                        f"Renouvelez immédiatement le domaine {root_domain} via votre bureau d'enregistrement.",
+                        f"Immediately renew domain {root_domain} through your registrar."
+                    ),
+                ))
+            elif days_left <= self.CRITICAL_DAYS:
+                self._findings.append(Finding(
+                    category="Infrastructure",
+                    severity="CRITICAL",
+                    title=self._t(
+                        f"Domaine expire dans {days_left} jours — URGENT",
+                        f"Domain expires in {days_left} days — URGENT"
+                    ),
+                    technical_detail=self._t(
+                        f"Le domaine {root_domain} expire le {expiry_str[:10]} "
+                        f"({days_left} jours restants).",
+                        f"Domain {root_domain} expires on {expiry_str[:10]} "
+                        f"({days_left} days remaining)."
+                    ),
+                    plain_explanation=self._t(
+                        "Dans moins de deux semaines, votre domaine expirera et votre site ainsi que "
+                        "vos emails seront hors ligne. Un tiers pourrait enregistrer ce domaine.",
+                        "In less than two weeks, your domain will expire and your website and "
+                        "emails will go offline. A third party could register this domain."
+                    ),
+                    penalty=30,
+                    recommendation=self._t(
+                        f"Renouvelez d'urgence le domaine {root_domain} via votre bureau d'enregistrement. "
+                        "Activez le renouvellement automatique pour éviter ce risque à l'avenir.",
+                        f"Urgently renew domain {root_domain} through your registrar. "
+                        "Enable auto-renewal to avoid this risk in the future."
+                    ),
+                ))
+            elif days_left <= self.HIGH_DAYS:
+                self._findings.append(Finding(
+                    category="Infrastructure",
+                    severity="HIGH",
+                    title=self._t(
+                        f"Domaine expire dans {days_left} jours",
+                        f"Domain expires in {days_left} days"
+                    ),
+                    technical_detail=self._t(
+                        f"Le domaine {root_domain} expire le {expiry_str[:10]}.",
+                        f"Domain {root_domain} expires on {expiry_str[:10]}."
+                    ),
+                    plain_explanation=self._t(
+                        "Votre domaine expire bientôt. Sans renouvellement rapide, votre site et "
+                        "vos emails seront hors ligne dans moins d'un mois.",
+                        "Your domain expires soon. Without quick renewal, your website and "
+                        "emails will go offline within a month."
+                    ),
+                    penalty=15,
+                    recommendation=self._t(
+                        f"Renouvelez le domaine {root_domain} dès maintenant et activez "
+                        "le renouvellement automatique chez votre bureau d'enregistrement.",
+                        f"Renew domain {root_domain} now and enable "
+                        "auto-renewal at your registrar."
+                    ),
+                ))
+            elif days_left <= self.MEDIUM_DAYS:
+                self._findings.append(Finding(
+                    category="Infrastructure",
+                    severity="MEDIUM",
+                    title=self._t(
+                        f"Domaine expire dans {days_left} jours — à renouveler",
+                        f"Domain expires in {days_left} days — renewal needed"
+                    ),
+                    technical_detail=self._t(
+                        f"Le domaine {root_domain} expire le {expiry_str[:10]}.",
+                        f"Domain {root_domain} expires on {expiry_str[:10]}."
+                    ),
+                    plain_explanation=self._t(
+                        "Votre domaine expire dans moins de 2 mois. "
+                        "Pensez à le renouveler pour garantir la continuité de votre site et vos emails.",
+                        "Your domain expires in less than 2 months. "
+                        "Remember to renew it to ensure continuity of your website and emails."
+                    ),
+                    penalty=5,
+                    recommendation=self._t(
+                        f"Renouvelez le domaine {root_domain} et activez le renouvellement automatique.",
+                        f"Renew domain {root_domain} and enable auto-renewal."
+                    ),
+                ))
+
+        except (_urllib_error.URLError, _urllib_error.HTTPError, Exception):
+            self._details["domain_expiry"] = {"status": "error"}
