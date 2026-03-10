@@ -392,6 +392,12 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     }
   };
 
+  // ── Réinitialisation + scroll vers le haut ─────────────────────────────────
+  const handleReset = () => {
+    scanner.reset();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSubmit = async (e: FormEvent, overrideDomain?: string) => {
     e.preventDefault();
     const target = (overrideDomain ?? domain).trim();
@@ -454,7 +460,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
 
           {/* LEFT — Logo (cliquable → retour accueil) */}
           <button
-            onClick={() => scanner.reset()}
+            onClick={handleReset}
             className="shrink-0 group"
             aria-label="Retour à l'accueil"
           >
@@ -694,7 +700,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                 : (lang === 'fr' ? 'Erreur de scan' : 'Scan error')}
             </span>
             <button
-              onClick={scanner.reset}
+              onClick={handleReset}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-white/6 transition-all"
             >
               <RotateCcw size={10} />
@@ -1038,7 +1044,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                           : 'Sign up in 30 seconds and get 5 scans per day, analysis history, and more.'}
                       </p>
                       <button
-                        onClick={() => { scanner.reset(); if (onGoRegister) { onGoRegister(); } else { onGoLogin?.(); } }}
+                        onClick={() => { handleReset(); if (onGoRegister) { onGoRegister(); } else { onGoLogin?.(); } }}
                         className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-sm transition-all shadow-lg shadow-cyan-900/30"
                       >
                         {lang === 'fr' ? 'Créer mon compte gratuit →' : 'Create my free account →'}
@@ -1080,7 +1086,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   )}
 
                   <button
-                    onClick={scanner.reset}
+                    onClick={handleReset}
                     className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-medium text-sm transition-colors"
                   >
                     <RotateCcw size={15} />
@@ -1096,7 +1102,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                   <h3 className="text-white font-bold text-lg mb-2">{t('scan_error')}</h3>
                   <p className="text-slate-400 text-sm mb-6">{scanner.error}</p>
                   <button
-                    onClick={scanner.reset}
+                    onClick={handleReset}
                     className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-sm transition-colors"
                   >
                     <RotateCcw size={15} />
@@ -1128,7 +1134,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
+                transition={{ duration: 0.15 }}
                 className="flex flex-col gap-6 py-8"
               >
                 {/* ── Bande supérieure : Score + Stats + PDF ─────────────── */}
