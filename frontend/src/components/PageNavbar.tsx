@@ -4,6 +4,7 @@
 //
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { ChevronLeft, ChevronDown } from 'lucide-react';
+import WezeaLogo from './WezeaLogo';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { apiClient } from '../lib/api';
@@ -97,13 +98,8 @@ export default function PageNavbar({
           <div className="w-px h-4 bg-white/8 shrink-0" />
 
           {/* Logo */}
-          <button onClick={onBack} className="flex items-center shrink-0 group" aria-label="Wezea">
-            <div
-              className="font-black text-white leading-none group-hover:text-cyan-50 transition-colors"
-              style={{ fontSize: '18px', letterSpacing: '-0.03em', fontFamily: 'var(--font-display)' }}
-            >
-              We<span style={{ color: 'var(--color-accent)' }}>zea</span>
-            </div>
+          <button onClick={onBack} className="shrink-0 group" aria-label="Wezea">
+            <WezeaLogo size="md" showSub className="group-hover:opacity-90 transition-opacity" />
           </button>
 
           {/* Séparateur + breadcrumb */}

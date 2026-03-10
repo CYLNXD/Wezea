@@ -6,6 +6,7 @@ import {
   XCircle, AlertTriangle, ChevronRight, ArrowLeft,
   FileCheck, Eye, EyeOff,
 } from 'lucide-react';
+import WezeaLogo from '../components/WezeaLogo';
 import axios from 'axios';
 import { extractApiError, extractRateLimitDetail } from '../lib/api';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -576,10 +577,7 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
             <ArrowLeft size={15} /> {t.back}
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
-              <Shield size={12} className="text-cyan-400" />
-            </div>
-            <span className="font-black text-sm tracking-tight text-white">Wezea</span>
+            <WezeaLogo />
             <span className="text-slate-600 text-sm">/</span>
             <span className="text-slate-400 text-sm">{t.navTitle}</span>
           </div>

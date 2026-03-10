@@ -8,6 +8,7 @@
 //
 import { useState, useEffect, useCallback, FormEvent, useRef, ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import WezeaLogo from '../components/WezeaLogo';
 import {
   Shield, Search, ArrowRight, RotateCcw,
   FileDown, Globe, AlertTriangle, Info, Lock, X, UserPlus, MessageSquare,
@@ -454,17 +455,10 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
           {/* LEFT — Logo (cliquable → retour accueil) */}
           <button
             onClick={() => scanner.reset()}
-            className="flex items-center gap-2 shrink-0 group"
+            className="shrink-0 group"
             aria-label="Retour à l'accueil"
           >
-            <div className="text-left">
-              <div className="font-black text-white leading-none group-hover:text-cyan-50 transition-colors" style={{ fontSize: '20px', letterSpacing: '-0.03em', fontFamily: 'var(--font-display)' }}>
-                We<span style={{ color: 'var(--color-accent)' }}>zea</span>
-              </div>
-              <div className="text-slate-500 uppercase hidden sm:block group-hover:text-slate-400 transition-colors" style={{ fontSize: '9px', letterSpacing: '0.12em', marginTop: '2px', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
-                Security Scanner
-              </div>
-            </div>
+            <WezeaLogo size="lg" showSub className="group-hover:opacity-90 transition-opacity" />
           </button>
 
           {/* CENTER — Navigation principale */}

@@ -1,6 +1,7 @@
 // ─── PublicScanPage.tsx — Rapport de scan partagé (sans authentification) ─────
 import { useEffect, useState } from 'react';
-import { Shield, Globe, Clock, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
+import { Globe, Clock, AlertTriangle, CheckCircle, XCircle, Info, Shield } from 'lucide-react';
+import WezeaLogo from '../components/WezeaLogo';
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 
@@ -152,9 +153,8 @@ export default function PublicScanPage({ uuid, onGoHome }: Props) {
       {/* ── Navbar ───────────────────────────────────────────────────────── */}
       <nav className="border-b border-slate-800/60 bg-slate-950/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <button onClick={onGoHome} className="flex items-center gap-2 group">
-            <Shield size={20} className="text-cyan-400" />
-            <span className="text-white font-bold text-sm group-hover:text-cyan-400 transition">Wezea</span>
+          <button onClick={onGoHome} className="group">
+            <WezeaLogo className="group-hover:opacity-90 transition-opacity" />
           </button>
           <button
             onClick={onGoHome}
