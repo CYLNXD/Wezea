@@ -79,12 +79,17 @@ jobs:
       # ── 5. Déployer le backend ────────────────────────────────────────────
       - name: 🐍 Deploy backend
         run: |
+          # Checkpoint WAL before rsync to flush pending writes to main DB
+          sudo -u cyberhealth sqlite3 /home/cyberhealth/app/backend/cyberhealth.db "PRAGMA wal_checkpoint(TRUNCATE);" || true
           sudo rsync -a --delete \
             --exclude='.venv/' \
             --exclude='venv/' \
             --exclude='__pycache__/' \
             --exclude='.env' \
             --exclude='*.db' \
+            --exclude='*.db-wal' \
+            --exclude='*.db-shm' \
+            --exclude='*.db-journal' \
             --exclude='*.sqlite' \
             --exclude='uploads/' \
             --exclude='logs/' \
@@ -109,6 +114,8 @@ jobs:
       # ── 7. Redémarrer l'API ───────────────────────────────────────────────
       - name: 🔄 Restart API service
         run: |
+          # Checkpoint WAL avant restart pour ne perdre aucune écriture
+          sudo -u cyberhealth sqlite3 /home/cyberhealth/app/backend/cyberhealth.db "PRAGMA wal_checkpoint(TRUNCATE);" || true
           sudo systemctl restart cyberhealth-api
           for i in 1 2 3 4 5 6; do
             sleep 2
