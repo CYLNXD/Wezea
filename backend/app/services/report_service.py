@@ -76,6 +76,24 @@ FINDING_ACTIONS: dict[str, dict] = {
     # ── Breach Detection (session 34) ─────────────────────────────────────────
     "Domaine trouvé dans":             {"phase": "urgent",    "action_fr": "Réinitialiser les mots de passe compromis et activer le 2FA sur tous les comptes",            "action_en": "Reset compromised passwords and enable 2FA on all accounts"},
     "Domain found in":                 {"phase": "urgent",    "action_fr": "Réinitialiser les mots de passe compromis et activer le 2FA sur tous les comptes",            "action_en": "Reset compromised passwords and enable 2FA on all accounts"},
+    # ── Secret Scanner (session 35) ───────────────────────────────────────────
+    "AWS Access Key":                  {"phase": "urgent",    "action_fr": "Révoquer la clé AWS IAM immédiatement et auditer les accès récents dans CloudTrail",         "action_en": "Revoke the AWS IAM key immediately and audit recent access in CloudTrail"},
+    "Stripe Live Secret":              {"phase": "urgent",    "action_fr": "Révoquer la clé Stripe sk_live dans Stripe Dashboard → Developers → API keys",               "action_en": "Revoke the sk_live Stripe key in Stripe Dashboard → Developers → API keys"},
+    "GitHub Personal Access":         {"phase": "urgent",    "action_fr": "Révoquer le token GitHub dans Settings → Developer settings → Personal access tokens",       "action_en": "Revoke the GitHub token in Settings → Developer settings → Personal access tokens"},
+    "PEM Private Key":                 {"phase": "urgent",    "action_fr": "Révoquer et régénérer le certificat TLS — supprimer la clé privée du code frontend",         "action_en": "Revoke and regenerate the TLS certificate — remove the private key from frontend code"},
+    "Stripe Test Secret":              {"phase": "important", "action_fr": "Déplacer la clé Stripe test dans les variables d'environnement serveur uniquement",           "action_en": "Move the Stripe test key to server-side environment variables only"},
+    "SendGrid API Key":                {"phase": "urgent",    "action_fr": "Révoquer la clé SendGrid et déplacer les appels email dans le backend",                       "action_en": "Revoke the SendGrid key and move email calls to the backend"},
+    "Slack Bot":                       {"phase": "urgent",    "action_fr": "Révoquer le token Slack dans votre app → OAuth & Permissions",                               "action_en": "Revoke the Slack token in your app → OAuth & Permissions"},
+    "Google API Key":                  {"phase": "important", "action_fr": "Restreindre la clé Google API par domaine HTTP dans Google Cloud Console → Credentials",     "action_en": "Restrict the Google API key by HTTP referrer in Google Cloud Console → Credentials"},
+    "Firebase Server Key":             {"phase": "urgent",    "action_fr": "Révoquer la clé serveur Firebase dans Firebase Console → Project Settings → Cloud Messaging","action_en": "Revoke the Firebase server key in Firebase Console → Project Settings → Cloud Messaging"},
+    "Brevo":                           {"phase": "urgent",    "action_fr": "Révoquer la clé API Brevo dans SMTP & API → API Keys",                                        "action_en": "Revoke the Brevo API key in SMTP & API → API Keys"},
+    # ── DAST actif (session 35) ───────────────────────────────────────────────
+    "XSS réfléchi":                    {"phase": "urgent",    "action_fr": "Encoder toutes les sorties HTML côté serveur et activer une Content-Security-Policy stricte", "action_en": "HTML-encode all server-side output and enable a strict Content-Security-Policy"},
+    "Reflected XSS":                   {"phase": "urgent",    "action_fr": "Encoder toutes les sorties HTML côté serveur et activer une Content-Security-Policy stricte", "action_en": "HTML-encode all server-side output and enable a strict Content-Security-Policy"},
+    "Injection SQL":                   {"phase": "urgent",    "action_fr": "Remplacer les requêtes SQL dynamiques par des requêtes paramétrées (prepared statements)",   "action_en": "Replace dynamic SQL queries with parameterised queries (prepared statements)"},
+    "SQL injection":                   {"phase": "urgent",    "action_fr": "Remplacer les requêtes SQL dynamiques par des requêtes paramétrées (prepared statements)",   "action_en": "Replace dynamic SQL queries with parameterised queries (prepared statements)"},
+    "Formulaire POST sans":            {"phase": "important", "action_fr": "Ajouter un token CSRF unique et aléatoire sur chaque formulaire POST, validé côté serveur",   "action_en": "Add a unique random CSRF token to every POST form, validated server-side"},
+    "POST form without CSRF":          {"phase": "important", "action_fr": "Ajouter un token CSRF unique et aléatoire sur chaque formulaire POST, validé côté serveur",   "action_en": "Add a unique random CSRF token to every POST form, validated server-side"},
 }
 
 DEFAULT_OPTIMIZE_ACTIONS_FR = [
@@ -289,7 +307,7 @@ def _build_context(
     known_cats = {"DNS & Mail", "SSL / HTTPS", "Exposition des Ports", "En-têtes HTTP",
                   "Sécurité Email", "Exposition Technologique", "Réputation du Domaine",
                   "Sous-domaines & Certificats", "Versions Vulnérables", "Fuites de données",
-                  "Infrastructure"}
+                  "Infrastructure", "Secrets exposés", "Exposed Secrets", "DAST"}
     other_findings = [f for f in findings if f.get("category") not in known_cats]
 
     # Compteurs

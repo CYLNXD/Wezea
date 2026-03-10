@@ -120,12 +120,15 @@ class ScanResult:
     port_details:   dict[int, dict]       = field(default_factory=dict)
     recommendations: list[str]            = field(default_factory=list)
     scan_duration_ms: int                 = 0
+    # Champs tous plans
+    secret_details:    dict[str, Any]     = field(default_factory=dict)
     # Champs premium (Starter / Pro / Dev)
     subdomain_details: dict[str, Any]     = field(default_factory=dict)
     vuln_details:      dict[str, Any]     = field(default_factory=dict)
     breach_details:    dict[str, Any]     = field(default_factory=dict)
     typosquat_details: dict[str, Any]    = field(default_factory=dict)
     ct_details:        dict[str, Any]    = field(default_factory=dict)
+    dast_details:      dict[str, Any]    = field(default_factory=dict)
     # Conformité réglementaire — tous plans
     compliance:        dict[str, Any]     = field(default_factory=dict)
 
@@ -141,11 +144,13 @@ class ScanResult:
             "port_details":       {str(k): v for k, v in self.port_details.items()},
             "recommendations":    self.recommendations,
             "scan_duration_ms":   self.scan_duration_ms,
+            "secret_details":     self.secret_details,
             "subdomain_details":  self.subdomain_details,
             "vuln_details":       self.vuln_details,
             "breach_details":     self.breach_details,
             "typosquat_details":  self.typosquat_details,
             "ct_details":         self.ct_details,
+            "dast_details":       self.dast_details,
             "compliance":         self.compliance,
         }
 
@@ -1257,6 +1262,100 @@ class ScoreEngine:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# SecretScannerAuditor — détecte les credentials exposés dans les bundles JS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SecretScannerAuditor(BaseAuditor):
+    """
+    Enveloppe SecretScanner dans le pipeline BaseAuditor.
+    Lecture seule — analyse les bundles JS publics du domaine.
+    Disponible tous plans (scan non-destructif).
+    """
+
+    async def audit(self) -> list[Finding]:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._run_sync)
+        return self._findings
+
+    def _run_sync(self) -> None:
+        from app.secret_scanner import SecretScanner
+        base_url = f"https://{self.domain}"
+        result = SecretScanner(base_url).run()
+        self._details = result.to_dict()
+
+        for sf in result.findings:
+            self._findings.append(Finding(
+                category         = self._t("Secrets exposés", "Exposed Secrets"),
+                severity         = sf.severity,
+                title            = sf.pattern_name,
+                technical_detail = sf.description + f"\nSource : {sf.source_url}\nValeur masquée : {sf.matched_value}",
+                plain_explanation= self._t(
+                    f"Un credential ou une clé secrète ({sf.pattern_name}) est visible dans "
+                    f"le code JavaScript public — n'importe qui peut le récupérer.",
+                    f"A credential or secret key ({sf.pattern_name}) is visible in the public "
+                    f"JavaScript bundle — anyone can retrieve it.",
+                ),
+                penalty          = sf.penalty,
+                recommendation   = sf.recommendation,
+            ))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DastAuditorWrapper — tests actifs sur formulaires (XSS, SQLi, CSRF)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_DAST_RECO = {
+    "xss":  {
+        "fr": "Encoder toutes les sorties HTML côté serveur (htmlspecialchars / escapeHtml). Activer une Content-Security-Policy stricte.",
+        "en": "HTML-encode all server-side output (htmlspecialchars / escapeHtml). Enable a strict Content-Security-Policy.",
+    },
+    "sqli": {
+        "fr": "Remplacer toutes les requêtes SQL dynamiques par des requêtes paramétrées (prepared statements) ou un ORM.",
+        "en": "Replace all dynamic SQL queries with parameterised queries (prepared statements) or an ORM.",
+    },
+    "csrf": {
+        "fr": "Ajouter un token CSRF unique et aléatoire sur tous les formulaires POST et le valider côté serveur.",
+        "en": "Add a unique random CSRF token to every POST form and validate it server-side.",
+    },
+}
+
+
+class DastAuditorWrapper(BaseAuditor):
+    """
+    Enveloppe DastAuditor dans le pipeline BaseAuditor.
+    Tests actifs (POST) sur les formulaires découverts — plans Starter+.
+    """
+
+    async def audit(self) -> list[Finding]:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._run_sync)
+        return self._findings
+
+    def _run_sync(self) -> None:
+        from app.dast_checks import DastAuditor
+        base_url = f"https://{self.domain}"
+        result = DastAuditor(base_url).run()
+        self._details = result.to_dict()
+
+        for df in result.findings:
+            if df.severity == "INFO":
+                continue
+            reco = _DAST_RECO.get(df.test_type, {})
+            self._findings.append(Finding(
+                category          = "DAST",
+                severity          = df.severity,
+                title             = df.title,
+                technical_detail  = df.detail + (f"\nPreuve : {df.evidence}" if df.evidence else ""),
+                plain_explanation = self._t(
+                    f"Test actif DAST : vulnérabilité {df.test_type.upper()} détectée sur {df.form_action or self.domain}.",
+                    f"Active DAST test: {df.test_type.upper()} vulnerability found on {df.form_action or self.domain}.",
+                ),
+                penalty           = df.penalty,
+                recommendation    = reco.get(self.lang, reco.get("fr", df.title)),
+            ))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Orchestrateur principal — AuditManager
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1267,7 +1366,7 @@ class AuditManager:
     """
 
     # Clés de checks supportées (pour checks_config du monitoring)
-    CHECK_KEYS = ("dns", "ssl", "ports", "headers", "email", "tech", "reputation")
+    CHECK_KEYS = ("dns", "ssl", "ports", "headers", "email", "tech", "reputation", "secrets")
 
     def __init__(
         self,
@@ -1299,6 +1398,7 @@ class AuditManager:
             ("tech",       TechExposureAuditor(self.domain, lang)),
             ("reputation", ReputationAuditor(self.domain, lang)),
             ("expiry",     DomainExpiryAuditor(self.domain, lang)),
+            ("secrets",    SecretScannerAuditor(self.domain, lang)),
         ]
 
         # Filtrer selon checks_config si fourni (True = activé par défaut)
@@ -1319,10 +1419,11 @@ class AuditManager:
             self._breach_auditor      = BreachAuditor(self.domain, lang)
             self._typosquat_auditor   = TyposquattingAuditor(self.domain, lang)
             self._ct_auditor          = CertTransparencyAuditor(self.domain, lang)
+            self._dast_auditor        = DastAuditorWrapper(self.domain, lang)
             self._premium_auditors    = [
                 self._subdomain_auditor, self._vuln_auditor,
                 self._breach_auditor, self._typosquat_auditor,
-                self._ct_auditor,
+                self._ct_auditor, self._dast_auditor,
             ]
         else:
             self._subdomain_auditor = None
@@ -1330,6 +1431,7 @@ class AuditManager:
             self._breach_auditor    = None
             self._typosquat_auditor = None
             self._ct_auditor        = None
+            self._dast_auditor      = None
 
     async def run(self) -> ScanResult:
         """Lance tous les scans en parallèle et agrège les résultats."""
@@ -1359,12 +1461,16 @@ class AuditManager:
             (datetime.now(timezone.utc) - start_ts).total_seconds() * 1000
         )
 
+        # Détails tous plans — Secret Scanner (index 8 dans all_base)
+        secret_details: dict = self._auditors[8].get_details() if len(self._auditors) > 8 else {}
+
         # Détails premium
         subdomain_details: dict = {}
         vuln_details: dict = {}
         breach_details: dict = {}
         typosquat_details: dict = {}
         ct_details: dict = {}
+        dast_details: dict = {}
         if self.plan in ("starter", "pro", "dev") and self._subdomain_auditor:
             subdomain_details = self._subdomain_auditor.get_details()
         if self.plan in ("starter", "pro", "dev") and self._vuln_auditor:
@@ -1375,6 +1481,8 @@ class AuditManager:
             typosquat_details = self._typosquat_auditor.get_details()
         if self.plan in ("starter", "pro", "dev") and self._ct_auditor:
             ct_details = self._ct_auditor.get_details()
+        if self.plan in ("starter", "pro", "dev") and self._dast_auditor:
+            dast_details = self._dast_auditor.get_details()
 
         # Conformité NIS2 + RGPD — calculée sur TOUS les findings (tous plans)
         from app.compliance_mapper import ComplianceMapper
@@ -1394,11 +1502,13 @@ class AuditManager:
             },
             recommendations    = recommendations,
             scan_duration_ms   = elapsed_ms,
+            secret_details     = secret_details,
             subdomain_details  = subdomain_details,
             vuln_details       = vuln_details,
             breach_details     = breach_details,
             typosquat_details  = typosquat_details,
             ct_details         = ct_details,
+            dast_details       = dast_details,
             compliance         = compliance,
         )
 
