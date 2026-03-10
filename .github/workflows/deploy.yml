@@ -92,6 +92,13 @@ jobs:
           sudo chown -R cyberhealth:cyberhealth /home/cyberhealth/app/backend/
           echo "✓ Backend déployé"
 
+      # ── 6b. Synchroniser le service systemd ─────────────────────────────────
+      - name: ⚙️ Sync systemd service file
+        run: |
+          sudo cp infra/cyberhealth-api.service /etc/systemd/system/cyberhealth-api.service
+          sudo systemctl daemon-reload
+          echo "✓ Service systemd synchronisé"
+
       # ── 7. Mise à jour des dépendances Python ───────────────────────────────
       - name: 📚 Update Python dependencies
         run: |
