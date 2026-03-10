@@ -66,18 +66,25 @@
     '.wz-nav-inner{max-width:1152px;margin:0 auto;padding:0 1rem;height:52px;' +
     'display:flex;align-items:center;gap:.75rem;}' +
 
-    /* — Logo — */
-    '.wz-nav-logo{font-size:20px;font-weight:900;' +
-    'color:#fff;letter-spacing:-.03em;' +
-    'font-family:-apple-system,"SF Pro Display","Inter",system-ui,sans-serif;' +
-    'text-decoration:none;flex-shrink:0;line-height:1;' +
-    'transition:color .15s;}' +
-    '.wz-nav-logo:hover{color:#ecfeff;text-decoration:none;}' +
-    '.wz-nav-logo span{color:#22d3ee;}' +
-    '.wz-nav-logo small{display:block;font-size:9px;font-weight:500;color:#64748b;' +
-    'letter-spacing:.12em;text-transform:uppercase;margin-top:2px;' +
-    'transition:color .15s;}' +
-    '.wz-nav-logo:hover small{color:#475569;}' +
+    /* — Logo (Shield-box skeuomorphique — identique à WezeaLogo.tsx) — */
+    '.wz-nav-logo{display:flex;align-items:center;gap:10px;' +
+    'text-decoration:none;flex-shrink:0;transition:opacity .15s;}' +
+    '.wz-nav-logo:hover{opacity:.88;text-decoration:none;}' +
+    '.wz-logo-box{width:28px;height:28px;border-radius:11px;flex-shrink:0;' +
+    'display:flex;align-items:center;justify-content:center;' +
+    'position:relative;overflow:hidden;' +
+    'background:linear-gradient(150deg,rgba(34,211,238,.20) 0%,rgba(34,211,238,.06) 100%);' +
+    'border:1px solid rgba(34,211,238,.32);' +
+    'box-shadow:0 2px 8px rgba(34,211,238,.14),inset 0 1px 0 rgba(34,211,238,.22),inset 0 -1px 0 rgba(0,0,0,.2);}' +
+    '.wz-logo-shine{position:absolute;inset:0;pointer-events:none;' +
+    'background:linear-gradient(180deg,rgba(255,255,255,.07) 0%,transparent 50%);}' +
+    '.wz-logo-text{display:flex;flex-direction:column;line-height:1;}' +
+    '.wz-logo-name{font-size:16px;font-weight:900;color:#fff;letter-spacing:-.03em;' +
+    'font-family:-apple-system,"SF Pro Display","Inter",system-ui,sans-serif;line-height:1;}' +
+    '.wz-logo-sub{font-size:9px;font-weight:500;color:#64748b;letter-spacing:.12em;' +
+    'text-transform:uppercase;margin-top:2px;' +
+    'font-family:-apple-system,"SF Pro Display","Inter",system-ui,sans-serif;}' +
+    '@media(max-width:640px){.wz-logo-sub{display:none;}}' +
 
     /* — Nav links (centre) — */
     '.wz-nav-links{display:flex;align-items:center;gap:.25rem;margin-left:1.25rem;flex:1;}' +
@@ -174,8 +181,16 @@
   nav.innerHTML =
     '<div class="wz-nav-inner">' +
       '<a href="https://wezea.net" class="wz-nav-logo" title="Wezea — Accueil / Home">' +
-        'We<span>zea</span>' +
-        '<small>Security Scanner</small>' +
+        '<div class="wz-logo-box">' +
+          '<div class="wz-logo-shine"></div>' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:relative;z-index:1;">' +
+            '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>' +
+          '</svg>' +
+        '</div>' +
+        '<div class="wz-logo-text">' +
+          '<span class="wz-logo-name">Wezea</span>' +
+          '<span class="wz-logo-sub">Security Scanner</span>' +
+        '</div>' +
       '</a>' +
       '<div class="wz-nav-links">' + links + '</div>' +
       '<div class="wz-nav-right">' +
