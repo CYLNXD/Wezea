@@ -1,5 +1,6 @@
 // ─── App.tsx — Racine React ────────────────────────────────────────────────────
 import { useState, useEffect } from 'react';
+import { useLanguage } from './i18n/LanguageContext';
 import Dashboard from './pages/Dashboard';
 import LoginPage from './pages/LoginPage';
 import HistoryPage from './pages/HistoryPage';
@@ -45,6 +46,31 @@ const COMPLIANCE_META = {
   twDesc:     '12 critères réglementaires NIS2 et RGPD analysés en 60 secondes. Gratuit, sans installation, sans accès serveur.',
 } as const;
 
+const COMPLIANCE_META_EN = {
+  title:      'NIS2 & GDPR Compliance — Free diagnosis in 60s | Wezea',
+  desc:       'Check your infrastructure compliance with NIS2 (art. 21) and GDPR (art. 25 & 32) for free. 12 technical criteria analysed in 60 seconds. No installation required.',
+  keywords:   'NIS2 compliance, GDPR article 32, NIS2 directive SME, cybersecurity compliance audit, NIS2 checklist, GDPR security, free NIS2 diagnosis, NIS2 verification',
+  canonical:  'https://wezea.net/conformite-nis2',
+  ogTitle:    'NIS2 & GDPR Compliance — Free diagnosis in 60s | Wezea',
+  ogDesc:     '12 NIS2 (art. 21) and GDPR (art. 25 & 32) criteria checked in 60 seconds. Free regulatory compliance diagnosis — no installation, no server access.',
+  ogUrl:      'https://wezea.net/conformite-nis2',
+  twTitle:    'NIS2 & GDPR Compliance — Free diagnosis | Wezea',
+  twDesc:     '12 NIS2 and GDPR criteria analysed in 60 seconds. Free, no installation, no server access.',
+} as const;
+
+// Composant interne pour les mises à jour de meta (doit être dans le LanguageProvider)
+function MetaUpdater({ page }: { page: Page }) {
+  const { lang } = useLanguage();
+  useEffect(() => {
+    if (page === 'compliance') {
+      applyMeta(lang === 'en' ? COMPLIANCE_META_EN : COMPLIANCE_META);
+    } else {
+      applyMeta(DEFAULT_META);
+    }
+  }, [page, lang]);
+  return null;
+}
+
 interface MetaConfig {
   title: string; desc: string; keywords: string; canonical: string;
   ogTitle: string; ogDesc: string; ogUrl: string;
@@ -87,10 +113,7 @@ export default function App() {
     restoreConsent(); // réactive PostHog si l'utilisateur avait déjà accepté
   }, []);
 
-  // Met à jour les meta OG/Twitter/canonical selon la page active
-  useEffect(() => {
-    applyMeta(page === 'compliance' ? COMPLIANCE_META : DEFAULT_META);
-  }, [page]);
+  // Les meta OG/Twitter/canonical sont gérées par <MetaUpdater> (à l'intérieur du LanguageProvider)
 
   // Détecte les routes /r/{uuid} pour les rapports publics
   useEffect(() => {
@@ -133,6 +156,7 @@ export default function App() {
 
   return (
     <LanguageProvider>
+      <MetaUpdater page={page} />
       <AuthProvider>
         {/* Bandeau de consentement RGPD — s'affiche uniquement si aucun choix n'a été fait */}
         <CookieBanner
