@@ -2117,12 +2117,12 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                     ))}
                                   </div>
 
-                                  {ct.issuers.length > 0 && (
+                                  {(ct.issuers?.length ?? 0) > 0 && (
                                     <div className="flex flex-wrap gap-1.5 px-3 py-2.5 bg-slate-900/40 rounded-lg border border-slate-800">
                                       <span className="text-xs text-slate-500 w-full mb-0.5">
                                         {lang === 'fr' ? 'Autorités de certification détectées :' : 'Detected certificate authorities:'}
                                       </span>
-                                      {ct.issuers.slice(0, 8).map((issuer, i) => (
+                                      {(ct.issuers ?? []).slice(0, 8).map((issuer, i) => (
                                         <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 font-mono">
                                           {issuer}
                                         </span>
@@ -2130,12 +2130,12 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                     </div>
                                   )}
 
-                                  {ct.recent_certs.length > 0 && (
+                                  {(ct.recent_certs?.length ?? 0) > 0 && (
                                     <div className="flex flex-col gap-1">
                                       <p className="text-xs text-slate-500 px-1">
-                                        {lang === 'fr' ? `Certificats émis dans les 7 derniers jours (${ct.recent_certs.length}) :` : `Certificates issued in the last 7 days (${ct.recent_certs.length}):`}
+                                        {lang === 'fr' ? `Certificats émis dans les 7 derniers jours (${ct.recent_certs?.length ?? 0}) :` : `Certificates issued in the last 7 days (${ct.recent_certs?.length ?? 0}):`}
                                       </p>
-                                      {ct.recent_certs.slice(0, 5).map((cert, i) => (
+                                      {(ct.recent_certs ?? []).slice(0, 5).map((cert, i) => (
                                         <div key={i} className="flex items-center gap-3 px-3 py-2 bg-amber-500/5 rounded-lg border border-amber-500/15">
                                           <div className="flex-1 min-w-0">
                                             <span className="font-mono text-xs text-amber-300">{cert.common_name}</span>
