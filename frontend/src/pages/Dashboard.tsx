@@ -1912,7 +1912,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                               <h3 className="text-white font-bold text-sm">
                                 {lang === 'fr' ? 'Sous-domaines & Versions vulnérables' : 'Subdomains & Vulnerable versions'}
                               </h3>
-                              <span className="text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded-full">Starter & Pro</span>
+                              <span className="text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded-full">Starter, Pro & Dev</span>
                             </div>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                               {groups.subdomains.length > 0 && <FindingGroup title="🌐 Sous-domaines & Certificats" findings={groups.subdomains} startIdx={0} />}
@@ -1941,7 +1941,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             <div className="flex items-center gap-2 text-slate-400 text-sm font-semibold">
                               <Lock size={14} className="text-cyan-500" />
                               <span className="text-slate-300">
-                                {lang === 'fr' ? 'Analyses avancées — Starter & Pro' : 'Advanced analysis — Starter & Pro'}
+                                {lang === 'fr' ? 'Analyses avancées — Starter, Pro & Dev' : 'Advanced analysis — Starter, Pro & Dev'}
                               </span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1982,7 +1982,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 <h3 className="text-white font-bold text-sm">
                                   {lang === 'fr' ? 'Domaines sosies (typosquatting)' : 'Lookalike domains (typosquatting)'}
                                 </h3>
-                                <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded-full">Starter & Pro</span>
+                                <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded-full">Starter, Pro & Dev</span>
                               </div>
 
                               {!ts ? (
@@ -2061,7 +2061,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             <div className="flex items-center gap-2 text-slate-400 text-sm font-semibold">
                               <Globe size={14} className="text-amber-500" />
                               <span className="text-slate-300">
-                                {lang === 'fr' ? 'Domaines sosies — Starter & Pro' : 'Lookalike domains — Starter & Pro'}
+                                {lang === 'fr' ? 'Domaines sosies — Starter, Pro & Dev' : 'Lookalike domains — Starter, Pro & Dev'}
                               </span>
                             </div>
                             <p className="text-xs text-slate-500">
@@ -2089,7 +2089,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 <h3 className="text-white font-bold text-sm">
                                   {lang === 'fr' ? 'Certificate Transparency (CT logs)' : 'Certificate Transparency (CT logs)'}
                                 </h3>
-                                <span className="text-xs bg-violet-500/20 text-violet-300 border border-violet-500/30 px-1.5 py-0.5 rounded-full">Starter & Pro</span>
+                                <span className="text-xs bg-violet-500/20 text-violet-300 border border-violet-500/30 px-1.5 py-0.5 rounded-full">Starter, Pro & Dev</span>
                               </div>
 
                               {!ct || ct.status === 'no_data' ? (
@@ -2165,7 +2165,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             <div className="flex items-center gap-2 text-slate-400 text-sm font-semibold">
                               <Award size={14} className="text-violet-500" />
                               <span className="text-slate-300">
-                                {lang === 'fr' ? 'CT logs — Starter & Pro' : 'CT logs — Starter & Pro'}
+                                {lang === 'fr' ? 'CT logs — Starter, Pro & Dev' : 'CT logs — Starter, Pro & Dev'}
                               </span>
                             </div>
                             <p className="text-xs text-slate-500">
