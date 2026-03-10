@@ -35,7 +35,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 import ipaddress
 from pydantic import BaseModel, field_validator
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
@@ -190,9 +189,24 @@ app = FastAPI(
     openapi_url = "/openapi.json" if _DEBUG else None,
 )
 
-# Attacher le gestionnaire de rate limit
+# Attacher le gestionnaire de rate limit (avec headers CORS pour éviter
+# que le navigateur bloque les réponses 429 cross-origin)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+def _rate_limit_handler_with_cors(request, exc):
+    from starlette.responses import JSONResponse
+    origin = request.headers.get("origin", "")
+    headers = {}
+    if origin in CORS_ORIGINS:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(
+        status_code=429,
+        content={"error": "Rate limit exceeded", "detail": str(exc.detail)},
+        headers=headers,
+    )
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler_with_cors)
 
 # CORS — restreint aux origines autorisées
 app.add_middleware(
