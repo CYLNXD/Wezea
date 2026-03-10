@@ -18,6 +18,17 @@ engine = create_engine(
     connect_args={"check_same_thread": False}  # needed for SQLite
 )
 
+# WAL mode améliore la concurrence en lecture/écriture (uvicorn multi-workers)
+if DB_PATH.startswith("sqlite"):
+    from sqlalchemy import event as _sa_event
+
+    @_sa_event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

@@ -922,14 +922,13 @@ def _hacker_scenarios(findings: list[dict], lang: str = "fr") -> list[dict]:
                 if key in search_str:
                     # Déduplique par scénario (ex : SPF + DMARC = 1 seule carte)
                     scenario_id = scenario["keys"][0]
-                    if scenario_id in seen_keys:
-                        matched = None
-                    else:
+                    if scenario_id not in seen_keys:
                         seen_keys.add(scenario_id)
                         matched = scenario
-                    break
-            if matched is not None or (matched is None and any(k in search_str for k in scenario["keys"])):
-                break
+                    break  # clé trouvée → stop itération des clés
+            else:
+                continue  # aucune clé matchée → essayer le scénario suivant
+            break  # une clé a matché (dedup ou nouveau) → stop itération des scénarios
 
         if matched is None:
             continue

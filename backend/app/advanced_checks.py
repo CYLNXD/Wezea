@@ -130,7 +130,7 @@ class VulnVersionAuditor(BaseAuditor):
     """
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             findings = await asyncio.wait_for(
                 loop.run_in_executor(None, self._check_versions_sync),
@@ -276,7 +276,7 @@ class SubdomainAuditor(BaseAuditor):
         return self._details
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             findings = await asyncio.wait_for(
                 loop.run_in_executor(None, self._audit_sync),
@@ -297,7 +297,7 @@ class SubdomainAuditor(BaseAuditor):
                 headers={"User-Agent": "CyberHealth Security Audit"},
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+                data = json.loads(resp.read(2_097_152).decode("utf-8"))  # 2 MB max (crt.sh)
         except Exception:
             return []
 

@@ -194,7 +194,7 @@ class DNSAuditor(BaseAuditor):
     """Analyse les enregistrements SPF et DMARC du domaine."""
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._check_spf)
         await loop.run_in_executor(None, self._check_dmarc)
         await loop.run_in_executor(None, self._check_dnssec)
@@ -509,7 +509,7 @@ class SSLAuditor(BaseAuditor):
     EXPIRY_WARNING_DAYS = int(os.getenv("SSL_EXPIRY_WARNING_DAYS", "30"))
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._check_ssl)
         # Check ciphers faibles (connexion séparée, silencieuse si OpenSSL ne supporte pas)
         try:
@@ -946,7 +946,7 @@ class PortAuditor(BaseAuditor):
         # DNS (10+ lookups simultanés du même domaine), ce qui consomme une
         # partie du budget timeout de chaque connexion TCP et rend les résultats
         # non déterministes (un port peut sembler fermé alors qu'il est ouvert).
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             self._resolved_ip: str = await asyncio.wait_for(
                 loop.run_in_executor(None, socket.gethostbyname, self.domain),
@@ -1031,7 +1031,7 @@ class PortAuditor(BaseAuditor):
     async def _check_port(self, port: int, meta: tuple) -> dict:
         """Tente une connexion TCP non bloquante."""
         service, _penalty_key, severity = meta
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             future = loop.run_in_executor(None, self._tcp_connect, port)
             is_open = await asyncio.wait_for(future, timeout=SCAN_TIMEOUT_SEC)
@@ -1273,7 +1273,7 @@ class SecretScannerAuditor(BaseAuditor):
     """
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._run_sync)
         return self._findings
 
@@ -1327,7 +1327,7 @@ class DastAuditorWrapper(BaseAuditor):
     """
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._run_sync)
         return self._findings
 
@@ -1388,17 +1388,22 @@ class AuditManager:
             DomainExpiryAuditor,
         )
 
-        # Map clé → auditeur
+        # Map clé → auditeur (références nommées pour dns/ssl/ports/secrets)
+        self._dns_auditor     = DNSAuditor(self.domain, lang)
+        self._ssl_auditor     = SSLAuditor(self.domain, lang)
+        self._port_auditor    = PortAuditor(self.domain, lang)
+        self._secret_auditor  = SecretScannerAuditor(self.domain, lang)
+
         all_base: list[tuple[str, BaseAuditor]] = [
-            ("dns",        DNSAuditor(self.domain, lang)),
-            ("ssl",        SSLAuditor(self.domain, lang)),
-            ("ports",      PortAuditor(self.domain, lang)),
+            ("dns",        self._dns_auditor),
+            ("ssl",        self._ssl_auditor),
+            ("ports",      self._port_auditor),
             ("headers",    HttpHeaderAuditor(self.domain, lang)),
             ("email",      EmailSecurityAuditor(self.domain, lang)),
             ("tech",       TechExposureAuditor(self.domain, lang)),
             ("reputation", ReputationAuditor(self.domain, lang)),
             ("expiry",     DomainExpiryAuditor(self.domain, lang)),
-            ("secrets",    SecretScannerAuditor(self.domain, lang)),
+            ("secrets",    self._secret_auditor),
         ]
 
         # Filtrer selon checks_config si fourni (True = activé par défaut)
@@ -1461,8 +1466,8 @@ class AuditManager:
             (datetime.now(timezone.utc) - start_ts).total_seconds() * 1000
         )
 
-        # Détails tous plans — Secret Scanner (index 8 dans all_base)
-        secret_details: dict = self._auditors[8].get_details() if len(self._auditors) > 8 else {}
+        # Détails tous plans — Secret Scanner (référence nommée)
+        secret_details: dict = self._secret_auditor.get_details()
 
         # Détails premium
         subdomain_details: dict = {}
@@ -1494,11 +1499,11 @@ class AuditManager:
             security_score     = score,
             risk_level         = risk_level,
             findings           = sorted_findings,
-            dns_details        = self._auditors[0].get_details(),  # DNSAuditor
-            ssl_details        = self._auditors[1].get_details(),  # SSLAuditor
+            dns_details        = self._dns_auditor.get_details(),
+            ssl_details        = self._ssl_auditor.get_details(),
             port_details       = {
                 int(k): v
-                for k, v in self._auditors[2].get_details().items()
+                for k, v in self._port_auditor.get_details().items()
             },
             recommendations    = recommendations,
             scan_duration_ms   = elapsed_ms,

@@ -195,7 +195,7 @@ async def export_scan(
     # White-label si utilisateur Pro
     white_label = None
     if (
-        current_user.plan == "pro"
+        current_user.plan in ("pro", "dev")
         and getattr(current_user, "wb_enabled", False)
         and getattr(current_user, "wb_company_name", None)
     ):
@@ -213,7 +213,7 @@ async def export_scan(
     filename_pdf = f"{brand}-report-{scan.domain}-{scan.created_at.strftime('%Y%m%d')}.pdf"
 
     try:
-        loop      = asyncio.get_event_loop()
+        loop      = asyncio.get_running_loop()
         pdf_bytes = await loop.run_in_executor(
             None,
             lambda: report_service.generate_pdf(audit_data, lang, white_label),

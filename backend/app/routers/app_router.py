@@ -339,7 +339,7 @@ async def verify_ownership(
     if not app:
         raise HTTPException(status_code=404, detail="Application introuvable.")
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     if app.verification_method == "dns":
         ok = await loop.run_in_executor(
             None, lambda: _check_dns_verification(app.domain, app.verification_token)
@@ -417,7 +417,7 @@ async def scan_app(
         findings = await auditor.audit()
         details  = auditor.get_details()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # ── 2. DAST actif sur formulaires (app.url = URL complète vérifiée) ───
         dast_result = await loop.run_in_executor(

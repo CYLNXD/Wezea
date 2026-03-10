@@ -305,6 +305,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
 
   // Rafraîchir après chaque scan (succès ou erreur) + événements analytics
   useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = [];
     if (scanner.status === 'success' || scanner.status === 'error') {
       fetchScanLimits();
     }
@@ -315,9 +316,9 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
       // Timeline : console exit (200ms) + results enter (400ms) + marge (100ms) = 700ms
       // behavior:'instant' — évite qu'une animation de scroll rate sa cible si la page
       // est déjà au bon endroit ou si le navigateur mobile interfère avec smooth scroll.
-      setTimeout(() => {
+      timers.push(setTimeout(() => {
         resultsRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
-      }, 700);
+      }, 700));
       captureScanCompleted({
         domain:         scanner.result.domain,
         score:          scanner.result.security_score,
@@ -343,22 +344,17 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     if (scanner.status === 'scanning') {
       setPreviousScore(null);   // reset à chaque nouveau scan
       setDomainHistory([]);
-      // Scroll vers ScanConsole quel que soit l'origine (premier scan, rescan,
-      // scan depuis l'onboarding, scan depuis CompliancePage, etc.)
-      // Délai 150ms : laisse AnimatePresence démarrer l'exit des résultats précédents
-      // + laisse la pré-position instant de handleSubmit s'appliquer d'abord.
-      setTimeout(() => {
+      timers.push(setTimeout(() => {
         resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 150);
+      }, 150));
     }
     if (scanner.status === 'error') {
-      // Scroll vers la zone d'erreur — sans ça, la page peut rester sur le hero
-      // (le ScanConsole qui disparaît réduit la page, causant un saut vers le haut)
-      setTimeout(() => {
+      timers.push(setTimeout(() => {
         resultsRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
-      }, 400);
+      }, 400));
       captureScanFailed(scanner.result?.domain ?? domain, scanner.error ?? undefined);
     }
+    return () => timers.forEach(clearTimeout);
   }, [scanner.status, fetchScanLimits]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChangePassword = async (e: FormEvent) => {

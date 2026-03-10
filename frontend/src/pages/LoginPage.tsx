@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
-  const { login, register, googleLogin, loginWithToken } = useAuth();
+  const { register, googleLogin, loginWithToken } = useAuth();
   const { lang } = useLanguage();
 
   const [mode,     setMode]     = useState<'login' | 'register'>(initialMode ?? 'login');
@@ -140,8 +140,8 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
           setLoading(false);
           return;
         }
-        // Login normal — passer par le contexte
-        await login(email, password);
+        // Login normal — réutiliser la réponse (évite un double appel /auth/login)
+        loginWithToken(data.access_token, data.user);
       } else {
         await register(email, password);
       }

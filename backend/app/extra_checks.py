@@ -149,7 +149,7 @@ class HttpHeaderAuditor(BaseAuditor):
         ]
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # ── Check HTTP → HTTPS redirect ──────────────────────────────────────
         try:
@@ -326,7 +326,7 @@ class EmailSecurityAuditor(BaseAuditor):
     ]
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         findings: list[Finding] = []
 
         # DKIM
@@ -482,7 +482,7 @@ class TechExposureAuditor(BaseAuditor):
     """Détecte l'exposition de la stack technique (CMS, frameworks)."""
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             findings = await asyncio.wait_for(
                 loop.run_in_executor(None, self._detect_tech_sync),
@@ -662,7 +662,7 @@ class ReputationAuditor(BaseAuditor):
     ]
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         findings: list[Finding] = []
 
         try:
@@ -765,7 +765,7 @@ class DomainExpiryAuditor(BaseAuditor):
     MEDIUM_DAYS   = 60
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             await asyncio.wait_for(
                 loop.run_in_executor(None, self._check_expiry),
@@ -801,7 +801,7 @@ class DomainExpiryAuditor(BaseAuditor):
                 },
             )
             with _urllib_request.urlopen(req, timeout=SCAN_TIMEOUT_SEC + 2) as resp:
-                data = _json.loads(resp.read())
+                data = _json.loads(resp.read(1_048_576))  # 1 MB max
 
             # Chercher la date d'expiration dans les events RDAP
             expiry_str: str | None = None

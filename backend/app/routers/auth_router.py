@@ -32,6 +32,21 @@ from app.services.brevo_service import (
 )
 import asyncio
 
+
+def _get_real_ip(request: "Request") -> str:
+    """Extrait la vraie IP du client derrière nginx (même logique que main.py)."""
+    # Ne lire les headers proxy que si la requête vient du reverse-proxy local
+    client_host = request.client.host if request.client else "127.0.0.1"
+    if client_host in ("127.0.0.1", "::1"):
+        real_ip = request.headers.get("X-Real-IP", "").strip()
+        if real_ip:
+            return real_ip
+        forwarded_for = request.headers.get("X-Forwarded-For", "").strip()
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+    return client_host
+
+
 # ─── Login lockout (DB-backed — partagé entre tous les workers uvicorn) ───────
 # Avantage vs dict in-memory : fonctionne avec plusieurs workers simultanés.
 _LOCKOUT_WINDOW_MIN = 15   # fenêtre glissante en minutes
@@ -241,7 +256,7 @@ def register(
 @router.post("/login")
 @limiter.limit("30/minute")
 def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
-    ip = request.client.host if request.client else "unknown"
+    ip = _get_real_ip(request)
     _check_lockout(ip, db)
 
     user = db.query(User).filter(User.email == req.email).first()
@@ -919,7 +934,9 @@ def verify_2fa(
 
 
 @router.post("/2fa/confirm-login")
+@limiter.limit("10/minute")
 def confirm_login_2fa(
+    request: Request,
     body: TotpVerifyRequest,
     db: Session = Depends(get_db),
 ):

@@ -380,15 +380,20 @@ def _get_real_ip(request: Request) -> str:
     bucket IP (127.0.0.1 = IP de nginx vu par uvicorn), ce qui provoquerait
     un 429 global dès 5 scans sur l'ensemble du serveur.
     """
-    real_ip = request.headers.get("X-Real-IP", "").strip()
-    if real_ip:
-        return real_ip
+    client_host = request.client.host if request.client else "127.0.0.1"
 
-    forwarded_for = request.headers.get("X-Forwarded-For", "").strip()
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
+    # Ne faire confiance aux en-têtes proxy que si la connexion vient de localhost
+    # (= nginx). Sinon, un client distant pourrait injecter X-Real-IP arbitraire.
+    if client_host in ("127.0.0.1", "::1"):
+        real_ip = request.headers.get("X-Real-IP", "").strip()
+        if real_ip:
+            return real_ip
 
-    return request.client.host if request.client else "127.0.0.1"
+        forwarded_for = request.headers.get("X-Forwarded-For", "").strip()
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+
+    return client_host
 
 
 def _get_day_key() -> str:
@@ -653,7 +658,8 @@ async def run_scan(
                 current_user = db.query(User).filter(User.id == int(payload["sub"])).first()
             elif token.startswith("wsk_"):
                 # Clé API → plan Dev uniquement
-                candidate = db.query(User).filter(User.api_key == token).first()
+                from app.auth import hash_api_key
+                candidate = db.query(User).filter(User.api_key_hash == hash_api_key(token)).first()
                 if candidate and candidate.is_active and candidate.plan in ("dev",):
                     current_user = candidate
 
@@ -999,17 +1005,18 @@ async def generate_pdf_report(
     lang       = body.lang if body.lang in ("fr", "en") else "fr"
 
     # ── Industry avg — injecté dans le contexte PDF pour le benchmark ─────────
+    _db = SessionLocal()
     try:
-        _db = SessionLocal()
         total  = _db.query(sa_func.count(ScanHistory.id)).scalar() or 0
         avg_v  = _db.query(sa_func.avg(ScanHistory.security_score)).scalar()
         if avg_v is not None and total >= 50:
             audit_data["industry_avg"] = round(float(avg_v))
         else:
             audit_data["industry_avg"] = 70   # baseline
-        _db.close()
     except Exception:
         audit_data.setdefault("industry_avg", 70)
+    finally:
+        _db.close()
 
     # ── White-label : récupérer le branding Pro de l'utilisateur ─────────────
     white_label = None
@@ -1058,7 +1065,7 @@ async def generate_pdf_report(
 
 async def _run_in_executor(fn, *args):
     """Exécute une fonction synchrone bloquante dans un thread séparé."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, fn, *args)
 
 

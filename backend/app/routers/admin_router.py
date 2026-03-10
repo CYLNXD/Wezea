@@ -57,23 +57,31 @@ def list_users(
     _: User = Depends(require_admin),
 ):
     """Liste tous les utilisateurs avec leur nombre de scans."""
-    users = db.query(User).order_by(User.created_at.desc()).all()
-    result = []
-    for u in users:
-        scan_count = db.query(func.count(ScanHistory.id)).filter(
-            ScanHistory.user_id == u.id
-        ).scalar() or 0
-        result.append(UserAdminView(
+    from sqlalchemy.orm import aliased
+    scan_count_sq = (
+        db.query(ScanHistory.user_id, func.count(ScanHistory.id).label("cnt"))
+        .group_by(ScanHistory.user_id)
+        .subquery()
+    )
+    rows = (
+        db.query(User, scan_count_sq.c.cnt)
+        .outerjoin(scan_count_sq, User.id == scan_count_sq.c.user_id)
+        .order_by(User.created_at.desc())
+        .all()
+    )
+    return [
+        UserAdminView(
             id=u.id,
             email=u.email,
             plan=u.plan,
             is_active=u.is_active,
             is_admin=bool(u.is_admin),
-            scan_count=scan_count,
+            scan_count=cnt or 0,
             created_at=u.created_at.isoformat(),
             mfa_enabled=bool(u.mfa_enabled),
-        ))
-    return result
+        )
+        for u, cnt in rows
+    ]
 
 
 @router.patch("/users/{user_id}", response_model=UserAdminView)
@@ -161,7 +169,7 @@ def admin_stats(
     """Statistiques globales de la plateforme (version compacte)."""
     total_users  = db.query(func.count(User.id)).scalar() or 0
     active_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 0
-    pro_users    = db.query(func.count(User.id)).filter(User.plan.in_(["starter", "pro"])).scalar() or 0
+    pro_users    = db.query(func.count(User.id)).filter(User.plan.in_(["starter", "pro", "dev"])).scalar() or 0
     total_scans  = db.query(func.count(ScanHistory.id)).scalar() or 0
     return {
         "total_users":  total_users,
@@ -230,7 +238,7 @@ def admin_metrics(
 
     # ── Conversion rate (paid / total) ────────────────────────────────────────
     total_users = db.query(func.count(User.id)).scalar() or 1
-    paid_users  = sum(plan_breakdown.get(p, 0) for p in ("starter", "pro"))
+    paid_users  = sum(plan_breakdown.get(p, 0) for p in ("starter", "pro", "dev"))
     conversion_rate = round(paid_users / total_users * 100, 1)
 
     # ── Signups per day (last 30d) ────────────────────────────────────────────

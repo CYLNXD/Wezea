@@ -37,7 +37,7 @@ class BreachAuditor(BaseAuditor):
     """
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._check_breaches)
         return self._findings
 
@@ -71,7 +71,7 @@ class BreachAuditor(BaseAuditor):
                 },
             )
             with urllib.request.urlopen(req, timeout=SCAN_TIMEOUT_SEC, context=ctx) as resp:
-                data: dict = json.loads(resp.read())
+                data: dict = json.loads(resp.read(1_048_576))  # 1 MB max
 
         except urllib.error.HTTPError as e:
             if e.code == 404:

@@ -40,7 +40,6 @@ class RequestRecord:
 # Buffer global thread-safe (accès concurrent depuis plusieurs coroutines)
 _lock:   threading.Lock                            = threading.Lock()
 _buffer: deque[RequestRecord]                      = deque(maxlen=BUFFER_SIZE)
-_counts: dict[str, int]                            = defaultdict(int)   # (method:path) → total hits
 
 
 # ─── API publique ─────────────────────────────────────────────────────────────
@@ -64,7 +63,6 @@ def record_request(
     )
     with _lock:
         _buffer.append(rec)
-        _counts[f"{method.upper()}:{normalized}"] += 1
 
 
 def get_performance_stats(top_n: int = 20) -> dict:
@@ -140,7 +138,6 @@ def reset_metrics() -> None:
     """Vide le buffer (utile pour les tests)."""
     with _lock:
         _buffer.clear()
-        _counts.clear()
 
 
 # ─── Helpers privés ───────────────────────────────────────────────────────────

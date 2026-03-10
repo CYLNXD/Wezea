@@ -130,7 +130,7 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
     if not user or not user.is_active:
         return
 
-    plan       = user.plan if user.plan in ("starter", "pro") else "starter"
+    plan       = user.plan if user.plan in ("starter", "pro", "dev") else "starter"
     checks_cfg = monitored.get_checks_config()
 
     logger.info(f"Scan monitoring : {monitored.domain} (user {user.email}, plan {plan})")
@@ -342,7 +342,7 @@ async def _send_scheduled_pdf_report(user, monitored, result) -> None:
 
     try:
         audit_data = result.to_dict()
-        loop       = asyncio.get_event_loop()
+        loop       = asyncio.get_running_loop()
         pdf_bytes  = await loop.run_in_executor(
             None,
             lambda: report_service.generate_pdf(audit_data, "fr"),

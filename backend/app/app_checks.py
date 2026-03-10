@@ -111,48 +111,70 @@ class AppAuditor(BaseAuditor):
 
     # ── Fichiers sensibles ────────────────────────────────────────────────────
 
+    # Patterns de validation du body pour les fichiers sensibles critiques.
+    # Si le body ne contient pas au moins un de ces patterns, c'est probablement
+    # une page 200 générique (SPA, custom 404, etc.) → faux positif.
+    _BODY_VALIDATORS: dict[str, list[str]] = {
+        "/.env":            ["=", "DB_", "APP_", "SECRET", "KEY", "PASSWORD"],
+        "/.env.local":      ["=", "DB_", "APP_", "SECRET", "KEY", "PASSWORD"],
+        "/.env.production": ["=", "DB_", "APP_", "SECRET", "KEY", "PASSWORD"],
+        "/.git/HEAD":       ["ref: refs/"],
+        "/.git/config":     ["[core]", "[remote"],
+    }
+
     async def _check_sensitive_files(self) -> None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         seen_titles: set[str] = set()
         for path, title, severity, penalty in _SENSITIVE_FILES:
             if title in seen_titles:
                 continue
             try:
-                code = await loop.run_in_executor(None, lambda p=path: self._head_or_get(p))
-                if code in (200, 301, 302):
-                    seen_titles.add(title)
-                    self._findings.append(Finding(
-                        category="Fichiers sensibles",
-                        severity=severity,
-                        title=title,
-                        technical_detail=f"HTTP {code} — {self.domain}{path}",
-                        plain_explanation=(
-                            f"Le fichier {path} est accessible publiquement. "
-                            "Il peut contenir des clés API, mots de passe, tokens de base de données "
-                            "ou la structure interne de l'application."
-                        ),
-                        penalty=penalty,
-                        recommendation=(
-                            f"Bloquer l'accès à {path} dans la configuration serveur. "
-                            "nginx : `location ~ /\\.env {{ deny all; }}` — "
-                            "Apache : `<Files .env> Require all denied </Files>`"
-                        ),
-                    ))
-                    self._details.setdefault("exposed_files", []).append(path)
+                validators = self._BODY_VALIDATORS.get(path)
+                if validators:
+                    # GET + validation du body pour éviter les faux positifs
+                    code, body = await loop.run_in_executor(
+                        None, lambda p=path: self._get_status_and_body(p)
+                    )
+                    if code != 200 or not any(v in body for v in validators):
+                        continue
+                else:
+                    code = await loop.run_in_executor(None, lambda p=path: self._head_or_get(p))
+                    if code not in (200, 301, 302):
+                        continue
+                seen_titles.add(title)
+                self._findings.append(Finding(
+                    category="Fichiers sensibles",
+                    severity=severity,
+                    title=title,
+                    technical_detail=f"HTTP {code} — {self.domain}{path}",
+                    plain_explanation=(
+                        f"Le fichier {path} est accessible publiquement. "
+                        "Il peut contenir des clés API, mots de passe, tokens de base de données "
+                        "ou la structure interne de l'application."
+                    ),
+                    penalty=penalty,
+                    recommendation=(
+                        f"Bloquer l'accès à {path} dans la configuration serveur. "
+                        "nginx : `location ~ /\\.env {{ deny all; }}` — "
+                        "Apache : `<Files .env> Require all denied </Files>`"
+                    ),
+                ))
+                self._details.setdefault("exposed_files", []).append(path)
             except Exception:
                 pass
 
     # ── Panneaux admin ────────────────────────────────────────────────────────
 
     async def _check_admin_paths(self) -> None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         seen: set[str] = set()
         for path, title, severity, penalty in _ADMIN_PATHS:
             if title in seen:
                 continue
             try:
                 code = await loop.run_in_executor(None, lambda p=path: self._get_status(p))
-                if code in (200, 301, 302):
+                # 302 est typiquement un redirect vers login → ne pas signaler
+                if code == 200:
                     seen.add(title)
                     self._findings.append(Finding(
                         category="Exposition admin",
@@ -178,7 +200,7 @@ class AppAuditor(BaseAuditor):
     # ── Endpoints API ─────────────────────────────────────────────────────────
 
     async def _check_api_paths(self) -> None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         seen: set[str] = set()
         for path, title, severity, penalty in _API_PATHS:
             if title in seen:
@@ -211,7 +233,7 @@ class AppAuditor(BaseAuditor):
     # ── Réponse principale : CORS, cookies, debug, directory listing ──────────
 
     async def _check_main_response(self) -> None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             headers, body, status_code = await loop.run_in_executor(
                 None, self._fetch_main
@@ -342,7 +364,7 @@ class AppAuditor(BaseAuditor):
     # ── robots.txt ────────────────────────────────────────────────────────────
 
     async def _check_robots_txt(self) -> None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             body = await loop.run_in_executor(None, lambda: self._fetch_text("/robots.txt"))
             if not body:
@@ -397,6 +419,8 @@ class AppAuditor(BaseAuditor):
             r = conn.getresponse()
             return r.status
         except Exception:
+            pass
+        finally:
             conn.close()
         conn = self._get_conn()
         try:
@@ -412,6 +436,17 @@ class AppAuditor(BaseAuditor):
             conn.request("GET", path, headers={"User-Agent": "Mozilla/5.0 CyberHealth-Scanner/1.0"})
             r = conn.getresponse()
             return r.status
+        finally:
+            conn.close()
+
+    def _get_status_and_body(self, path: str) -> tuple[int, str]:
+        """GET request returning (status_code, body_excerpt)."""
+        conn = self._get_conn()
+        try:
+            conn.request("GET", path, headers={"User-Agent": "Mozilla/5.0 CyberHealth-Scanner/1.0"})
+            r = conn.getresponse()
+            body = r.read(2048).decode("utf-8", errors="replace") if r.status == 200 else ""
+            return r.status, body
         finally:
             conn.close()
 

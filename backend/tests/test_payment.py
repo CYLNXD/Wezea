@@ -790,7 +790,11 @@ class TestCreateCheckoutStripeError:
                 return await create_checkout(fake_request, body=body,
                                              current_user=user, db=db_session)
             try:
-                asyncio.get_event_loop().run_until_complete(_run())
+                loop = asyncio.new_event_loop()
+                try:
+                    loop.run_until_complete(_run())
+                finally:
+                    loop.close()
                 assert False, "should have raised"
             except HTTPException as exc:
                 assert exc.status_code == 502

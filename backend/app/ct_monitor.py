@@ -69,7 +69,7 @@ class CertTransparencyAuditor(BaseAuditor):
     """Analyse les logs Certificate Transparency via crt.sh."""
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             await asyncio.wait_for(
                 loop.run_in_executor(None, self._check_ct_logs),
@@ -126,7 +126,7 @@ class CertTransparencyAuditor(BaseAuditor):
         )
         try:
             with urllib.request.urlopen(req, timeout=CT_TIMEOUT) as resp:
-                raw = resp.read()
+                raw = resp.read(2_097_152)  # 2 MB max
             return json.loads(raw) or []
         except (urllib.error.URLError, json.JSONDecodeError, OSError):
             return []

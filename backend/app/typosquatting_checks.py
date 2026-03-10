@@ -148,7 +148,7 @@ class TyposquattingAuditor(BaseAuditor):
     """
 
     async def audit(self) -> list[Finding]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._check_typosquatting)
         return self._findings
 

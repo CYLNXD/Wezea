@@ -479,7 +479,7 @@ async def cancel_subscription(
     current_user.subscription_status = "cancelling"
     db.commit()
 
-    plan_name = "Starter" if current_user.plan == "starter" else "Pro"
+    plan_name = {"starter": "Starter", "pro": "Pro", "dev": "Dev"}.get(current_user.plan, "Pro")
     return {
         "status":  "cancelling",
         "message": f"Abonnement {plan_name} annulé. Votre accès reste actif jusqu'à la fin de la période en cours.",

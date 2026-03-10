@@ -499,30 +499,32 @@ async def send_pdf_email(
     risk_level: str,
 ) -> bool:
     """Envoie le rapport PDF en pièce jointe (rapport programmé hebdomadaire)."""
-    pdf_b64  = base64.b64encode(pdf_bytes).decode()
-    today    = datetime.date.today().isoformat()
-    filename = f"rapport-securite-{domain}-{today}.pdf"
+    pdf_b64      = base64.b64encode(pdf_bytes).decode()
+    today        = datetime.date.today().isoformat()
+    safe_domain  = _esc(domain)
+    safe_risk    = _esc((risk_level or "").upper())
+    filename     = f"rapport-securite-{safe_domain}-{today}.pdf"
 
     html = _base_html(f"""
     <div class="card">
       <h1>Votre rapport de s&eacute;curit&eacute; hebdomadaire</h1>
       <p>
         Le rapport de s&eacute;curit&eacute; pour
-        <strong style="color:#e2e8f0;">{domain}</strong>
+        <strong style="color:#e2e8f0;">{safe_domain}</strong>
         est disponible en pi&egrave;ce jointe.
       </p>
       <div class="panel" style="text-align:center;">
         <span class="score">{score}/100</span>
         &nbsp;
-        <span style="font-size:13px; color:#94a3b8;">{(risk_level or "").upper()}</span>
+        <span style="font-size:13px; color:#94a3b8;">{safe_risk}</span>
       </div>
-      <a href="{FRONTEND_URL}?domain={domain}" class="btn">&rarr; Voir en ligne</a>
+      <a href="{FRONTEND_URL}?domain={safe_domain}" class="btn">&rarr; Voir en ligne</a>
     </div>
     """)
     return await _send({
         "sender":      SENDER,
         "to":          [{"email": email}],
-        "subject":     f"Rapport sécurité hebdomadaire — {domain}",
+        "subject":     f"Rapport sécurité hebdomadaire — {safe_domain}",
         "htmlContent": html,
         "attachment":  [{"content": pdf_b64, "name": filename}],
     })

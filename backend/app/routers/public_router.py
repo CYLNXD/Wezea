@@ -45,7 +45,9 @@ def security_badge(request: Request, domain: str, db: Session = Depends(get_db))
     Retourne le dernier score connu — ou "?" si jamais scanné.
     Cache-Control: 1 heure (le badge change peu souvent).
     """
-    domain = domain.lower().strip().lstrip("www.")
+    domain = domain.lower().strip()
+    if domain.startswith("www."):
+        domain = domain[4:]
 
     last = (
         db.query(ScanHistory)

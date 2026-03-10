@@ -64,7 +64,11 @@ def _make_app(db_session, user, url="https://example.com", verified=False, metho
 
 def _run(coro):
     """Exécute une coroutine de façon synchrone (pour les tests AppAuditor)."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -615,10 +619,14 @@ class TestAppAuditorSensitiveFiles:
 
         auditor = AppAuditor(domain="example.com")
 
-        def mock_head(path):
-            return 200 if path == "/.env" else 404
+        # .env paths now use _get_status_and_body for body validation
+        def mock_body(path):
+            if path == "/.env":
+                return (200, "DB_HOST=localhost\nSECRET_KEY=abc123")
+            return (404, "")
 
-        with patch.object(auditor, "_head_or_get", side_effect=mock_head):
+        with patch.object(auditor, "_get_status_and_body", side_effect=mock_body), \
+             patch.object(auditor, "_head_or_get", return_value=404):
             _run(auditor._check_sensitive_files())
 
         titles = [f.title for f in auditor._findings]
@@ -629,7 +637,9 @@ class TestAppAuditorSensitiveFiles:
         from app.app_checks import AppAuditor
 
         auditor = AppAuditor(domain="example.com")
-        with patch.object(auditor, "_head_or_get", return_value=301):
+        # Paths with body validators use _get_status_and_body; others use _head_or_get
+        with patch.object(auditor, "_get_status_and_body", return_value=(404, "")), \
+             patch.object(auditor, "_head_or_get", return_value=301):
             _run(auditor._check_sensitive_files())
 
         assert len(auditor._findings) > 0
@@ -638,7 +648,8 @@ class TestAppAuditorSensitiveFiles:
         from app.app_checks import AppAuditor
 
         auditor = AppAuditor(domain="example.com")
-        with patch.object(auditor, "_head_or_get", return_value=404):
+        with patch.object(auditor, "_get_status_and_body", return_value=(404, "")), \
+             patch.object(auditor, "_head_or_get", return_value=404):
             _run(auditor._check_sensitive_files())
 
         assert auditor._findings == []
@@ -647,7 +658,8 @@ class TestAppAuditorSensitiveFiles:
         from app.app_checks import AppAuditor
 
         auditor = AppAuditor(domain="example.com")
-        with patch.object(auditor, "_head_or_get", side_effect=Exception("timeout")):
+        with patch.object(auditor, "_get_status_and_body", side_effect=Exception("timeout")), \
+             patch.object(auditor, "_head_or_get", side_effect=Exception("timeout")):
             _run(auditor._check_sensitive_files())  # ne doit pas lever
 
         assert auditor._findings == []
@@ -657,10 +669,13 @@ class TestAppAuditorSensitiveFiles:
 
         auditor = AppAuditor(domain="example.com")
 
-        def mock_head(path):
-            return 200 if path == "/.env" else 404
+        def mock_body(path):
+            if path == "/.env":
+                return (200, "APP_SECRET=xyz\nDB_PASSWORD=test")
+            return (404, "")
 
-        with patch.object(auditor, "_head_or_get", side_effect=mock_head):
+        with patch.object(auditor, "_get_status_and_body", side_effect=mock_body), \
+             patch.object(auditor, "_head_or_get", return_value=404):
             _run(auditor._check_sensitive_files())
 
         assert any(f.severity == "CRITICAL" for f in auditor._findings)
@@ -688,7 +703,8 @@ class TestAppAuditorAdminPaths:
         titles = [f.title for f in auditor._findings]
         assert titles.count("phpMyAdmin accessible") == 1
 
-    def test_redirect_302_creates_finding(self):
+    def test_redirect_302_no_finding(self):
+        """302 on /admin = redirect to login page → NOT a finding (not directly exposed)."""
         from app.app_checks import AppAuditor
 
         auditor = AppAuditor(domain="example.com")
@@ -699,7 +715,7 @@ class TestAppAuditorAdminPaths:
         with patch.object(auditor, "_get_status", side_effect=mock_status):
             _run(auditor._check_admin_paths())
 
-        assert any("/admin" in f.technical_detail for f in auditor._findings)
+        assert auditor._findings == []
 
     def test_404_produces_no_finding(self):
         from app.app_checks import AppAuditor
