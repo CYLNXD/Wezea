@@ -139,34 +139,20 @@
   /* ── Page courante ──────────────────────────────────────────────────────── */
   var path = window.location.pathname;
   var isBlogIndex = path === '/blog/' || path === '/blog/index.html';
-  var isAgences   = path.startsWith('/agences/');
-  var isBlogArticle = path.startsWith('/blog/') && !isBlogIndex;
 
   /* ── Labels bilingues ───────────────────────────────────────────────────── */
-  var homeLabel   = '<span class="lang-fr">Accueil</span><span class="lang-en">Home</span>';
-  var blogLabel   = '<span class="lang-fr">Blog</span><span class="lang-en">Blog</span>';
-  var agencesLabel= '<span class="lang-fr">Agences</span><span class="lang-en">Agencies</span>';
-  var scanLabel   = '<span class="lang-fr">Scanner mon domaine →</span><span class="lang-en">Scan my domain →</span>';
+  var homeLabel = '<span class="lang-fr">Accueil</span><span class="lang-en">Home</span>';
+  var blogLabel = '<span class="lang-fr">Blog</span><span class="lang-en">Blog</span>';
+  var scanLabel = '<span class="lang-fr">Scanner mon domaine →</span><span class="lang-en">Scan my domain →</span>';
 
-  /* ── Nav links ──────────────────────────────────────────────────────────── */
+  /* ── Nav links — identiques sur toutes les pages statiques ─────────────── */
   var links = '';
-
-  /* Sur un article ou la page agences : lien Accueil + Blog */
-  if (isBlogArticle || isAgences) {
-    links += '<a href="https://wezea.net" class="wz-nav-link">' + ICON_HOME + ' ' + homeLabel + '</a>';
-  }
-  /* Sur un article : lien retour vers le Blog */
-  if (isBlogArticle) {
+  links += '<a href="https://wezea.net" class="wz-nav-link">' + ICON_HOME + ' ' + homeLabel + '</a>';
+  /* Blog — lien actif sur toutes les pages sauf le blog index lui-même */
+  if (!isBlogIndex) {
     links += '<a href="/blog/" class="wz-nav-link">' + ICON_BOOK + ' ' + blogLabel + '</a>';
-  }
-  /* Sur la page blog index : lien Accueil */
-  if (isBlogIndex) {
-    links += '<a href="https://wezea.net" class="wz-nav-link">' + ICON_HOME + ' ' + homeLabel + '</a>';
-    links += '<a href="/agences/" class="wz-nav-link">' + ICON_BUILDING + ' ' + agencesLabel + '</a>';
-  }
-  /* Sur la page agences : lien Blog */
-  if (isAgences) {
-    links += '<a href="/blog/" class="wz-nav-link">' + ICON_BOOK + ' ' + blogLabel + '</a>';
+  } else {
+    links += '<span class="wz-nav-link" style="color:#e2e8f0;background:rgba(255,255,255,.04);cursor:default;">' + ICON_BOOK + ' ' + blogLabel + '</span>';
   }
 
   /* ── Lang toggle ────────────────────────────────────────────────────────── */

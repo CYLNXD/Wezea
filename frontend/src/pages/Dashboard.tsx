@@ -12,8 +12,8 @@ import WezeaLogo from '../components/WezeaLogo';
 import {
   Shield, Search, ArrowRight, RotateCcw,
   FileDown, Globe, AlertTriangle, Info, Lock, X, UserPlus, MessageSquare,
-  CheckCircle, ChevronDown, Zap, Eye, Star, ListChecks, BookOpen, Building2, Bell,
-  TrendingUp, TrendingDown, Database, FileText, Scale, Award,
+  CheckCircle, ChevronDown, Zap, Eye, Star, BookOpen, Bell, ShieldCheck,
+  TrendingUp, TrendingDown, Database, FileText, Scale, Award, ListChecks, Building2,
 } from 'lucide-react';
 
 import { useLanguage } from '../i18n/LanguageContext';
@@ -470,17 +470,6 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
           {/* CENTER — Navigation principale */}
           <div className="hidden md:flex items-center gap-1 justify-start ml-6">
 
-            {/* Historique — tous les utilisateurs connectés */}
-            {user && (
-              <button
-                onClick={onGoHistory}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-white/4 transition-all"
-              >
-                <ListChecks size={11} />
-                {lang === 'fr' ? 'Historique' : 'History'}
-              </button>
-            )}
-
             {/* CTA upgrade — Free connecté uniquement */}
             {user && user.plan === 'free' && (
               <button
@@ -492,25 +481,23 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
               </button>
             )}
 
-            {/* Agences — visible uniquement si non-client (non connecté ou plan free) */}
-            {(!user || user.plan === 'free') && (
-              <a
-                href="/agences/"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-white/4 transition-all"
-              >
-                <Building2 size={11} />
-                {lang === 'fr' ? 'Agences' : 'Agencies'}
-              </a>
-            )}
-
-            {/* Blog — toujours visible */}
+            {/* Blog — toujours visible, traitement légèrement plus visible */}
             <a
               href="/blog/"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-white/4 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/8 transition-all"
             >
-              <BookOpen size={11} />
+              <BookOpen size={12} />
               Blog
             </a>
+
+            {/* Conformité NIS2 — lien vers la landing page */}
+            <button
+              onClick={onGoCompliance}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-white/4 transition-all"
+            >
+              <ShieldCheck size={12} />
+              {lang === 'fr' ? 'NIS2 & RGPD' : 'NIS2 & GDPR'}
+            </button>
 
           </div>
 
@@ -620,6 +607,15 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                     {/* Section Navigation */}
                     <div className="pt-1.5 pb-1">
                       <p className="px-3 pb-1 text-[9px] font-mono text-slate-600 uppercase tracking-widest">{lang === 'fr' ? 'Navigation' : 'Navigate'}</p>
+                      <button
+                        onClick={() => { setUserMenuOpen(false); onGoHistory?.(); }}
+                        className="w-full text-left px-3 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-slate-200 transition flex items-center gap-2.5"
+                      >
+                        <span className="w-[18px] h-[18px] rounded-[5px] shrink-0 inline-flex items-center justify-center" style={{background:'linear-gradient(150deg,rgba(34,211,238,.18),rgba(34,211,238,.05))',border:'1px solid rgba(34,211,238,.22)'}}>
+                          <svg width="10" height="10" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="12 8 12 12 14 14"/><circle cx="12" cy="12" r="9"/></svg>
+                        </span>
+                        {lang === 'fr' ? 'Historique' : 'History'}
+                      </button>
                       <button
                         onClick={() => { setUserMenuOpen(false); onGoClientSpace?.(); }}
                         className="w-full text-left px-3 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-slate-200 transition flex items-center gap-2.5"
