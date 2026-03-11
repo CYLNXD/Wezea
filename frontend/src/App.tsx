@@ -100,6 +100,7 @@ export default function App() {
   const [publicScanUuid, setPublicScanUuid]   = useState<string | null>(null);
   const [pendingScanUuid, setPendingScanUuid] = useState<string | null>(null);
   const [resetToken, setResetToken]     = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
   const [csTab, setCsTab]                   = useState<ClientSpaceTab | undefined>(undefined);
   const [csSection, setCsSection]           = useState<SettingsSection | undefined>(undefined);
 
@@ -160,6 +161,18 @@ export default function App() {
       setPage('login');
       window.history.replaceState({}, '', window.location.pathname);
     }
+
+    // Code referral partenaire — ?ref=wza_XXXXXX
+    const ref = params.get('ref');
+    if (ref && /^wza_[A-Z0-9]{6}$/i.test(ref)) {
+      const code = ref.toUpperCase();
+      setReferralCode(code);
+      localStorage.setItem('wezea_referral_code', code);
+    } else {
+      // Restaurer depuis localStorage (survit au redirect Google OAuth)
+      const saved = localStorage.getItem('wezea_referral_code');
+      if (saved) setReferralCode(saved);
+    }
   }, []);
 
   return (
@@ -191,6 +204,7 @@ export default function App() {
             onBack={() => { setPage('dashboard'); setResetToken(null); }}
             initialMode={loginMode}
             resetToken={resetToken}
+            referralCode={referralCode}
           />
         )}
         {page === 'history' && (

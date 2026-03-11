@@ -22,7 +22,7 @@ from app.auth import (
 import os
 from app.database import get_db
 from app.limiter import limiter
-from app.models import User, LoginAttempt
+from app.models import User, LoginAttempt, Partner
 from app.services.brevo_service import (
     send_welcome_email,
     add_registered_user_contact,
@@ -92,6 +92,7 @@ _DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
+    referral_code: Optional[str] = None
 
     @field_validator("password")
     @classmethod
@@ -128,6 +129,7 @@ class UserResponse(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     id_token: str
+    referral_code: Optional[str] = None
 
 
 class UpdateProfileRequest(BaseModel):
@@ -227,6 +229,16 @@ def register(
     if db.query(User).filter(User.email == req.email).first():
         raise HTTPException(status_code=409, detail="Email already registered")
 
+    # Valider le code referral partenaire (silencieux si invalide)
+    partner = None
+    if req.referral_code:
+        code = req.referral_code.strip().upper()
+        if code:
+            partner = db.query(Partner).filter(
+                Partner.referral_code == code,
+                Partner.status == "active",
+            ).first()
+
     _new_api_key = generate_api_key()
     user = User(
         email=req.email,
@@ -235,10 +247,15 @@ def register(
         api_key=_new_api_key,
         api_key_hash=hash_api_key(_new_api_key),
         api_key_hint=mask_api_key(_new_api_key),
+        referred_by_partner_id=partner.id if partner else None,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    if partner:
+        partner.referral_count = (partner.referral_count or 0) + 1
+        db.commit()
 
     token = create_access_token(user.id, user.email, user.plan)
 
@@ -520,6 +537,16 @@ def google_auth(
 
     if not user:
         is_new = True
+        # Valider le code referral partenaire (silencieux si invalide)
+        partner = None
+        if req.referral_code:
+            rc = req.referral_code.strip().upper()
+            if rc:
+                partner = db.query(Partner).filter(
+                    Partner.referral_code == rc,
+                    Partner.status == "active",
+                ).first()
+
         _new_api_key = generate_api_key()
         user = User(
             email=email,
@@ -531,10 +558,14 @@ def google_auth(
             google_id=google_sub,
             first_name=first_name,
             last_name=last_name,
+            referred_by_partner_id=partner.id if partner else None,
         )
         db.add(user)
         db.commit()
         db.refresh(user)
+        if partner:
+            partner.referral_count = (partner.referral_count or 0) + 1
+            db.commit()
         background_tasks.add_task(_send_welcome_sync, user.email)
     else:
         # Compte existant — lier Google si pas encore fait

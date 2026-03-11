@@ -202,6 +202,11 @@ def _apply_migrations():
             # La table est gérée par SQLAlchemy ORM (Base.metadata.create_all)
             _mark_applied("017_partners")
 
+        # ── 018 : Referral partenaire sur users ──────────────────────────────
+        if not _applied("018_user_referral"):
+            _add_column_if_missing(conn, "users", "referred_by_partner_id", "INTEGER")
+            _mark_applied("018_user_referral")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente

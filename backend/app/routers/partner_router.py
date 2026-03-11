@@ -107,6 +107,19 @@ def _partner_to_view(p: Partner) -> PartnerView:
 
 # ─── Endpoints publics ───────────────────────────────────────────────────────
 
+@router.get("/validate/{code}")
+def validate_referral_code(code: str, db: Session = Depends(get_db)):
+    """Vérifie si un code referral est valide (partenaire actif). Public."""
+    code = code.strip().upper()
+    partner = db.query(Partner).filter(
+        Partner.referral_code == code,
+        Partner.status == "active",
+    ).first()
+    if partner:
+        return {"valid": True, "partner_company": partner.company}
+    return {"valid": False}
+
+
 @router.post("", status_code=201)
 async def register_partner(
     body: PartnerRegisterRequest,

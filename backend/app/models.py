@@ -53,6 +53,8 @@ class User(Base):
     # ── Intégrations (Slack / Teams) ───────────────────────────────────────────
     slack_webhook_url  = Column(String(512), nullable=True)   # https://hooks.slack.com/...
     teams_webhook_url  = Column(String(512), nullable=True)   # https://...webhook.office.com/...
+    # ── Referral partenaire ───────────────────────────────────────────────────
+    referred_by_partner_id = Column(Integer, nullable=True, index=True)
     created_at    = Column(DateTime(timezone=True), default=utcnow)
     updated_at    = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { Shield, Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle, KeyRound } from 'lucide-react';
+import { Shield, Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle, KeyRound, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -9,9 +9,10 @@ interface Props {
   onBack:       () => void;
   initialMode?: 'login' | 'register';
   resetToken?:  string | null;
+  referralCode?: string | null;
 }
 
-export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
+export default function LoginPage({ onBack, initialMode, resetToken, referralCode }: Props) {
   const { register, googleLogin, loginWithToken } = useAuth();
   const { lang } = useLanguage();
 
@@ -21,6 +22,7 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
   const [showPwd,  setShowPwd]  = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
+  const [refCode,  setRefCode]  = useState(referralCode || '');
 
   // ── Sous-vues mot de passe oublié / réinitialisation ─────────────────────
   type SubView = 'form' | 'forgot' | 'forgot-sent' | 'reset' | 'reset-done' | 'mfa';
@@ -66,7 +68,7 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
           setError('');
           setLoading(true);
           try {
-            const result = await googleLogin(resp.credential);
+            const result = await googleLogin(resp.credential, refCode || undefined);
             if (result?.mfa_required) {
               setMfaToken(result.mfa_token ?? '');
               setTotpCode('');
@@ -143,7 +145,7 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
         // Login normal — réutiliser la réponse (évite un double appel /auth/login)
         loginWithToken(data.access_token, data.user);
       } else {
-        await register(email, password);
+        await register(email, password, refCode || undefined);
       }
       onBack();
     } catch (err: any) {
@@ -543,6 +545,34 @@ export default function LoginPage({ onBack, initialMode, resetToken }: Props) {
                 </button>
               </div>
             </div>
+
+            {/* Code partenaire — inscription uniquement */}
+            {!isLogin && (
+              <div>
+                <label className="block text-xs text-slate-400 font-medium mb-1.5">
+                  {lang === 'fr' ? 'Code partenaire (optionnel)' : 'Partner code (optional)'}
+                </label>
+                <div className="relative">
+                  <Tag size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    value={refCode}
+                    onChange={e => setRefCode(e.target.value.toUpperCase())}
+                    placeholder="wza_XXXXXX"
+                    className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition sku-inset font-mono"
+                    style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                  />
+                </div>
+                {refCode && /^wza_[A-Z0-9]{6}$/i.test(refCode) && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <CheckCircle size={12} className="text-green-400" />
+                    <span className="text-xs text-green-400 font-medium">
+                      {lang === 'fr' ? '-30 % sur tous les plans' : '-30% on all plans'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Error */}
             {error && (

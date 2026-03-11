@@ -54,6 +54,20 @@ if not STRIPE_WEBHOOK_SECRET:
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://wezea.net")
 
+# ─── Coupon partenaire -30% (créé une seule fois, idempotent) ────────────────
+PARTNER_COUPON_ID = "PARTNER_30PCT"
+if stripe.api_key:
+    try:
+        stripe.Coupon.create(
+            id=PARTNER_COUPON_ID, percent_off=30,
+            duration="forever", name="Partenaire -30%",
+        )
+        logger.info("Stripe coupon %s created.", PARTNER_COUPON_ID)
+    except stripe.InvalidRequestError:
+        pass  # Already exists — expected on restart
+    except Exception as exc:
+        logger.warning("Could not create Stripe coupon %s: %s", PARTNER_COUPON_ID, exc)
+
 # Map price_id → plan name
 _PRICE_TO_PLAN: dict[str, str] = {
     STRIPE_STARTER_PRICE_ID: "starter",
@@ -207,7 +221,10 @@ async def create_checkout(
     price_id = _price_id_for_plan(plan)
 
     try:
-        session = stripe.checkout.Session.create(
+        # -30% lifetime si l'utilisateur a été référé par un partenaire
+        is_referred = current_user.referred_by_partner_id is not None
+
+        checkout_kwargs = dict(
             mode               = "subscription",
             customer_email     = current_user.email,
             line_items         = [{"price": price_id, "quantity": 1}],
@@ -215,10 +232,16 @@ async def create_checkout(
             cancel_url         = f"{FRONTEND_URL}?payment=cancelled",
             metadata           = {"user_id": str(current_user.id), "plan": plan},
             subscription_data  = {"metadata": {"user_id": str(current_user.id), "plan": plan}},
-            allow_promotion_codes    = True,
             billing_address_collection = "required",
             tax_id_collection          = {"enabled": True},
         )
+        # discounts et allow_promotion_codes sont mutuellement exclusifs dans Stripe
+        if is_referred:
+            checkout_kwargs["discounts"] = [{"coupon": PARTNER_COUPON_ID}]
+        else:
+            checkout_kwargs["allow_promotion_codes"] = True
+
+        session = stripe.checkout.Session.create(**checkout_kwargs)
     except stripe.StripeError as exc:
         raise HTTPException(status_code=502, detail=f"Erreur Stripe : {exc.user_message or str(exc)}")
 

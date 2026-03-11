@@ -24,8 +24,8 @@ interface AuthContextType {
   loading: boolean;
   login:           (email: string, password: string) => Promise<void>;
   loginWithToken:  (token: string, userData: Partial<AuthUser>) => void;
-  register:        (email: string, password: string) => Promise<void>;
-  googleLogin:     (idToken: string) => Promise<{ mfa_required?: boolean; mfa_token?: string }>;
+  register:        (email: string, password: string, referralCode?: string) => Promise<void>;
+  googleLogin:     (idToken: string, referralCode?: string) => Promise<{ mfa_required?: boolean; mfa_token?: string }>;
   logout:          () => void;
   authHeaders:     () => Record<string, string>;
   updateProfile:   (first_name: string | null, last_name: string | null) => Promise<void>;
@@ -125,10 +125,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     analyticsIdentify(u.id, u.email, u.plan);
   }
 
-  async function register(email: string, password: string) {
+  async function register(email: string, password: string, referralCode?: string) {
     try {
-      const { data } = await authApi.post('/auth/register', { email, password });
+      const payload: Record<string, string> = { email, password };
+      if (referralCode) payload.referral_code = referralCode;
+      const { data } = await authApi.post('/auth/register', payload);
       localStorage.setItem('wezea_token', data.access_token);
+      localStorage.removeItem('wezea_referral_code');
       setToken(data.access_token);
       const u: AuthUser = { ...data.user, first_name: data.user.first_name ?? null, last_name: data.user.last_name ?? null, is_admin: data.user.is_admin ?? false, mfa_enabled: data.user.mfa_enabled ?? false };
       setUser(u);
@@ -159,13 +162,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prev => prev ? { ...prev, first_name: data.first_name ?? null, last_name: data.last_name ?? null } : null);
   }
 
-  async function googleLogin(idToken: string): Promise<{ mfa_required?: boolean; mfa_token?: string }> {
-    const { data } = await authApi.post('/auth/google', { id_token: idToken });
+  async function googleLogin(idToken: string, referralCode?: string): Promise<{ mfa_required?: boolean; mfa_token?: string }> {
+    const payload: Record<string, string> = { id_token: idToken };
+    if (referralCode) payload.referral_code = referralCode;
+    const { data } = await authApi.post('/auth/google', payload);
     // Si le compte a la 2FA activée, retourner sans loguer — LoginPage gère la suite
     if (data.mfa_required) {
       return { mfa_required: true, mfa_token: data.mfa_token };
     }
     localStorage.setItem('wezea_token', data.access_token);
+    localStorage.removeItem('wezea_referral_code');
     setToken(data.access_token);
     const u: AuthUser = { ...data.user, first_name: data.user.first_name ?? null, last_name: data.user.last_name ?? null, google_id: data.user.google_id ?? null, is_admin: data.user.is_admin ?? false, mfa_enabled: data.user.mfa_enabled ?? false };
     setUser(u);
