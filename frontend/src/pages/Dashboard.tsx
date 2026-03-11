@@ -2253,7 +2253,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                               {!user && (
                                 <button
                                   onClick={onGoRegister ?? onGoLogin}
-                                  className="sku-btn-primary mt-2 flex items-center gap-2 px-4 py-2 text-sm"
+                                  className="sku-btn-primary mt-2 flex items-center gap-2 px-4 py-2 text-sm rounded-xl"
                                 >
                                   <UserPlus size={14} />
                                   {lang === 'fr' ? 'Créer un compte gratuit' : 'Create a free account'}
