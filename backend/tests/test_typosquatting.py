@@ -134,36 +134,37 @@ class TestTyposquattingHits:
         variants = _generate_variants(base)
         return variants[0][0]  # premier variant
 
-    def test_one_hit_medium_severity(self):
+    def test_one_hit_low_severity(self):
         domain = "wezea.fr"
         hit_dom = self._one_hit_domain(domain)
         findings, _ = _run(domain, {hit_dom: "1.2.3.4"})
         assert len(findings) == 1
-        assert findings[0].severity == "MEDIUM"
+        assert findings[0].severity == "LOW"
 
-    def test_one_hit_penalty_8(self):
+    def test_one_hit_penalty_2(self):
         domain = "wezea.fr"
         hit_dom = self._one_hit_domain(domain)
         findings, _ = _run(domain, {hit_dom: "1.2.3.4"})
-        assert findings[0].penalty == 8
+        assert findings[0].severity == "LOW"
+        assert findings[0].penalty == 2
 
-    def test_three_hits_high_severity(self):
+    def test_three_hits_medium_severity(self):
         domain = "wezea.fr"
         variants = _generate_variants(domain)
         resolved = {v: "1.2.3.4" for v, _ in variants[:3]}
         findings, _ = _run(domain, resolved)
         assert len(findings) == 1
-        assert findings[0].severity == "HIGH"
-        assert findings[0].penalty == 15
+        assert findings[0].severity == "MEDIUM"
+        assert findings[0].penalty == 5
 
-    def test_five_hits_critical_severity(self):
+    def test_five_hits_medium_severity(self):
         domain = "wezea.fr"
         variants = _generate_variants(domain)
         resolved = {v: "1.2.3.4" for v, _ in variants[:5]}
         findings, _ = _run(domain, resolved)
         assert len(findings) == 1
-        assert findings[0].severity == "CRITICAL"
-        assert findings[0].penalty == 25
+        assert findings[0].severity == "MEDIUM"
+        assert findings[0].penalty == 8
 
     def test_hits_in_details(self):
         domain = "wezea.fr"

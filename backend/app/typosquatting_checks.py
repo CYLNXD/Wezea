@@ -172,11 +172,11 @@ class TyposquattingAuditor(BaseAuditor):
         count = len(hits)
 
         if count >= 5:
-            severity, penalty = "CRITICAL", 25
-        elif count >= 3:
-            severity, penalty = "HIGH", 15
-        else:
             severity, penalty = "MEDIUM", 8
+        elif count >= 3:
+            severity, penalty = "MEDIUM", 5
+        else:
+            severity, penalty = "LOW", 2
 
         fr_s  = "s" if count > 1 else ""
         en_es = "es" if count > 1 else ""
