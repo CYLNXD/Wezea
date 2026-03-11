@@ -108,7 +108,7 @@ def _partner_to_view(p: Partner) -> PartnerView:
 # ─── Endpoints publics ───────────────────────────────────────────────────────
 
 @router.post("", status_code=201)
-def register_partner(
+async def register_partner(
     body: PartnerRegisterRequest,
     db: Session = Depends(get_db),
 ):
@@ -163,7 +163,7 @@ def list_partners(
 
 
 @router.post("/admin/{partner_id}/activate", response_model=PartnerView)
-def activate_partner(
+async def activate_partner(
     partner_id: int,
     body: PartnerAdminAction = PartnerAdminAction(),
     db: Session = Depends(get_db),
