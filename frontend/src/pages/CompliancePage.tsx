@@ -12,14 +12,17 @@ import { extractApiError, extractRateLimitDetail } from '../lib/api';
 import { useLanguage } from '../i18n/LanguageContext';
 import type { ScanResult } from '../types/scanner';
 
-// Client axios sans credentials — garantit un scan anonyme (plan "free")
+// Client axios anonyme avec cookies — permet le tracking wezea_cid pour le rate limit
 const _BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 const anonClient = axios.create({
   baseURL:         _BASE_URL,
   timeout:         60_000,
-  withCredentials: false,
+  withCredentials: true,
   headers:         { 'Content-Type': 'application/json' },
 });
+
+// Initialise le cookie wezea_cid au chargement (évite le fallback IP-only)
+anonClient.get('/client-id').catch(() => {});
 
 async function scanDomainAnon(domain: string, lang: string): Promise<ScanResult> {
   const { data } = await anonClient.post<ScanResult>('/scan', { domain, lang });
