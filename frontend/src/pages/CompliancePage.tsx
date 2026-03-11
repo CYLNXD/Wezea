@@ -580,7 +580,7 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
             <ArrowLeft size={15} /> {t.back}
           </button>
           <div className="flex items-center gap-2">
-            <WezeaLogo />
+            <WezeaLogo size="md" showSub />
             <span className="text-slate-600 text-sm">/</span>
             <span className="text-slate-400 text-sm">{t.navTitle}</span>
           </div>

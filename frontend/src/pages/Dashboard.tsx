@@ -445,7 +445,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
             className="shrink-0 group"
             aria-label="Retour à l'accueil"
           >
-            <WezeaLogo size="lg" showSub className="group-hover:opacity-90 transition-opacity" />
+            <WezeaLogo size="md" showSub className="group-hover:opacity-90 transition-opacity" />
           </button>
 
           {/* CENTER — Navigation principale */}
