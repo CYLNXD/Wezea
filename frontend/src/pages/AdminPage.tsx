@@ -1,5 +1,5 @@
 // ─── AdminPage.tsx — Dashboard admin Wezea ─────────────────────────────────
-import { useState, useEffect, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Shield, Users, Trash2, RefreshCw, CheckCircle, XCircle,
@@ -9,6 +9,7 @@ import {
 import { apiClient } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import PageNavbar from '../components/PageNavbar';
+import SkuIcon from '../components/SkuIcon';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -176,27 +177,6 @@ function Sparkline({
       {/* last dot */}
       <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r="2.5" fill={color} />
     </svg>
-  );
-}
-
-// ─── SkuIcon ──────────────────────────────────────────────────────────────────
-
-function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: string; size?: number }) {
-  const r = Math.round(size * 0.28);
-  return (
-    <div
-      className="shrink-0 flex items-center justify-center relative overflow-hidden"
-      style={{
-        width: size, height: size, borderRadius: r,
-        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
-        border: `1px solid ${color}40`,
-        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
-      }}
-    >
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
-      {children}
-    </div>
   );
 }
 

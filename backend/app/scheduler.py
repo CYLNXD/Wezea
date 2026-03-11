@@ -169,7 +169,10 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
         str(p) for p, v in result.port_details.items() if v.get("open")
     ]
     prev_ports_raw   = monitored.last_open_ports
-    prev_open_ports: list[str] = _json.loads(prev_ports_raw) if prev_ports_raw else []
+    try:
+        prev_open_ports: list[str] = _json.loads(prev_ports_raw) if prev_ports_raw else []
+    except (_json.JSONDecodeError, TypeError):
+        prev_open_ports = []
 
     new_ports_set  = set(new_open_ports)
     prev_ports_set = set(prev_open_ports)
@@ -193,7 +196,10 @@ async def _scan_and_alert(monitored: "MonitoredDomain", db) -> None:
         item["tech"]: item.get("version", "") for item in new_stack
     }
     prev_tech_raw  = monitored.last_technologies
-    prev_tech_map: dict[str, str] = _json.loads(prev_tech_raw) if prev_tech_raw else {}
+    try:
+        prev_tech_map: dict[str, str] = _json.loads(prev_tech_raw) if prev_tech_raw else {}
+    except (_json.JSONDecodeError, TypeError):
+        prev_tech_map = {}
 
     tech_changes: list[str] = []
     for tech, new_ver in new_tech_map.items():
@@ -652,6 +658,26 @@ def purge_old_scans(retention_days: int = PURGE_RETENTION_DAYS) -> int:
     return deleted
 
 
+def _cleanup_login_attempts() -> int:
+    """Purge les entrées login_attempts de plus de 24 h (anti-bloat)."""
+    from app.database import SessionLocal
+    from app.models import LoginAttempt
+
+    db = SessionLocal()
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        deleted = db.query(LoginAttempt).filter(LoginAttempt.failed_at < cutoff).delete()
+        db.commit()
+        if deleted:
+            logger.info("Cleanup login_attempts : %d entrée(s) supprimée(s)", deleted)
+        return deleted
+    except Exception as e:
+        logger.error("Erreur cleanup login_attempts : %s", e)
+        return 0
+    finally:
+        db.close()
+
+
 def start_scheduler() -> bool:
     """
     Démarre le scheduler si ce worker obtient le verrou.
@@ -711,12 +737,24 @@ def start_scheduler() -> bool:
         misfire_grace_time=3600,
     )
 
+    # Chaque jour à 03:30 UTC — purge login_attempts > 24h (anti-bloat)
+    _scheduler.add_job(
+        _cleanup_login_attempts,
+        trigger="cron",
+        hour=3,
+        minute=30,
+        id="daily_login_cleanup",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
     _scheduler.start()
     logger.info(
         "✅ Scheduler démarré — monitoring hebdomadaire lundi 06:00 UTC"
         " | digest lundi 07:30 UTC"
         " | onboarding quotidien 09:00 UTC"
         " | purge RGPD quotidienne 03:00 UTC"
+        " | cleanup login_attempts quotidien 03:30 UTC"
     )
     return True
 

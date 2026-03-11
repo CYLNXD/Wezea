@@ -3,6 +3,8 @@ Description=CyberHealth Scanner API (FastAPI/Uvicorn)
 Documentation=https://scan.wezea.net
 After=network.target network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=exec
@@ -24,8 +26,6 @@ ExecStart=/home/cyberhealth/app/backend/.venv/bin/uvicorn \
 # Redémarrage automatique en cas de crash
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5
 
 # Variables d'environnement (fichier .env optionnel)
 EnvironmentFile=-/home/cyberhealth/app/backend/.env

@@ -53,6 +53,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Auto-refresh JWT toutes les 20 min pour éviter la déconnexion silencieuse
+  useEffect(() => {
+    if (!token) return;
+    const id = setInterval(async () => {
+      try {
+        const { data } = await authApi.post('/auth/refresh', {}, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const newToken = data.access_token as string;
+        localStorage.setItem('wezea_token', newToken);
+        setToken(newToken);
+      } catch {
+        // Token expiré ou user supprimé — ne pas forcer de logout,
+        // fetchMe le fera au prochain mount
+      }
+    }, 20 * 60 * 1000); // 20 minutes
+    return () => clearInterval(id);
+  }, [token]);
+
   async function fetchMe(t: string) {
     try {
       const { data } = await authApi.get('/auth/me', {

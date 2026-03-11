@@ -12,6 +12,7 @@ import PublicScanPage from './pages/PublicScanPage';
 import CompliancePage from './pages/CompliancePage';
 import type { LegalSection } from './pages/LegalPage';
 import CookieBanner from './components/CookieBanner';
+import ErrorBoundary from './components/ErrorBoundary';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { initClientId, } from './lib/api';
@@ -155,6 +156,7 @@ export default function App() {
   }, []);
 
   return (
+    <ErrorBoundary>
     <LanguageProvider>
       <MetaUpdater page={page} />
       <AuthProvider>
@@ -247,5 +249,6 @@ export default function App() {
         )}
       </AuthProvider>
     </LanguageProvider>
+    </ErrorBoundary>
   );
 }

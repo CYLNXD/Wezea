@@ -40,14 +40,12 @@ export default function NewsletterWidget({ prefillEmail = '', variant = 'full' }
     try {
       await apiClient.post('/newsletter/subscribe', { email: email.trim().toLowerCase() });
       setStatus('success');
-    } catch (err: unknown) {
-      const msg = (err as { detail?: string })?.detail ?? '';
+    } catch {
       setError(
         lang === 'fr'
           ? 'Une erreur est survenue. Veuillez réessayer.'
           : 'Something went wrong. Please try again.'
       );
-      console.error('Newsletter subscribe error:', msg);
       setStatus('error');
     }
   }

@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { apiClient } from '../lib/api';
+import SkuIcon from './SkuIcon';
 
 interface Props {
   open: boolean;
@@ -16,34 +17,6 @@ interface Props {
 }
 
 type Tab = 'profile' | 'security' | 'api' | 'danger';
-
-// ─── SkuIcon — boîte d'icône skeuomorphique (pattern Dashboard) ───────────────
-// Usage : <SkuIcon color="#22d3ee" size={36}><User size={16} /></SkuIcon>
-// color  : couleur hex de l'icône (ex. '#22d3ee', '#a78bfa', '#f87171')
-// size   : taille du carré (défaut 36 — pour 32 ajuster borderRadius si besoin)
-function SkuIcon({
-  children, color, size = 36,
-}: { children: ReactNode; color: string; size?: number }) {
-  const r = Math.round(size * 0.28); // border-radius proportionnel
-  return (
-    <div
-      className="shrink-0 flex items-center justify-center relative overflow-hidden"
-      style={{
-        width: size, height: size, borderRadius: r,
-        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
-        border: `1px solid ${color}40`,
-        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
-      }}
-    >
-      {/* reflet supérieur */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }}
-      />
-      {children}
-    </div>
-  );
-}
 
 // ─── SectionHeader — en-tête de section pour chaque onglet ───────────────────
 function SectionHeader({ icon, title, sub }: { icon: ReactNode; title: string; sub?: string }) {
@@ -196,6 +169,14 @@ export function ProfileModal({ open, onClose }: Props) {
 
   useEffect(() => { if (open) resetAll(); }, [open, resetAll]);
 
+  // Fermeture par Escape
+  const handleEscape = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }, [onClose]);
+  useEffect(() => {
+    if (!open) return;
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [open, handleEscape]);
+
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   async function handleSave(e: FormEvent) {
@@ -301,6 +282,8 @@ export function ProfileModal({ open, onClose }: Props) {
           {/* Modal */}
           <motion.div
             key="modal"
+            role="dialog"
+            aria-modal="true"
             initial={{ opacity: 0, scale: 0.95, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 16 }}

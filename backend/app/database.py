@@ -188,6 +188,15 @@ def _apply_migrations():
                 logger.warning("Migration 014 backfill échouée : %s", exc)
             _mark_applied("014_api_key_hash")
 
+        # ── 016 : index sur login_attempts.failed_at (performance cleanup) ──
+        if not _applied("016_login_attempts_index"):
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_login_attempts_failed_at "
+                "ON login_attempts (failed_at)"
+            ))
+            conn.commit()
+            _mark_applied("016_login_attempts_index")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente

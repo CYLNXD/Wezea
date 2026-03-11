@@ -14,6 +14,7 @@ Sécurité : chaque payload est signé HMAC-SHA256 via X-Wezea-Signature.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json as _json
@@ -234,12 +235,18 @@ async def _deliver(hook: Webhook, payload: dict, db) -> int:
         headers["X-Wezea-Signature"] = _sign_payload(hook.secret, body)
 
     http_status = 0
-    try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.post(hook.url, content=body, headers=headers)
-            http_status = resp.status_code
-    except Exception:
-        http_status = 0  # timeout / connexion refusée
+    max_attempts = 2  # 1 essai initial + 1 retry sur 5xx/timeout
+    for attempt in range(max_attempts):
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.post(hook.url, content=body, headers=headers)
+                http_status = resp.status_code
+            if http_status < 500:
+                break  # succès ou erreur client (4xx) → pas de retry
+        except Exception:
+            http_status = 0  # timeout / connexion refusée
+        if attempt < max_attempts - 1 and (http_status == 0 or http_status >= 500):
+            await asyncio.sleep(2)  # attendre avant retry
 
     hook.last_fired_at = datetime.now(timezone.utc)
     hook.last_status   = http_status

@@ -158,10 +158,20 @@ class MonitoredDomain(Base):
     }
 
     def get_checks_config(self) -> dict:
-        """Retourne la config des checks, en fusionnant avec les défauts."""
+        """Retourne la config des checks, en fusionnant avec les défauts.
+        Seules les clés connues (DEFAULT_CHECKS) sont conservées."""
         if self.checks_config:
-            stored = json.loads(self.checks_config)
-            return {**self.DEFAULT_CHECKS, **stored}
+            try:
+                stored = json.loads(self.checks_config)
+            except (json.JSONDecodeError, TypeError):
+                return dict(self.DEFAULT_CHECKS)
+            # Ne garder que les clés connues avec valeurs booléennes
+            sanitized = {
+                k: bool(v)
+                for k, v in stored.items()
+                if k in self.DEFAULT_CHECKS
+            }
+            return {**self.DEFAULT_CHECKS, **sanitized}
         return dict(self.DEFAULT_CHECKS)
 
     def get_alert_config(self) -> dict:

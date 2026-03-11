@@ -304,6 +304,27 @@ def me(current_user: User = Depends(get_current_user)):
     )
 
 
+# ─── Refresh token silencieux ─────────────────────────────────────────────────
+
+@router.post("/refresh")
+def refresh_token(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Renouvelle le JWT si l'utilisateur est toujours valide.
+    Le frontend appelle cet endpoint avant l'expiration pour éviter
+    une déconnexion silencieuse (pas de refresh token séparé — on revalide le user en DB).
+    """
+    # Vérifier que le user existe toujours et est actif
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Utilisateur introuvable")
+
+    new_token = create_access_token(user.id, user.email, user.plan)
+    return {"access_token": new_token, "token_type": "bearer"}
+
+
 # ─── Profil RGPD ───────────────────────────────────────────────────────────────
 
 @router.patch("/profile", response_model=UserResponse)

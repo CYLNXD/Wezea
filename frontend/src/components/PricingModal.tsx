@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Zap, Shield, BarChart2, Key, Loader2, Code2, AppWindow } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -44,6 +44,14 @@ export default function PricingModal({ open, onClose }: Props) {
   const [portalError,   setPortalError]   = useState('');
   const [loadingPlan,   setLoadingPlan]   = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState('');
+
+  // Fermeture par Escape
+  const handleEscape = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }, [onClose]);
+  useEffect(() => {
+    if (!open) return;
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [open, handleEscape]);
 
   // Détecter le retour depuis Stripe (?payment=success)
   useEffect(() => {
@@ -121,6 +129,8 @@ export default function PricingModal({ open, onClose }: Props) {
     <AnimatePresence>
       {open && (
         <motion.div
+          role="dialog"
+          aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

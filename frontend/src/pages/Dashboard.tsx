@@ -6,9 +6,10 @@
 //   success  → ScoreGauge + FindingCards + FinancialRisk
 //   error    → Message d'erreur avec retry
 //
-import { useState, useEffect, useCallback, FormEvent, useRef, ReactNode } from 'react';
+import { useState, useEffect, useCallback, FormEvent, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import WezeaLogo from '../components/WezeaLogo';
+import SkuIcon from '../components/SkuIcon';
 import {
   Shield, Search, ArrowRight, RotateCcw,
   FileDown, Globe, AlertTriangle, Info, Lock, X, UserPlus, MessageSquare,
@@ -104,24 +105,8 @@ interface Props {
   onScanUuidConsumed?: () => void;
 }
 
-// ─── SkuIcon — boîte d'icône skeuomorphique ───────────────────────────────────
-function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: string; size?: number }) {
-  const r = Math.round(size * 0.28);
-  return (
-    <div className="shrink-0 flex items-center justify-center relative overflow-hidden"
-      style={{
-        width: size, height: size, borderRadius: r,
-        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
-        border: `1px solid ${color}40`,
-        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
-      }}
-    >
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
-      {children}
-    </div>
-  );
-}
+// ─── SkuIcon — importé depuis le composant partagé ──────────────────────────
+// (Voir src/components/SkuIcon.tsx pour l'implémentation)
 
 export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAdmin, onGoClientSpace, onGoContact, onGoLegal, onGoCompliance, initialScanUuid, onScanUuidConsumed }: Props) {
   const [domain, setDomain]         = useState('');

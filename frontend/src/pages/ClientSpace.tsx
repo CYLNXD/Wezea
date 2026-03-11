@@ -6,7 +6,7 @@
 //   history     → Historique des scans avec graphique + filtres par domaine
 //   settings    → Profil & Sécurité, Facturation, Zone dangereuse
 //
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Globe, Shield, FileDown, Bell,
@@ -22,27 +22,7 @@ import type { WhiteLabelSettings } from '../lib/api';
 import { useLanguage } from '../i18n/LanguageContext';
 import PricingModal from '../components/PricingModal';
 import PageNavbar from '../components/PageNavbar';
-
-// ─── SkuIcon ──────────────────────────────────────────────────────────────────
-
-function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: string; size?: number }) {
-  const r = Math.round(size * 0.28);
-  return (
-    <div
-      className="shrink-0 flex items-center justify-center relative overflow-hidden"
-      style={{
-        width: size, height: size, borderRadius: r,
-        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
-        border: `1px solid ${color}40`,
-        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
-      }}
-    >
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }} />
-      {children}
-    </div>
-  );
-}
+import SkuIcon from '../components/SkuIcon';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

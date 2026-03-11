@@ -4,35 +4,14 @@
 // Flag localStorage : wezea_onboarding_done_{userId}
 // Étapes : Bienvenue → Scanner votre domaine → Prochaines étapes
 //
-import { useState, ReactNode, FormEvent } from 'react';
+import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Shield, Globe, Star, ArrowRight, X, CheckCircle,
   Bell, Zap, FileText, Lock,
 } from 'lucide-react';
 import type { AuthUser } from '../contexts/AuthContext';
-
-// ─── SkuIcon ──────────────────────────────────────────────────────────────────
-function SkuIcon({ children, color, size = 44 }: { children: ReactNode; color: string; size?: number }) {
-  const r = Math.round(size * 0.28);
-  return (
-    <div
-      className="shrink-0 flex items-center justify-center relative overflow-hidden"
-      style={{
-        width: size, height: size, borderRadius: r,
-        background: `linear-gradient(150deg, ${color}30 0%, ${color}0d 100%)`,
-        border: `1px solid ${color}40`,
-        boxShadow: `0 4px 16px ${color}22, 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 ${color}30, inset 0 -1px 0 rgba(0,0,0,0.3)`,
-      }}
-    >
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ borderRadius: r, background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 50%)' }}
-      />
-      {children}
-    </div>
-  );
-}
+import SkuIcon from './SkuIcon';
 
 // ─── StepDot ──────────────────────────────────────────────────────────────────
 function StepDots({ total, current }: { total: number; current: number }) {
@@ -70,6 +49,13 @@ export default function OnboardingWizard({ user, onStartScan, onGoClientSpace, o
   const [step, setStep] = useState(0);
   const [domain, setDomain] = useState('');
   const [domainError, setDomainError] = useState('');
+
+  // Fermeture par Escape
+  const handleEscape = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }, [onClose]);
+  useEffect(() => {
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [handleEscape]);
 
   const firstName = user.first_name || user.email.split('@')[0];
 
@@ -320,6 +306,8 @@ export default function OnboardingWizard({ user, onStartScan, onGoClientSpace, o
   return (
     // Overlay
     <motion.div
+      role="dialog"
+      aria-modal="true"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

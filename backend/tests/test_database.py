@@ -120,6 +120,7 @@ class TestApplyMigrations:
             "007_public_share", "008_login_attempts_table", "009_password_reset",
             "010_verified_apps", "011_blog_links", "012_monitoring_alert_config",
             "013_user_integrations", "014_api_key_hash", "015_mfa",
+            "016_login_attempts_index",
         }
         assert expected == versions
 
@@ -171,7 +172,8 @@ class TestApplyMigrations:
             conn.execute(text("""
                 CREATE TABLE login_attempts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ip TEXT NOT NULL
+                    ip TEXT NOT NULL,
+                    failed_at TIMESTAMP
                 )
             """))
 
