@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.limiter import limiter
-from app.models import User, Payment
+from app.models import User, Payment, Partner
 from app.routers.auth_router import get_current_user
 from app.services.brevo_service import send_upgrade_email
 import asyncio as _asyncio
@@ -54,19 +54,21 @@ if not STRIPE_WEBHOOK_SECRET:
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://wezea.net")
 
-# ─── Coupon partenaire -30% (créé une seule fois, idempotent) ────────────────
-PARTNER_COUPON_ID = "PARTNER_30PCT"
+# ─── Coupons referral (créés une seule fois, idempotent) ─────────────────────
+REFERRAL_COUPON_ID        = "REFERRAL_20PCT"         # -20% premier mois pour les filleuls
+PARTNER_REWARD_COUPON_ID  = "PARTNER_REWARD_30PCT"   # -30% un mois pour le partenaire
 if stripe.api_key:
-    try:
-        stripe.Coupon.create(
-            id=PARTNER_COUPON_ID, percent_off=30,
-            duration="forever", name="Partenaire -30%",
-        )
-        logger.info("Stripe coupon %s created.", PARTNER_COUPON_ID)
-    except stripe.InvalidRequestError:
-        pass  # Already exists — expected on restart
-    except Exception as exc:
-        logger.warning("Could not create Stripe coupon %s: %s", PARTNER_COUPON_ID, exc)
+    for _cid, _pct, _name in [
+        (REFERRAL_COUPON_ID,       20, "Filleul -20% (1er mois)"),
+        (PARTNER_REWARD_COUPON_ID, 30, "Récompense partenaire -30%"),
+    ]:
+        try:
+            stripe.Coupon.create(id=_cid, percent_off=_pct, duration="once", name=_name)
+            logger.info("Stripe coupon %s created.", _cid)
+        except stripe.InvalidRequestError:
+            pass  # Already exists — expected on restart
+        except Exception as exc:
+            logger.warning("Could not create Stripe coupon %s: %s", _cid, exc)
 
 # Map price_id → plan name
 _PRICE_TO_PLAN: dict[str, str] = {
@@ -221,7 +223,6 @@ async def create_checkout(
     price_id = _price_id_for_plan(plan)
 
     try:
-        # -30% lifetime si l'utilisateur a été référé par un partenaire
         is_referred = current_user.referred_by_partner_id is not None
 
         checkout_kwargs = dict(
@@ -235,9 +236,30 @@ async def create_checkout(
             billing_address_collection = "required",
             tax_id_collection          = {"enabled": True},
         )
+
         # discounts et allow_promotion_codes sont mutuellement exclusifs dans Stripe
-        if is_referred:
-            checkout_kwargs["discounts"] = [{"coupon": PARTNER_COUPON_ID}]
+        # Priorité 1 : récompense partenaire -30% (1 mois, une seule fois)
+        partner_record = db.query(Partner).filter(
+            Partner.email == current_user.email,
+            Partner.referral_reward_used == False,  # noqa: E712
+        ).first()
+        if partner_record:
+            has_paid_referral = db.query(User).filter(
+                User.referred_by_partner_id == partner_record.id,
+                User.plan != "free",
+            ).first() is not None
+            if has_paid_referral:
+                checkout_kwargs["discounts"] = [{"coupon": PARTNER_REWARD_COUPON_ID}]
+                partner_record.referral_reward_used = True
+                db.commit()
+            elif is_referred:
+                checkout_kwargs["discounts"] = [{"coupon": REFERRAL_COUPON_ID}]
+            else:
+                checkout_kwargs["allow_promotion_codes"] = True
+        # Priorité 2 : filleul -20% (premier mois)
+        elif is_referred:
+            checkout_kwargs["discounts"] = [{"coupon": REFERRAL_COUPON_ID}]
+        # Sinon : promo codes classiques
         else:
             checkout_kwargs["allow_promotion_codes"] = True
 
@@ -328,6 +350,24 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             payment.paid_at = datetime.now(timezone.utc)
 
         db.commit()
+
+        # ── Récompense partenaire : -30% sur son prochain mois ─────────────
+        if user and user.referred_by_partner_id:
+            try:
+                partner = db.query(Partner).filter(Partner.id == user.referred_by_partner_id).first()
+                if partner and not partner.referral_reward_used:
+                    # Le partenaire n'a pas de user_id — on le retrouve par email
+                    partner_user = db.query(User).filter(User.email == partner.email).first()
+                    if partner_user and partner_user.stripe_customer_id:
+                        subs = stripe.Subscription.list(
+                            customer=partner_user.stripe_customer_id, status="active", limit=1,
+                        )
+                        if subs.data:
+                            stripe.Subscription.modify(subs.data[0].id, coupon=PARTNER_REWARD_COUPON_ID)
+                            partner.referral_reward_used = True
+                            db.commit()
+            except Exception:
+                pass  # Silencieux — sera appliqué au prochain checkout du partenaire
 
         # ── Email de confirmation d'upgrade ──────────────────────────────────
         if user:

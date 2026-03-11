@@ -338,6 +338,7 @@ class Partner(Base):
     pro_trial_ends   = Column(DateTime(timezone=True), nullable=True)  # fin d'essai Pro 30j
     referral_code    = Column(String(20), unique=True, nullable=False, index=True)  # wza_XXXXXX
     referral_count   = Column(Integer, default=0)              # nombre de parrainages validés
+    referral_reward_used = Column(Boolean, default=False)      # True quand le partenaire a reçu son -30%
     notes            = Column(Text, nullable=True)             # notes admin
     created_at       = Column(DateTime(timezone=True), default=utcnow)
     activated_at     = Column(DateTime(timezone=True), nullable=True)

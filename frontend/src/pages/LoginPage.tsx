@@ -567,7 +567,7 @@ export default function LoginPage({ onBack, initialMode, resetToken, referralCod
                   <div className="mt-1.5 flex items-center gap-1.5">
                     <CheckCircle size={12} className="text-green-400" />
                     <span className="text-xs text-green-400 font-medium">
-                      {lang === 'fr' ? '-30 % sur tous les plans' : '-30% on all plans'}
+                      {lang === 'fr' ? '-20 % sur le premier mois' : '-20% on your first month'}
                     </span>
                   </div>
                 )}

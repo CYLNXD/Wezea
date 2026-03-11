@@ -121,6 +121,7 @@ class TestApplyMigrations:
             "010_verified_apps", "011_blog_links", "012_monitoring_alert_config",
             "013_user_integrations", "014_api_key_hash", "015_mfa",
             "016_login_attempts_index", "017_partners", "018_user_referral",
+            "019_partner_reward_tracking",
         }
         assert expected == versions
 
@@ -174,6 +175,13 @@ class TestApplyMigrations:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     ip TEXT NOT NULL,
                     failed_at TIMESTAMP
+                )
+            """))
+            conn.execute(text("""
+                CREATE TABLE partners (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL,
+                    referral_code TEXT NOT NULL
                 )
             """))
 

@@ -207,6 +207,11 @@ def _apply_migrations():
             _add_column_if_missing(conn, "users", "referred_by_partner_id", "INTEGER")
             _mark_applied("018_user_referral")
 
+        # ── 019 : Tracking récompense partenaire ─────────────────────────────
+        if not _applied("019_partner_reward_tracking"):
+            _add_column_if_missing(conn, "partners", "referral_reward_used", "BOOLEAN DEFAULT 0")
+            _mark_applied("019_partner_reward_tracking")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente
