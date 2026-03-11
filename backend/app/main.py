@@ -748,6 +748,30 @@ async def run_scan(
     finally:
         db.close()
 
+    # ── Filtrage premium — redacter les détails pour free/anonymous ──────────
+    # Le score et le risk_level sont calculés sur TOUS les findings (score réel).
+    # Les findings premium sont renvoyés avec category/severity/penalty/is_premium
+    # mais sans détails techniques (titre, explication, recommandation masqués).
+    is_premium_plan = user_plan in ("starter", "pro", "dev")
+    findings_out = result_dict["findings"]
+    if not is_premium_plan:
+        redacted: list[dict] = []
+        for f in findings_out:
+            if f.get("is_premium"):
+                redacted.append({
+                    "category":          f["category"],
+                    "severity":          f["severity"],
+                    "title":             "",
+                    "technical_detail":  "",
+                    "plain_explanation": "",
+                    "penalty":           f["penalty"],
+                    "recommendation":    "",
+                    "is_premium":        True,
+                })
+            else:
+                redacted.append(f)
+        findings_out = redacted
+
     # ── Méta-données ──────────────────────────────────────────────────────────
     meta = {
         "scan_id":       scan_id,
@@ -769,18 +793,18 @@ async def run_scan(
         scanned_at        = result_dict["scanned_at"],
         security_score    = result_dict["security_score"],
         risk_level        = result_dict["risk_level"],
-        findings          = result_dict["findings"],
+        findings          = findings_out,
         dns_details       = result_dict["dns_details"],
         ssl_details       = result_dict["ssl_details"],
         port_details      = result_dict["port_details"],
         recommendations   = result_dict["recommendations"],
         scan_duration_ms  = result_dict["scan_duration_ms"],
         meta              = meta,
-        subdomain_details = result_dict.get("subdomain_details", {}),
-        vuln_details      = result_dict.get("vuln_details", {}),
-        breach_details    = result_dict.get("breach_details", {}),
-        typosquat_details = result_dict.get("typosquat_details", {}),
-        ct_details        = result_dict.get("ct_details", {}),
+        subdomain_details = result_dict.get("subdomain_details", {}) if is_premium_plan else {},
+        vuln_details      = result_dict.get("vuln_details", {}) if is_premium_plan else {},
+        breach_details    = result_dict.get("breach_details", {}) if is_premium_plan else {},
+        typosquat_details = result_dict.get("typosquat_details", {}) if is_premium_plan else {},
+        ct_details        = result_dict.get("ct_details", {}) if is_premium_plan else {},
         compliance        = result_dict.get("compliance", {}),
     )
 

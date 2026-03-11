@@ -17,6 +17,8 @@ export interface Finding {
   message?:           string;
   // Commun aux deux
   recommendation:     string;
+  // Premium finding (détails masqués pour les plans gratuits)
+  is_premium?:        boolean;
 }
 
 export interface PortDetail {

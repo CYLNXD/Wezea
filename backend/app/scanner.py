@@ -94,6 +94,7 @@ class Finding:
     plain_explanation: str  # Explication compréhensible par un patron de PME
     penalty:          int   # Points déduits du score (0 si INFO)
     recommendation:   str   # Action corrective concrète
+    is_premium:       bool  = False  # True si produit par un auditeur premium
 
     def to_dict(self) -> dict:
         return {
@@ -104,6 +105,7 @@ class Finding:
             "plain_explanation": self.plain_explanation,
             "penalty":           self.penalty,
             "recommendation":    self.recommendation,
+            "is_premium":        self.is_premium,
         }
 
 
@@ -1412,36 +1414,30 @@ class AuditManager:
         else:
             self._auditors = [a for (_, a) in all_base]
 
-        # Auditeurs premium (Starter, Pro et Dev)
-        self._premium_auditors: list[BaseAuditor] = []
-        if plan in ("starter", "pro", "dev"):
-            from app.advanced_checks import SubdomainAuditor, VulnVersionAuditor
-            from app.breach_checks import BreachAuditor
-            from app.typosquatting_checks import TyposquattingAuditor
-            from app.ct_monitor import CertTransparencyAuditor
-            self._subdomain_auditor   = SubdomainAuditor(self.domain, lang)
-            self._vuln_auditor        = VulnVersionAuditor(self.domain, lang)
-            self._breach_auditor      = BreachAuditor(self.domain, lang)
-            self._typosquat_auditor   = TyposquattingAuditor(self.domain, lang)
-            self._ct_auditor          = CertTransparencyAuditor(self.domain, lang)
-            self._dast_auditor        = DastAuditorWrapper(self.domain, lang)
-            self._premium_auditors    = [
-                self._subdomain_auditor, self._vuln_auditor,
-                self._breach_auditor, self._typosquat_auditor,
-                self._ct_auditor, self._dast_auditor,
-            ]
-        else:
-            self._subdomain_auditor = None
-            self._vuln_auditor      = None
-            self._breach_auditor    = None
-            self._typosquat_auditor = None
-            self._ct_auditor        = None
-            self._dast_auditor      = None
+        # Auditeurs premium — TOUJOURS instanciés quel que soit le plan.
+        # Le score reflète ainsi la réalité même pour les utilisateurs gratuits.
+        # Les détails premium sont filtrés en aval (main.py) selon le plan.
+        from app.advanced_checks import SubdomainAuditor, VulnVersionAuditor
+        from app.breach_checks import BreachAuditor
+        from app.typosquatting_checks import TyposquattingAuditor
+        from app.ct_monitor import CertTransparencyAuditor
+        self._subdomain_auditor   = SubdomainAuditor(self.domain, lang)
+        self._vuln_auditor        = VulnVersionAuditor(self.domain, lang)
+        self._breach_auditor      = BreachAuditor(self.domain, lang)
+        self._typosquat_auditor   = TyposquattingAuditor(self.domain, lang)
+        self._ct_auditor          = CertTransparencyAuditor(self.domain, lang)
+        self._dast_auditor        = DastAuditorWrapper(self.domain, lang)
+        self._premium_auditors: list[BaseAuditor] = [
+            self._subdomain_auditor, self._vuln_auditor,
+            self._breach_auditor, self._typosquat_auditor,
+            self._ct_auditor, self._dast_auditor,
+        ]
 
     async def run(self) -> ScanResult:
         """Lance tous les scans en parallèle et agrège les résultats."""
         start_ts = datetime.now(timezone.utc)
 
+        n_base = len(self._auditors)
         all_auditors = self._auditors + self._premium_auditors
         audit_results = await asyncio.gather(
             *[auditor.audit() for auditor in all_auditors],
@@ -1449,8 +1445,12 @@ class AuditManager:
         )
 
         all_findings: list[Finding] = []
-        for res in audit_results:
+        for idx, res in enumerate(audit_results):
             if isinstance(res, list):
+                # Tagger les findings des auditeurs premium (index >= n_base)
+                if idx >= n_base:
+                    for f in res:
+                        f.is_premium = True
                 all_findings.extend(res)
 
         score, risk_level = ScoreEngine.compute(all_findings)
@@ -1469,25 +1469,13 @@ class AuditManager:
         # Détails tous plans — Secret Scanner (référence nommée)
         secret_details: dict = self._secret_auditor.get_details()
 
-        # Détails premium
-        subdomain_details: dict = {}
-        vuln_details: dict = {}
-        breach_details: dict = {}
-        typosquat_details: dict = {}
-        ct_details: dict = {}
-        dast_details: dict = {}
-        if self.plan in ("starter", "pro", "dev") and self._subdomain_auditor:
-            subdomain_details = self._subdomain_auditor.get_details()
-        if self.plan in ("starter", "pro", "dev") and self._vuln_auditor:
-            vuln_details = self._vuln_auditor.get_details()
-        if self.plan in ("starter", "pro", "dev") and self._breach_auditor:
-            breach_details = self._breach_auditor.get_details()
-        if self.plan in ("starter", "pro", "dev") and self._typosquat_auditor:
-            typosquat_details = self._typosquat_auditor.get_details()
-        if self.plan in ("starter", "pro", "dev") and self._ct_auditor:
-            ct_details = self._ct_auditor.get_details()
-        if self.plan in ("starter", "pro", "dev") and self._dast_auditor:
-            dast_details = self._dast_auditor.get_details()
+        # Détails premium — toujours collectés, filtrés en aval (main.py)
+        subdomain_details = self._subdomain_auditor.get_details()
+        vuln_details      = self._vuln_auditor.get_details()
+        breach_details    = self._breach_auditor.get_details()
+        typosquat_details = self._typosquat_auditor.get_details()
+        ct_details        = self._ct_auditor.get_details()
+        dast_details      = self._dast_auditor.get_details()
 
         # Conformité NIS2 + RGPD — calculée sur TOUS les findings (tous plans)
         from app.compliance_mapper import ComplianceMapper

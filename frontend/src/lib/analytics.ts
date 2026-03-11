@@ -146,7 +146,9 @@ export type RegisterCtaSource =
   | 'maturity_widget'   // widget benchmark maturité
   | 'results_save'      // notice "résultats non sauvegardés"
   | 'sticky_bar'        // sticky bar bas d'écran post-scan
-  | 'low_findings_gate'; // gate LOW findings dans l'onglet vulnérabilités
+  | 'low_findings_gate'  // gate LOW findings dans l'onglet vulnérabilités
+  | 'premium_findings_gate'  // gate findings premium (onglet vulnérabilités)
+  | 'premium_actions_gate';  // gate actions premium (onglet actions)
 
 export function captureRegisterCtaClicked(source: RegisterCtaSource): void {
   ph('register_cta_clicked', { source });

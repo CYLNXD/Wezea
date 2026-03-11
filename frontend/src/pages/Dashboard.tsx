@@ -1551,10 +1551,14 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                             if ((f.penalty ?? 0) >= 20) return 'medium';
                             return 'quick';
                           };
-                          const actionFindings: WithEffort[] = r.findings
-                            .filter(f => f.severity !== 'INFO' && (f.penalty ?? 0) > 0)
+                          const isPremiumPlan = user && user.plan !== 'free';
+                          const allActionable = r.findings
+                            .filter(f => f.severity !== 'INFO' && (f.penalty ?? 0) > 0);
+                          const premiumLockedCount = isPremiumPlan ? 0 : allActionable.filter(f => f.is_premium).length;
+                          const actionFindings: WithEffort[] = allActionable
+                            .filter(f => isPremiumPlan || !f.is_premium)
                             .map(f => ({ ...f, effort: getEffort(f) }));
-                          if (actionFindings.length === 0) return null;
+                          if (actionFindings.length === 0 && premiumLockedCount === 0) return null;
 
                           const quickWins = actionFindings
                             .filter(f => f.effort === 'quick' && (f.penalty ?? 0) >= 8)
@@ -1631,6 +1635,35 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                     </div>
                                   ))}
                                 </div>
+                                {/* Actions premium verrouillées */}
+                                {premiumLockedCount > 0 && (
+                                  <div className="mt-4 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 flex items-center gap-3">
+                                    <SkuIcon color="#a78bfa" size={32}>
+                                      <Lock size={16} className="text-violet-300" />
+                                    </SkuIcon>
+                                    <div className="flex-1">
+                                      <p className="text-white text-xs font-semibold">
+                                        {lang === 'fr'
+                                          ? `+ ${premiumLockedCount} action${premiumLockedCount > 1 ? 's' : ''} avancée${premiumLockedCount > 1 ? 's' : ''} (analyse approfondie)`
+                                          : `+ ${premiumLockedCount} advanced action${premiumLockedCount > 1 ? 's' : ''} (deep analysis)`}
+                                      </p>
+                                      <p className="text-slate-400 text-[11px] mt-0.5">
+                                        {lang === 'fr'
+                                          ? 'Sous-domaines, fuites de données, versions vulnérables...'
+                                          : 'Subdomains, data breaches, vulnerable versions...'}
+                                      </p>
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        if (!user) { goRegister('premium_actions_gate'); }
+                                        else { window.location.href = '/espace-client?tab=billing'; }
+                                      }}
+                                      className="sku-btn-primary text-xs px-3 py-1.5 rounded-lg shrink-0"
+                                    >
+                                      {lang === 'fr' ? 'Débloquer' : 'Unlock'}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -1767,8 +1800,12 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                 .filter(f => f.severity !== 'INFO')
                                 .sort((a, b) => (sevOrder[a.severity] ?? 4) - (sevOrder[b.severity] ?? 4));
                               const toShow = severityFilter === 'all' ? sorted : sorted.filter(f => f.severity === severityFilter);
-                              const visibleItems = isAnon ? toShow.filter(f => f.severity !== 'LOW') : toShow;
-                              const gatedItems   = isAnon ? toShow.filter(f => f.severity === 'LOW')  : [];
+                              // Séparer : normaux, gated LOW (anonymes), et premium verrouillés
+                              const isPremiumPlan = user && user.plan !== 'free';
+                              const normalItems   = toShow.filter(f => !f.is_premium && (isPremiumPlan || isAnon ? true : f.severity !== 'LOW'));
+                              const visibleItems  = isAnon ? normalItems.filter(f => f.severity !== 'LOW') : normalItems;
+                              const gatedItems    = isAnon ? toShow.filter(f => f.severity === 'LOW' && !f.is_premium)  : [];
+                              const premiumLocked = !isPremiumPlan ? toShow.filter(f => f.is_premium) : [];
 
                               const borderCls = (sev: string) =>
                                 sev === 'CRITICAL' ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/35' :
@@ -1777,7 +1814,7 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                                     'bg-slate-900/50 border-slate-800 hover:border-slate-700';
                               return (
                                 <>
-                                  {visibleItems.length === 0 && gatedItems.length === 0 && (
+                                  {visibleItems.length === 0 && gatedItems.length === 0 && premiumLocked.length === 0 && (
                                     <div className="flex flex-col items-center gap-2 py-8 text-center bg-slate-900/50 rounded-xl border border-slate-800">
                                       <CheckCircle size={20} className="text-green-400" />
                                       <p className="text-green-400 font-semibold text-sm">
@@ -1816,6 +1853,64 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                       </div>
                                     ))}
                                   </div>
+
+                                  {/* Gate premium findings verrouillés */}
+                                  {premiumLocked.length > 0 && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: 6 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      transition={{ delay: 0.15 }}
+                                      className="relative rounded-xl overflow-hidden border border-violet-500/20 bg-slate-900/40"
+                                      style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+                                    >
+                                      {/* Aperçu flouté — montre la sévérité et la catégorie */}
+                                      <div className="blur-[6px] opacity-30 pointer-events-none px-5 py-4 flex flex-col gap-3 select-none">
+                                        {premiumLocked.slice(0, 4).map((f, i) => (
+                                          <div key={i} className={`rounded-lg p-3 border ${borderCls(f.severity)}`}>
+                                            <div className="flex items-center gap-2">
+                                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${SEVERITY_CONFIG[f.severity]?.badge ?? 'bg-slate-700 text-slate-300'}`}>
+                                                {f.severity}
+                                              </span>
+                                              <span className="text-slate-500 text-xs">{f.category}</span>
+                                            </div>
+                                            <div className="h-3 mt-2 rounded bg-slate-700/40 w-3/4" />
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div
+                                        className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center"
+                                        style={{ background: 'linear-gradient(180deg, rgba(15,21,30,0.2) 0%, rgba(15,21,30,0.85) 50%, rgba(15,21,30,0.95) 100%)' }}
+                                      >
+                                        <SkuIcon color="#a78bfa" size={44}>
+                                          <Lock size={22} className="text-violet-300" />
+                                        </SkuIcon>
+                                        <div>
+                                          <p className="text-white font-bold text-sm">
+                                            {lang === 'fr'
+                                              ? `${premiumLocked.length} vulnérabilité${premiumLocked.length > 1 ? 's' : ''} avancée${premiumLocked.length > 1 ? 's' : ''} détectée${premiumLocked.length > 1 ? 's' : ''}`
+                                              : `${premiumLocked.length} advanced vulnerabilit${premiumLocked.length > 1 ? 'ies' : 'y'} detected`}
+                                          </p>
+                                          <p className="text-slate-400 text-xs mt-1 max-w-xs">
+                                            {lang === 'fr'
+                                              ? 'Sous-domaines, fuites de données, versions vulnérables, typosquatting... Passez à Starter pour débloquer les détails.'
+                                              : 'Subdomains, data breaches, vulnerable versions, typosquatting... Upgrade to Starter to unlock details.'}
+                                          </p>
+                                        </div>
+                                        <button
+                                          onClick={() => {
+                                            if (!user) { goRegister('premium_findings_gate'); }
+                                            else { window.location.href = '/espace-client?tab=billing'; }
+                                          }}
+                                          className="sku-btn-primary text-sm px-5 py-2.5 rounded-xl flex items-center gap-2"
+                                        >
+                                          <Lock size={14} />
+                                          {!user
+                                            ? (lang === 'fr' ? 'Créer un compte' : 'Create account')
+                                            : (lang === 'fr' ? 'Voir les plans' : 'View plans')}
+                                        </button>
+                                      </div>
+                                    </motion.div>
+                                  )}
 
                                   {/* Gate LOW findings pour anonymes */}
                                   {gatedItems.length > 0 && (

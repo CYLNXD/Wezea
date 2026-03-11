@@ -621,18 +621,19 @@ def _all_auditor_patches(
 class TestAuditManagerInit:
     """Tests pour AuditManager.__init__ (sélection des auditeurs)."""
 
-    def test_free_plan_no_premium_auditors(self):
-        """Plan free → 9 auditeurs de base (incl. SecretScanner), 0 premium."""
+    def test_free_plan_has_all_auditors(self):
+        """Plan free → 9 de base + 6 premium (tous plans exécutent tous les auditeurs)."""
         from app.scanner import AuditManager
         with ExitStack() as stack:
             for p in _all_auditor_patches():
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="free")
         assert len(manager._auditors)         == 9
-        assert len(manager._premium_auditors) == 0
-        assert manager._subdomain_auditor     is None
-        assert manager._vuln_auditor          is None
-        assert manager._dast_auditor          is None
+        assert len(manager._premium_auditors) == 6
+        assert manager._subdomain_auditor     is not None
+        assert manager._vuln_auditor          is not None
+        assert manager._dast_auditor          is not None
+        assert manager.plan == "free"  # plan stocké pour filtrage en aval
 
     def test_starter_plan_has_premium_auditors(self):
         """Plan starter → 9 de base + 6 premium (subdomain+vuln+breach+typosquat+ct+dast)."""
@@ -795,18 +796,19 @@ class TestAuditManagerRun:
         assert any(f.title == "OK finding" for f in result.findings)
 
     @pytest.mark.asyncio
-    async def test_run_no_premium_details_for_free_plan(self):
-        """Plan free → tous les champs premium sont vides."""
+    async def test_run_free_plan_still_has_premium_details(self):
+        """Plan free → les auditeurs premium tournent, les détails sont collectés.
+        Le filtrage pour les utilisateurs free se fait en aval (main.py)."""
         from app.scanner import AuditManager
+        sub_mock  = _mock_auditor(details={"total_found": 2})
+        vuln_mock = _mock_auditor(details={"detected_stack": []})
         with ExitStack() as stack:
-            for p in _all_auditor_patches():
+            for p in _all_auditor_patches(sub_mock=sub_mock, vuln_mock=vuln_mock):
                 stack.enter_context(p)
             manager = AuditManager("example.com", plan="free")
             result  = await manager.run()
-        assert result.subdomain_details  == {}
-        assert result.vuln_details       == {}
-        assert result.typosquat_details  == {}
-        assert result.ct_details         == {}
+        assert result.subdomain_details == {"total_found": 2}
+        assert result.vuln_details      == {"detected_stack": []}
 
     @pytest.mark.asyncio
     async def test_run_premium_details_populated_for_starter(self):
@@ -883,6 +885,7 @@ class TestFindingToDict:
         assert d["plain_explanation"] == "Sans SPF, des spammeurs peuvent usurper votre domaine."
         assert d["penalty"]           == 15
         assert d["recommendation"]    == "Ajoutez un enregistrement TXT SPF à votre DNS."
+        assert d["is_premium"]        is False
 
 
 class TestScanResultToDict:
