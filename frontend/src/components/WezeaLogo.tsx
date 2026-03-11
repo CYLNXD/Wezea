@@ -45,7 +45,7 @@ export default function WezeaLogo({ size = 'sm', showSub = false, className = ''
       </div>
 
       {/* Texte */}
-      <div className="flex flex-col leading-none">
+      <div className="flex flex-col leading-none text-left">
         <span
           className={`font-black tracking-tight text-white leading-none ${c.text}`}
           style={{ letterSpacing: '-0.03em' }}
