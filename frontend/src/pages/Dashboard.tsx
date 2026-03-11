@@ -1860,55 +1860,39 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                       initial={{ opacity: 0, y: 6 }}
                                       animate={{ opacity: 1, y: 0 }}
                                       transition={{ delay: 0.15 }}
-                                      className="relative rounded-xl overflow-hidden border border-violet-500/20 bg-slate-900/40"
-                                      style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+                                      className="rounded-xl border border-violet-500/20 py-8 px-6 flex flex-col items-center gap-4 text-center"
+                                      style={{
+                                        background: 'linear-gradient(180deg, rgba(139,92,246,0.06) 0%, rgba(15,23,42,0.6) 100%)',
+                                        boxShadow: '0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(139,92,246,0.1)',
+                                      }}
                                     >
-                                      {/* Aperçu flouté — montre la sévérité et la catégorie */}
-                                      <div className="blur-[6px] opacity-30 pointer-events-none px-5 py-4 flex flex-col gap-3 select-none">
-                                        {premiumLocked.slice(0, 4).map((f, i) => (
-                                          <div key={i} className={`rounded-lg p-3 border ${borderCls(f.severity)}`}>
-                                            <div className="flex items-center gap-2">
-                                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${SEVERITY_CONFIG[f.severity]?.badge ?? 'bg-slate-700 text-slate-300'}`}>
-                                                {f.severity}
-                                              </span>
-                                              <span className="text-slate-500 text-xs">{f.category}</span>
-                                            </div>
-                                            <div className="h-3 mt-2 rounded bg-slate-700/40 w-3/4" />
-                                          </div>
-                                        ))}
+                                      <SkuIcon color="#a78bfa" size={44}>
+                                        <Lock size={22} className="text-violet-300" />
+                                      </SkuIcon>
+                                      <div>
+                                        <p className="text-white font-bold text-sm">
+                                          {lang === 'fr'
+                                            ? `${premiumLocked.length} vulnérabilité${premiumLocked.length > 1 ? 's' : ''} avancée${premiumLocked.length > 1 ? 's' : ''} détectée${premiumLocked.length > 1 ? 's' : ''}`
+                                            : `${premiumLocked.length} advanced vulnerabilit${premiumLocked.length > 1 ? 'ies' : 'y'} detected`}
+                                        </p>
+                                        <p className="text-slate-400 text-xs mt-1.5 max-w-sm leading-relaxed">
+                                          {lang === 'fr'
+                                            ? 'Sous-domaines, fuites de données, versions vulnérables, typosquatting… Passez à Starter pour débloquer les détails.'
+                                            : 'Subdomains, data breaches, vulnerable versions, typosquatting… Upgrade to Starter to unlock details.'}
+                                        </p>
                                       </div>
-                                      <div
-                                        className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center"
-                                        style={{ background: 'linear-gradient(180deg, rgba(15,21,30,0.2) 0%, rgba(15,21,30,0.85) 50%, rgba(15,21,30,0.95) 100%)' }}
+                                      <button
+                                        onClick={() => {
+                                          if (!user) { goRegister('premium_findings_gate'); }
+                                          else { window.location.href = '/espace-client?tab=billing'; }
+                                        }}
+                                        className="sku-btn-primary text-sm px-5 py-2.5 rounded-xl flex items-center gap-2"
                                       >
-                                        <SkuIcon color="#a78bfa" size={44}>
-                                          <Lock size={22} className="text-violet-300" />
-                                        </SkuIcon>
-                                        <div>
-                                          <p className="text-white font-bold text-sm">
-                                            {lang === 'fr'
-                                              ? `${premiumLocked.length} vulnérabilité${premiumLocked.length > 1 ? 's' : ''} avancée${premiumLocked.length > 1 ? 's' : ''} détectée${premiumLocked.length > 1 ? 's' : ''}`
-                                              : `${premiumLocked.length} advanced vulnerabilit${premiumLocked.length > 1 ? 'ies' : 'y'} detected`}
-                                          </p>
-                                          <p className="text-slate-400 text-xs mt-1 max-w-xs">
-                                            {lang === 'fr'
-                                              ? 'Sous-domaines, fuites de données, versions vulnérables, typosquatting... Passez à Starter pour débloquer les détails.'
-                                              : 'Subdomains, data breaches, vulnerable versions, typosquatting... Upgrade to Starter to unlock details.'}
-                                          </p>
-                                        </div>
-                                        <button
-                                          onClick={() => {
-                                            if (!user) { goRegister('premium_findings_gate'); }
-                                            else { window.location.href = '/espace-client?tab=billing'; }
-                                          }}
-                                          className="sku-btn-primary text-sm px-5 py-2.5 rounded-xl flex items-center gap-2"
-                                        >
-                                          <Lock size={14} />
-                                          {!user
-                                            ? (lang === 'fr' ? 'Créer un compte' : 'Create account')
-                                            : (lang === 'fr' ? 'Voir les plans' : 'View plans')}
-                                        </button>
-                                      </div>
+                                        <Lock size={14} />
+                                        {!user
+                                          ? (lang === 'fr' ? 'Créer un compte' : 'Create account')
+                                          : (lang === 'fr' ? 'Voir les plans' : 'View plans')}
+                                      </button>
                                     </motion.div>
                                   )}
 
@@ -1918,41 +1902,34 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                                       initial={{ opacity: 0, y: 6 }}
                                       animate={{ opacity: 1, y: 0 }}
                                       transition={{ delay: 0.2 }}
-                                      className="relative rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/40"
-                                      style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+                                      className="rounded-xl border border-slate-700/50 py-8 px-6 flex flex-col items-center gap-4 text-center"
+                                      style={{
+                                        background: 'linear-gradient(180deg, rgba(251,191,36,0.04) 0%, rgba(15,23,42,0.6) 100%)',
+                                        boxShadow: '0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(251,191,36,0.08)',
+                                      }}
                                     >
-                                      <div className="blur-sm opacity-40 pointer-events-none px-5 py-4 flex flex-col gap-3 select-none">
-                                        {[...Array(Math.min(gatedItems.length, 3))].map((_, i) => (
-                                          <div key={i} className="h-12 rounded-lg bg-slate-800/60 border border-slate-700/40" />
-                                        ))}
+                                      <SkuIcon color="#fbbf24" size={40}>
+                                        <Lock size={20} className="text-amber-300" />
+                                      </SkuIcon>
+                                      <div>
+                                        <p className="text-white font-bold text-sm">
+                                          {lang === 'fr'
+                                            ? `${gatedItems.length} recommandation${gatedItems.length > 1 ? 's' : ''} LOW masquée${gatedItems.length > 1 ? 's' : ''}`
+                                            : `${gatedItems.length} LOW recommendation${gatedItems.length > 1 ? 's' : ''} hidden`}
+                                        </p>
+                                        <p className="text-slate-400 text-xs mt-1.5 leading-relaxed">
+                                          {lang === 'fr'
+                                            ? 'Créez un compte gratuit pour accéder au plan de correction complet.'
+                                            : 'Create a free account to access the full remediation plan.'}
+                                        </p>
                                       </div>
-                                      <div
-                                        className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center"
-                                        style={{ background: 'linear-gradient(180deg, rgba(15,21,30,0.3) 0%, rgba(15,21,30,0.85) 60%, rgba(15,21,30,0.95) 100%)' }}
+                                      <button
+                                        onClick={() => goRegister('low_findings_gate')}
+                                        className="sku-btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-2"
                                       >
-                                        <SkuIcon color="#fbbf24" size={40}>
-                                          <Lock size={20} className="text-amber-300" />
-                                        </SkuIcon>
-                                        <div>
-                                          <p className="text-white font-bold text-sm">
-                                            {lang === 'fr'
-                                              ? `${gatedItems.length} recommandation${gatedItems.length > 1 ? 's' : ''} LOW masquée${gatedItems.length > 1 ? 's' : ''}`
-                                              : `${gatedItems.length} LOW recommendation${gatedItems.length > 1 ? 's' : ''} hidden`}
-                                          </p>
-                                          <p className="text-slate-400 text-xs mt-1">
-                                            {lang === 'fr'
-                                              ? 'Créez un compte gratuit pour accéder au plan de correction complet.'
-                                              : 'Create a free account to access the full remediation plan.'}
-                                          </p>
-                                        </div>
-                                        <button
-                                          onClick={() => goRegister('low_findings_gate')}
-                                          className="sku-btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-2"
-                                        >
-                                          <UserPlus size={14} />
-                                          {lang === 'fr' ? 'Créer un compte gratuit' : 'Create free account'}
-                                        </button>
-                                      </div>
+                                        <UserPlus size={14} />
+                                        {lang === 'fr' ? 'Créer un compte gratuit' : 'Create free account'}
+                                      </button>
                                     </motion.div>
                                   )}
                                 </>
