@@ -320,3 +320,22 @@ class Webhook(Base):
     last_status   = Column(Integer, nullable=True)      # HTTP status de la dernière livraison
 
     user = relationship("User", backref="webhooks")
+
+
+class Partner(Base):
+    """Programme partenaire — professionnels IT/cyber qui recommandent Wezea."""
+    __tablename__ = "partners"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    first_name       = Column(String(100), nullable=False)
+    email            = Column(String(254), nullable=False, unique=True, index=True)
+    company          = Column(String(200), nullable=False)
+    website          = Column(String(512), nullable=True)
+    client_count     = Column(String(50), nullable=True)       # "1-10", "11-50", "50+"
+    status           = Column(String(20), default="pending")   # pending | active | rejected
+    pro_trial_ends   = Column(DateTime(timezone=True), nullable=True)  # fin d'essai Pro 30j
+    referral_code    = Column(String(20), unique=True, nullable=False, index=True)  # wza_XXXXXX
+    referral_count   = Column(Integer, default=0)              # nombre de parrainages validés
+    notes            = Column(Text, nullable=True)             # notes admin
+    created_at       = Column(DateTime(timezone=True), default=utcnow)
+    activated_at     = Column(DateTime(timezone=True), nullable=True)

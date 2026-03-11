@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   Shield, Users, Trash2, RefreshCw, CheckCircle, XCircle,
   TrendingUp, DollarSign, UserPlus, ArrowUpRight, Zap, BarChart3,
-  BookOpen, Plus, Pencil, X, ExternalLink, Activity,
+  BookOpen, Plus, Pencil, X, ExternalLink, Activity, Handshake,
 } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -59,7 +59,23 @@ interface Props {
   onGoContact?: () => void;
 }
 
-type Tab = 'metrics' | 'performance' | 'users' | 'blog';
+interface PartnerAdmin {
+  id: number;
+  first_name: string;
+  email: string;
+  company: string;
+  website: string | null;
+  client_count: string | null;
+  status: string;
+  referral_code: string;
+  referral_count: number;
+  notes: string | null;
+  created_at: string;
+  activated_at: string | null;
+  pro_trial_ends: string | null;
+}
+
+type Tab = 'metrics' | 'performance' | 'users' | 'blog' | 'partners';
 
 // ─── Types Performance ─────────────────────────────────────────────────────────
 
@@ -900,6 +916,7 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
   const [users,      setUsers]      = useState<UserAdmin[]>([]);
   const [stats,      setStats]      = useState<Stats | null>(null);
   const [blogLinks,  setBlogLinks]  = useState<BlogLink[]>([]);
+  const [partners,   setPartners]   = useState<PartnerAdmin[]>([]);
   const [perf,       setPerf]       = useState<PerfStats | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState('');
@@ -916,18 +933,20 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
     setLoading(true);
     setError('');
     try {
-      const [usersRes, statsRes, metricsRes, blogRes, perfRes] = await Promise.all([
+      const [usersRes, statsRes, metricsRes, blogRes, perfRes, partnersRes] = await Promise.all([
         apiClient.get('/admin/users'),
         apiClient.get('/admin/stats'),
         apiClient.get('/admin/metrics'),
         apiClient.get('/admin/blog-links'),
         apiClient.get('/admin/metrics/performance'),
+        apiClient.get('/partners/admin'),
       ]);
       setUsers(usersRes.data);
       setStats(statsRes.data);
       setMetrics(metricsRes.data);
       setBlogLinks(blogRes.data);
       setPerf(perfRes.data);
+      setPartners(partnersRes.data);
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Erreur de chargement');
     } finally {
@@ -1032,6 +1051,7 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
             { key: 'performance', label: 'Performance',   icon: Activity  },
             { key: 'users',       label: 'Utilisateurs',  icon: Users     },
             { key: 'blog',        label: 'Blog',          icon: BookOpen  },
+            { key: 'partners',    label: 'Partenaires',   icon: Handshake },
           ] as { key: Tab; label: string; icon: React.ElementType }[]).map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -1047,6 +1067,11 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
               {key === 'users' && users.length > 0 && (
                 <span className="ml-0.5 bg-slate-700 text-slate-300 rounded-full px-1.5 py-0.5 text-[9px] font-mono">
                   {users.length}
+                </span>
+              )}
+              {key === 'partners' && partners.filter(p => p.status === 'pending').length > 0 && (
+                <span className="ml-0.5 bg-amber-500/20 text-amber-400 rounded-full px-1.5 py-0.5 text-[9px] font-mono">
+                  {partners.filter(p => p.status === 'pending').length}
                 </span>
               )}
             </button>
@@ -1090,9 +1115,104 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
             {tab === 'blog' && (
               <BlogLinksTab links={blogLinks} onRefresh={fetchBlogLinks} />
             )}
+            {tab === 'partners' && (
+              <PartnersTab partners={partners} onRefresh={fetchData} />
+            )}
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+
+// ─── Partners Tab ──────────────────────────────────────────────────────────────
+
+function PartnersTab({ partners, onRefresh }: { partners: PartnerAdmin[]; onRefresh: () => void }) {
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
+
+  const handleAction = async (id: number, action: 'activate' | 'reject') => {
+    setActionLoading(id);
+    try {
+      await apiClient.post(`/partners/admin/${id}/${action}`);
+      onRefresh();
+    } catch {
+      /* silencieux */
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const statusColors: Record<string, string> = {
+    pending:  'text-amber-400 bg-amber-500/10 border-amber-500/30',
+    active:   'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+    rejected: 'text-red-400 bg-red-500/10 border-red-500/30',
+  };
+
+  const statusLabels: Record<string, string> = {
+    pending:  'En attente',
+    active:   'Actif',
+    rejected: 'Rejeté',
+  };
+
+  if (!partners.length) {
+    return (
+      <div className="sku-panel rounded-xl p-8 text-center">
+        <Handshake size={32} className="text-slate-600 mx-auto mb-3" />
+        <p className="text-slate-500 text-sm">Aucun partenaire inscrit pour le moment.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {partners.map(p => (
+        <div key={p.id} className="sku-card p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-white font-semibold text-sm truncate">{p.company}</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${statusColors[p.status] || statusColors.pending}`}>
+                {statusLabels[p.status] || p.status}
+              </span>
+            </div>
+            <div className="text-slate-400 text-xs space-y-0.5">
+              <div>{p.first_name} &mdash; {p.email}</div>
+              {p.website && <div className="truncate">{p.website}</div>}
+              <div className="flex items-center gap-3 mt-1 text-slate-500">
+                <span>Code : <span className="font-mono text-slate-300">{p.referral_code}</span></span>
+                {p.client_count && <span>Clients : {p.client_count}</span>}
+                <span>Parrainages : {p.referral_count}</span>
+              </div>
+              {p.pro_trial_ends && (
+                <div className="text-[10px]">
+                  Essai Pro : jusqu'au {new Date(p.pro_trial_ends).toLocaleDateString('fr-FR')}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {p.status === 'pending' && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => handleAction(p.id, 'activate')}
+                disabled={actionLoading === p.id}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition disabled:opacity-50"
+              >
+                <CheckCircle size={12} />
+                Activer
+              </button>
+              <button
+                onClick={() => handleAction(p.id, 'reject')}
+                disabled={actionLoading === p.id}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition disabled:opacity-50"
+              >
+                <XCircle size={12} />
+                Rejeter
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

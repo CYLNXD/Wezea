@@ -55,6 +55,7 @@ from app.routers.public_router import router as public_router
 from app.routers.newsletter_router import router as newsletter_router
 from app.routers.webhook_router import router as webhook_router
 from app.routers.app_router import router as app_router
+from app.routers.partner_router import router as partner_router
 from app.metrics import record_request
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -228,6 +229,7 @@ app.include_router(public_router)
 app.include_router(newsletter_router)
 app.include_router(webhook_router)
 app.include_router(app_router)
+app.include_router(partner_router)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

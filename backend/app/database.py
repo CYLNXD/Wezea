@@ -197,6 +197,11 @@ def _apply_migrations():
             conn.commit()
             _mark_applied("016_login_attempts_index")
 
+        # ── 017 : Programme partenaire — table partners ────────────────────
+        if not _applied("017_partners"):
+            # La table est gérée par SQLAlchemy ORM (Base.metadata.create_all)
+            _mark_applied("017_partners")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente

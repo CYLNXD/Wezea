@@ -10,6 +10,7 @@ import ContactPage from './pages/ContactPage';
 import LegalPage from './pages/LegalPage';
 import PublicScanPage from './pages/PublicScanPage';
 import CompliancePage from './pages/CompliancePage';
+import PartnerPage from './pages/PartnerPage';
 import type { LegalSection } from './pages/LegalPage';
 import CookieBanner from './components/CookieBanner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -18,7 +19,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { initClientId, } from './lib/api';
 import { restoreConsent } from './lib/analytics';
 
-type Page = 'dashboard' | 'login' | 'history' | 'admin' | 'clientspace' | 'contact' | 'legal' | 'public-scan' | 'compliance';
+type Page = 'dashboard' | 'login' | 'history' | 'admin' | 'clientspace' | 'contact' | 'legal' | 'public-scan' | 'compliance' | 'partners';
 type ClientSpaceTab = 'overview' | 'monitoring' | 'apps' | 'history' | 'settings' | 'developer';
 type SettingsSection = 'profile' | 'billing' | 'whitelabel' | 'danger';
 
@@ -121,6 +122,12 @@ export default function App() {
     // Détecte la page de conformité NIS2/RGPD
     if (window.location.pathname === '/conformite-nis2') {
       setPage('compliance');
+      return;
+    }
+
+    // Détecte la page partenaire
+    if (window.location.pathname === '/partenaires') {
+      setPage('partners');
       return;
     }
 
@@ -242,6 +249,13 @@ export default function App() {
         )}
         {page === 'compliance' && (
           <CompliancePage
+            onGoBack={() => { window.history.replaceState({}, '', '/'); setPage('dashboard'); }}
+            onGoRegister={() => { setLoginMode('register'); setPage('login'); }}
+            onGoLogin={() => { setLoginMode('login'); setPage('login'); }}
+          />
+        )}
+        {page === 'partners' && (
+          <PartnerPage
             onGoBack={() => { window.history.replaceState({}, '', '/'); setPage('dashboard'); }}
             onGoRegister={() => { setLoginMode('register'); setPage('login'); }}
             onGoLogin={() => { setLoginMode('login'); setPage('login'); }}

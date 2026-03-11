@@ -1097,3 +1097,60 @@ async def send_teams_alert(
             return resp.status_code in (200, 202)
     except Exception:
         return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Programme partenaire
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def send_partner_application_notification(
+    email: str, first_name: str, company: str
+) -> bool:
+    """Notifie l'admin qu'une nouvelle candidature partenaire a été reçue."""
+    admin_email = os.getenv("ADMIN_EMAIL", "wezea.app@gmail.com")
+    html = _base_html(f"""
+    <div class="card">
+      <h1>Nouvelle candidature partenaire</h1>
+      <p>Un professionnel souhaite rejoindre le programme partenaire&nbsp;:</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr><td style="padding:6px 12px;color:#94a3b8;">Nom</td><td style="padding:6px 12px;color:#fff;font-weight:600;">{_esc(first_name)}</td></tr>
+        <tr><td style="padding:6px 12px;color:#94a3b8;">Email</td><td style="padding:6px 12px;color:#fff;font-weight:600;">{_esc(email)}</td></tr>
+        <tr><td style="padding:6px 12px;color:#94a3b8;">Entreprise</td><td style="padding:6px 12px;color:#fff;font-weight:600;">{_esc(company)}</td></tr>
+      </table>
+      <a href="{FRONTEND_URL}" class="btn">&rarr; Voir dans l'admin</a>
+    </div>
+    """)
+    return await _send({
+        "sender":      SENDER,
+        "to":          [{"email": admin_email}],
+        "subject":     f"Nouveau partenaire : {company}",
+        "htmlContent": html,
+    })
+
+
+async def send_partner_activated_email(email: str, first_name: str, referral_code: str) -> bool:
+    """Email envoyé au partenaire lorsque sa candidature est acceptée."""
+    html = _base_html(f"""
+    <div class="card">
+      <h1>Bienvenue dans le programme partenaire Wezea&nbsp;!</h1>
+      <p>Bonjour {_esc(first_name)},</p>
+      <p>
+        Votre candidature a &eacute;t&eacute; accept&eacute;e. Vous b&eacute;n&eacute;ficiez d&egrave;s maintenant
+        d'un <strong>essai Pro gratuit de 30 jours</strong> et d'un code referral unique.
+      </p>
+      <div style="background:#0f172a;border:1px solid rgba(167,139,250,0.3);border-radius:12px;padding:16px;margin:16px 0;text-align:center;">
+        <p style="color:#94a3b8;font-size:12px;margin:0 0 4px;">Votre code partenaire</p>
+        <p style="color:#c4b5fd;font-size:24px;font-weight:800;letter-spacing:0.05em;margin:0;">{_esc(referral_code)}</p>
+      </div>
+      <p style="color:#94a3b8;font-size:13px;">
+        Partagez ce code avec vos clients pour qu'ils puissent s'inscrire via votre recommandation.
+      </p>
+      <a href="{FRONTEND_URL}" class="btn">&rarr; Acc&eacute;der &agrave; mon espace</a>
+    </div>
+    """)
+    return await _send({
+        "sender":      SENDER,
+        "to":          [{"email": email}],
+        "subject":     "Votre compte partenaire Wezea est actif !",
+        "htmlContent": html,
+    })

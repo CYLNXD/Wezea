@@ -678,6 +678,60 @@ def _cleanup_login_attempts() -> int:
         db.close()
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Auto-downgrade des partenaires dont l'essai Pro a expiré
+# ─────────────────────────────────────────────────────────────────────────────
+
+def run_partner_trial_expiry():
+    """Tâche quotidienne (06:00 UTC) — downgrade les partenaires dont l'essai Pro a expiré."""
+    logger.info("🤝 Vérification des essais Pro partenaires expirés...")
+    try:
+        asyncio.run(_async_partner_trial_expiry())
+    except Exception as e:
+        logger.error(f"Erreur expiry essai partenaire : {e}")
+
+
+async def _async_partner_trial_expiry():
+    from app.database import SessionLocal
+    from app.models import Partner, User
+
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        expired_partners = (
+            db.query(Partner)
+            .filter(
+                Partner.status == "active",
+                Partner.pro_trial_ends.isnot(None),
+                Partner.pro_trial_ends < now,
+            )
+            .all()
+        )
+
+        downgraded = 0
+        for partner in expired_partners:
+            user = db.query(User).filter(User.email == partner.email).first()
+            if not user:
+                continue
+            # Ne downgrader que si le user n'a pas de subscription Stripe active
+            if user.subscription_status == "active" and user.stripe_customer_id:
+                logger.info(
+                    f"Partenaire {partner.email} : essai expiré mais subscription Stripe active — skip downgrade"
+                )
+                continue
+            if user.plan in ("pro", "dev") and not user.stripe_customer_id:
+                user.plan = "free"
+                user.subscription_status = None
+                downgraded += 1
+                logger.info(f"Partenaire {partner.email} : essai Pro expiré → downgrade free")
+
+        if downgraded:
+            db.commit()
+        logger.info(f"Expiry partenaires : {len(expired_partners)} expiré(s), {downgraded} downgrade(s)")
+    finally:
+        db.close()
+
+
 def start_scheduler() -> bool:
     """
     Démarre le scheduler si ce worker obtient le verrou.
@@ -748,6 +802,17 @@ def start_scheduler() -> bool:
         misfire_grace_time=3600,
     )
 
+    # Chaque jour à 06:00 UTC — auto-downgrade essais Pro partenaires expirés
+    _scheduler.add_job(
+        run_partner_trial_expiry,
+        trigger="cron",
+        hour=6,
+        minute=0,
+        id="daily_partner_trial_expiry",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
     _scheduler.start()
     logger.info(
         "✅ Scheduler démarré — monitoring hebdomadaire lundi 06:00 UTC"
@@ -755,6 +820,7 @@ def start_scheduler() -> bool:
         " | onboarding quotidien 09:00 UTC"
         " | purge RGPD quotidienne 03:00 UTC"
         " | cleanup login_attempts quotidien 03:30 UTC"
+        " | partner trial expiry quotidien 06:00 UTC"
     )
     return True
 
