@@ -329,9 +329,11 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
     if (scanner.status === 'scanning') {
       setPreviousScore(null);   // reset à chaque nouveau scan
       setDomainHistory([]);
+      // Délai 500ms : laisse le temps à AnimatePresence de terminer l'exit du panel
+      // résultats (~150ms) + début de l'enter de ScanConsole (~400ms opacity+y anim)
       timers.push(setTimeout(() => {
         resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 150));
+      }, 500));
     }
     if (scanner.status === 'error') {
       timers.push(setTimeout(() => {

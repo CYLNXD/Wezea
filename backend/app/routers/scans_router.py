@@ -98,6 +98,10 @@ def get_scan_detail(
         "recommendations":   details.get("recommendations", []),
         "subdomain_details": details.get("subdomain_details", {}),
         "vuln_details":      details.get("vuln_details", {}),
+        "compliance":        details.get("compliance", {}),
+        "breach_details":    details.get("breach_details", {}),
+        "typosquat_details": details.get("typosquat_details", {}),
+        "ct_details":        details.get("ct_details", {}),
     }
 
 

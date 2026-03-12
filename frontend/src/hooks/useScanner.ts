@@ -255,6 +255,10 @@ export function useScanner(): ScannerState & ScannerActions {
         scan_duration_ms:  (data.scan_duration ?? 0) * 1000,
         subdomain_details: data.subdomain_details ?? {},
         vuln_details:      data.vuln_details      ?? {},
+        compliance:        data.compliance         ?? undefined,
+        breach_details:    data.breach_details     ?? undefined,
+        typosquat_details: data.typosquat_details  ?? undefined,
+        ct_details:        data.ct_details         ?? undefined,
         meta:              {},
       };
       setState(prev => ({ ...prev, status: 'success', result, progress: 100 }));

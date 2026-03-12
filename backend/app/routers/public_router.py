@@ -140,7 +140,13 @@ def public_scan(request: Request, scan_uuid: str, db: Session = Depends(get_db))
         "dns_details":    details.get("dns_details", {}),
         "ssl_details":    details.get("ssl_details", {}),
         "port_details":   details.get("port_details", {}),
-        "recommendations": details.get("recommendations", []),
+        "recommendations":   details.get("recommendations", []),
+        "subdomain_details": details.get("subdomain_details", {}),
+        "vuln_details":      details.get("vuln_details", {}),
+        "compliance":        details.get("compliance", {}),
+        "breach_details":    details.get("breach_details", {}),
+        "typosquat_details": details.get("typosquat_details", {}),
+        "ct_details":        details.get("ct_details", {}),
     }
 
 
