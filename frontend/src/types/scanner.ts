@@ -86,16 +86,32 @@ export interface ComplianceArticle {
   title_en:       string;
   description:    string;
   description_en: string;
-  compliant:      boolean;
+  compliant:      boolean | null;
+  status:         'pass' | 'warn' | 'fail' | 'not_assessable';
   triggered_by:   string[];
 }
 
+export interface ComplianceCriterion {
+  id:           string;
+  label_fr:     string;
+  label_en:     string;
+  regulations:  string[];
+  article_fr:   string;
+  article_en:   string;
+  desc_fr:      string;
+  desc_en:      string;
+  status:       'pass' | 'warn' | 'fail';
+}
+
 export interface ComplianceData {
-  nis2_score:    number;
-  rgpd_score:    number;
-  overall_level: 'conforme' | 'partiel' | 'non_conforme';
-  nis2:          ComplianceArticle[];
-  rgpd:          ComplianceArticle[];
+  nis2_score:     number;
+  rgpd_score:     number;
+  overall_level:  'bon' | 'insuffisant' | 'critique';
+  nis2:           ComplianceArticle[];
+  rgpd:           ComplianceArticle[];
+  criteria:       ComplianceCriterion[];
+  disclaimer_fr:  string;
+  disclaimer_en:  string;
 }
 
 export interface BreachDetails {

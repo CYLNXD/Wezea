@@ -2384,9 +2384,9 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                       }
 
                       const levelCfg = {
-                        conforme:      { label: lang === 'fr' ? 'Conforme'       : 'Compliant',     bg: 'bg-green-500/15',  border: 'border-green-500/30',  text: 'text-green-300' },
-                        partiel:       { label: lang === 'fr' ? 'Partiel'        : 'Partial',       bg: 'bg-amber-500/15',  border: 'border-amber-500/30',  text: 'text-amber-300' },
-                        non_conforme:  { label: lang === 'fr' ? 'Non conforme'   : 'Non-compliant', bg: 'bg-red-500/15',    border: 'border-red-500/30',    text: 'text-red-300'   },
+                        bon:           { label: lang === 'fr' ? 'Bon'            : 'Good',          bg: 'bg-green-500/15',  border: 'border-green-500/30',  text: 'text-green-300' },
+                        insuffisant:   { label: lang === 'fr' ? 'Insuffisant'    : 'Insufficient',  bg: 'bg-amber-500/15',  border: 'border-amber-500/30',  text: 'text-amber-300' },
+                        critique:      { label: lang === 'fr' ? 'Critique'       : 'Critical',      bg: 'bg-red-500/15',    border: 'border-red-500/30',    text: 'text-red-300'   },
                       }[c.overall_level] ?? { label: '—', bg: 'bg-slate-800', border: 'border-slate-700', text: 'text-slate-400' };
 
                       const scoreBar = (score: number) => {
@@ -2399,42 +2399,54 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                         );
                       };
 
-                      const ArticleRow = ({ art }: { art: ComplianceArticle }) => (
-                        <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border transition-colors ${
-                          art.compliant
-                            ? 'bg-slate-900/30 border-slate-800'
-                            : 'bg-red-500/5 border-red-500/20'
-                        }`}>
-                          <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                            art.compliant ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                          }`}>
-                            {art.compliant ? '✓' : '✗'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[10px] font-mono text-slate-500">Art. {art.code}</span>
-                              <span className={`text-sm font-medium ${art.compliant ? 'text-slate-300' : 'text-slate-200'}`}>
-                                {lang === 'fr' ? art.title : art.title_en}
-                              </span>
+                      const ArticleRow = ({ art }: { art: ComplianceArticle }) => {
+                        const statusCfg = art.status === 'not_assessable'
+                          ? { rowBg: 'bg-slate-900/20 border-slate-700/50', iconBg: 'bg-slate-600/20 text-slate-500', icon: '—', titleText: 'text-slate-400' }
+                          : art.status === 'pass'
+                            ? { rowBg: 'bg-slate-900/30 border-slate-800', iconBg: 'bg-green-500/20 text-green-400', icon: '✓', titleText: 'text-slate-300' }
+                            : art.status === 'warn'
+                              ? { rowBg: 'bg-amber-500/5 border-amber-500/20', iconBg: 'bg-amber-500/20 text-amber-400', icon: '!', titleText: 'text-slate-200' }
+                              : { rowBg: 'bg-red-500/5 border-red-500/20', iconBg: 'bg-red-500/20 text-red-400', icon: '✗', titleText: 'text-slate-200' };
+                        return (
+                          <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border transition-colors ${statusCfg.rowBg}`}>
+                            <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${statusCfg.iconBg}`}>
+                              {statusCfg.icon}
                             </div>
-                            <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">
-                              {lang === 'fr' ? art.description : art.description_en}
-                            </p>
-                            {!art.compliant && art.triggered_by.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-2">
-                                {art.triggered_by.slice(0, 3).map((t, i) => (
-                                  <span key={i} className="px-2 py-0.5 rounded text-[10px] bg-red-500/10 text-red-300 border border-red-500/20">
-                                    {t}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-mono text-slate-500">Art. {art.code}</span>
+                                <span className={`text-sm font-medium ${statusCfg.titleText}`}>
+                                  {lang === 'fr' ? art.title : art.title_en}
+                                </span>
+                                {art.status === 'not_assessable' && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-500 border border-slate-600/30">
+                                    {lang === 'fr' ? 'Non vérifiable' : 'Not assessable'}
                                   </span>
-                                ))}
-                                {art.triggered_by.length > 3 && (
-                                  <span className="text-[10px] text-slate-600">+{art.triggered_by.length - 3}</span>
                                 )}
                               </div>
-                            )}
+                              <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">
+                                {lang === 'fr' ? art.description : art.description_en}
+                              </p>
+                              {art.status !== 'pass' && art.status !== 'not_assessable' && art.triggered_by.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {art.triggered_by.slice(0, 3).map((tb, i) => (
+                                    <span key={i} className={`px-2 py-0.5 rounded text-[10px] border ${
+                                      art.status === 'warn'
+                                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                        : 'bg-red-500/10 text-red-300 border-red-500/20'
+                                    }`}>
+                                      {tb}
+                                    </span>
+                                  ))}
+                                  {art.triggered_by.length > 3 && (
+                                    <span className="text-[10px] text-slate-600">+{art.triggered_by.length - 3}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
+                        );
+                      };
 
                       return (
                         <motion.div key="tab-conformite"
@@ -2479,21 +2491,23 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
                           </div>
 
                           <p className="text-slate-600 text-xs px-1">
-                            {lang === 'fr'
-                              ? 'Ce rapport est basé sur les checks techniques automatisés. Il ne constitue pas un audit de conformité légal. Consultez un DPO ou expert NIS2 pour une évaluation complète.'
-                              : 'This report is based on automated technical checks. It does not constitute a legal compliance audit. Consult a DPO or NIS2 expert for a full assessment.'}
+                            {c.disclaimer_fr && c.disclaimer_en
+                              ? (lang === 'fr' ? c.disclaimer_fr : c.disclaimer_en)
+                              : (lang === 'fr'
+                                ? 'Ce rapport est basé sur les checks techniques automatisés. Il ne constitue pas un audit de conformité légal. Consultez un DPO ou expert NIS2 pour une évaluation complète.'
+                                : 'This report is based on automated technical checks. It does not constitute a legal compliance audit. Consult a DPO or NIS2 expert for a full assessment.')}
                           </p>
 
                           <div className="flex flex-col gap-2">
                             <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-1">
-                              NIS2 — Art. 21 §2 ({c.nis2.filter(a => a.compliant).length}/{c.nis2.length} {lang === 'fr' ? 'conformes' : 'compliant'})
+                              NIS2 — Art. 21 §2 ({c.nis2.filter(a => a.status === 'pass').length}/{c.nis2.filter(a => a.status !== 'not_assessable').length} {lang === 'fr' ? 'conformes' : 'compliant'})
                             </p>
                             {c.nis2.map(art => <ArticleRow key={art.code} art={art} />)}
                           </div>
 
                           <div className="flex flex-col gap-2">
                             <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-1">
-                              RGPD ({c.rgpd.filter(a => a.compliant).length}/{c.rgpd.length} {lang === 'fr' ? 'conformes' : 'compliant'})
+                              RGPD ({c.rgpd.filter(a => a.status === 'pass').length}/{c.rgpd.filter(a => a.status !== 'not_assessable').length} {lang === 'fr' ? 'conformes' : 'compliant'})
                             </p>
                             {c.rgpd.map(art => <ArticleRow key={art.code} art={art} />)}
                           </div>

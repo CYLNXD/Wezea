@@ -1,16 +1,16 @@
 // ─── CompliancePage.tsx — Funnel NIS2 / RGPD (fr + en) ───────────────────────
-import { useState, useRef, FormEvent, useMemo } from 'react';
+import { useState, useRef, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Shield, Lock, Mail, Globe, Server, CheckCircle2,
+  Shield, Lock, CheckCircle2,
   XCircle, AlertTriangle, ChevronRight, ArrowLeft,
-  FileCheck, Eye, EyeOff,
+  Eye, Info,
 } from 'lucide-react';
 import WezeaLogo from '../components/WezeaLogo';
 import axios from 'axios';
 import { extractApiError, extractRateLimitDetail } from '../lib/api';
 import { useLanguage } from '../i18n/LanguageContext';
-import type { ScanResult } from '../types/scanner';
+import type { ScanResult, ComplianceCriterion } from '../types/scanner';
 
 // Client axios anonyme avec cookies — permet le tracking wezea_cid pour le rate limit
 const _BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
@@ -31,28 +31,10 @@ async function scanDomainAnon(domain: string, lang: string): Promise<ScanResult>
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Finding {
-  category: string;
-  severity: string;
-  title: string;
-  technical_detail?: string;
-  plain_explanation?: string;
-  penalty: number;
-  recommendation?: string;
-}
-
 type ComplianceStatus = 'pass' | 'warn' | 'fail' | 'unknown';
 
-interface Criterion {
-  id: string;
-  label: string;
-  regulations: string[];
-  article: string;
-  desc: string;
-  blurred: boolean;
-  icon: React.ReactNode;
-  check: (findings: Finding[]) => ComplianceStatus;
-}
+// IDs des 5 premiers critères visibles (les 7 suivants sont blurrés / paywall)
+const VISIBLE_CRITERIA_IDS = new Set(['https', 'tls', 'dmarc', 'headers', 'spf']);
 
 // ─── Translations ─────────────────────────────────────────────────────────────
 
@@ -137,316 +119,10 @@ const T = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const SEV_RANK: Record<string, number> = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
+// ─── Criteria come from backend now ───────────────────────────────────────────
 
-function findingsMatch(
-  findings: Finding[],
-  opts: { categories?: string[]; titleWords?: string[]; minSev?: number },
-): Finding[] {
-  return findings.filter(f => {
-    const catOk  = !opts.categories || opts.categories.includes(f.category);
-    const sevOk  = (SEV_RANK[f.severity] ?? 0) >= (opts.minSev ?? 1);
-    const wordOk = !opts.titleWords || opts.titleWords.some(w =>
-      f.title.toLowerCase().includes(w) ||
-      (f.technical_detail ?? '').toLowerCase().includes(w),
-    );
-    return catOk && sevOk && wordOk;
-  });
-}
-
-// ─── Criteria data (lang-agnostic checks + bilingual strings) ─────────────────
-
-type CriterionData = {
-  id: string;
-  label: { fr: string; en: string };
-  regulations: ('NIS2' | 'RGPD' | 'GDPR')[];
-  regulationsFr: string[];
-  regulationsEn: string[];
-  article: { fr: string; en: string };
-  desc: { fr: string; en: string };
-  blurred: boolean;
-  iconName: 'lock' | 'shield' | 'mail' | 'globe' | 'server' | 'filecheck' | 'eyeoff' | 'triangle';
-  check: (findings: Finding[]) => ComplianceStatus;
-};
-
-const CRITERIA_DATA: CriterionData[] = [
-  // ── Visible ──
-  {
-    id: 'https',
-    label: { fr: 'HTTPS & Chiffrement actif', en: 'HTTPS & Active Encryption' },
-    regulations: ['NIS2', 'RGPD'],
-    regulationsFr: ['NIS2', 'RGPD'],
-    regulationsEn: ['NIS2', 'GDPR'],
-    article: { fr: 'Art. 21 NIS2 · Art. 32 RGPD', en: 'Art. 21 NIS2 · Art. 32 GDPR' },
-    desc: {
-      fr: 'Tout le trafic doit être chiffré via HTTPS. Le certificat SSL doit être valide et la redirection HTTP → HTTPS active.',
-      en: 'All traffic must be encrypted via HTTPS. The SSL certificate must be valid and the HTTP → HTTPS redirect must be active.',
-    },
-    blurred: false,
-    iconName: 'lock',
-    check: (findings) => {
-      const critical = findingsMatch(findings, { categories: ['ssl'], minSev: 4 });
-      const high = findingsMatch(findings, { categories: ['ssl'], minSev: 3 });
-      const redirect = findingsMatch(findings, { titleWords: ['http', 'redirect', 'https'], minSev: 3 });
-      if (critical.length > 0 || redirect.length > 0) return 'fail';
-      if (high.length > 0) return 'warn';
-      return 'pass';
-    },
-  },
-  {
-    id: 'tls',
-    label: { fr: 'Protocole TLS à jour', en: 'Up-to-date TLS Protocol' },
-    regulations: ['NIS2'],
-    regulationsFr: ['NIS2'],
-    regulationsEn: ['NIS2'],
-    article: { fr: 'Art. 21 NIS2', en: 'Art. 21 NIS2' },
-    desc: {
-      fr: 'TLS 1.2 minimum requis. TLS 1.0 et 1.1 sont officiellement dépréciés depuis 2021 et ne doivent plus être utilisés.',
-      en: 'TLS 1.2 minimum required. TLS 1.0 and 1.1 have been officially deprecated since 2021 and must no longer be used.',
-    },
-    blurred: false,
-    iconName: 'shield',
-    check: (findings) => {
-      const deprecated = findingsMatch(findings, {
-        titleWords: ['tls 1.0', 'tls 1.1', 'tlsv1.0', 'tlsv1.1', 'deprecated', 'cipher faible', 'weak cipher'],
-        minSev: 2,
-      });
-      const pfs = findingsMatch(findings, { titleWords: ['perfect forward', 'pfs'], minSev: 2 });
-      if (deprecated.length > 0) return 'fail';
-      if (pfs.length > 0) return 'warn';
-      return 'pass';
-    },
-  },
-  {
-    id: 'dmarc',
-    label: { fr: 'Protection anti-usurpation (DMARC)', en: 'Anti-spoofing Protection (DMARC)' },
-    regulations: ['NIS2'],
-    regulationsFr: ['NIS2'],
-    regulationsEn: ['NIS2'],
-    article: { fr: 'Art. 21 NIS2', en: 'Art. 21 NIS2' },
-    desc: {
-      fr: 'DMARC avec p=quarantine ou p=reject protège votre domaine contre le phishing par usurpation d\'identité.',
-      en: 'DMARC with p=quarantine or p=reject protects your domain against phishing via identity spoofing.',
-    },
-    blurred: false,
-    iconName: 'mail',
-    check: (findings) => {
-      const missing = findingsMatch(findings, { titleWords: ['dmarc'], minSev: 3 });
-      const permissive = findingsMatch(findings, { titleWords: ['dmarc', 'p=none'], minSev: 2 });
-      if (missing.some(f => f.severity === 'CRITICAL' || f.severity === 'HIGH')) return 'fail';
-      if (permissive.length > 0) return 'warn';
-      return 'pass';
-    },
-  },
-  {
-    id: 'headers',
-    label: { fr: 'En-têtes de sécurité HTTP', en: 'HTTP Security Headers' },
-    regulations: ['RGPD'],
-    regulationsFr: ['RGPD'],
-    regulationsEn: ['GDPR'],
-    article: { fr: 'Art. 25 RGPD', en: 'Art. 25 GDPR' },
-    desc: {
-      fr: 'HSTS, CSP et X-Frame-Options réduisent la surface d\'attaque XSS/clickjacking et protègent vos visiteurs.',
-      en: 'HSTS, CSP and X-Frame-Options reduce XSS/clickjacking attack surface and protect your visitors.',
-    },
-    blurred: false,
-    iconName: 'filecheck',
-    check: (findings) => {
-      const critical = findingsMatch(findings, { categories: ['headers'], minSev: 3 });
-      const medium = findingsMatch(findings, { categories: ['headers'], minSev: 2 });
-      if (critical.length > 0) return 'fail';
-      if (medium.length > 0) return 'warn';
-      return 'pass';
-    },
-  },
-  {
-    id: 'spf',
-    label: { fr: 'Authentification email (SPF)', en: 'Email Authentication (SPF)' },
-    regulations: ['NIS2'],
-    regulationsFr: ['NIS2'],
-    regulationsEn: ['NIS2'],
-    article: { fr: 'Art. 21 NIS2', en: 'Art. 21 NIS2' },
-    desc: {
-      fr: 'SPF strict (-all) empêche les tiers d\'envoyer des emails en usurpant votre domaine. +all est inacceptable.',
-      en: 'Strict SPF (-all) prevents third parties from sending emails impersonating your domain. +all is unacceptable.',
-    },
-    blurred: false,
-    iconName: 'mail',
-    check: (findings) => {
-      const spfFail = findingsMatch(findings, { titleWords: ['spf'], minSev: 3 });
-      const spfWarn = findingsMatch(findings, { titleWords: ['spf', '+all'], minSev: 2 });
-      if (spfFail.length > 0) return 'fail';
-      if (spfWarn.length > 0) return 'warn';
-      return 'pass';
-    },
-  },
-  // ── Blurred ──
-  {
-    id: 'dkim',
-    label: { fr: 'Signature DKIM des emails', en: 'DKIM Email Signature' },
-    regulations: ['NIS2'],
-    regulationsFr: ['NIS2'],
-    regulationsEn: ['NIS2'],
-    article: { fr: 'Art. 21 NIS2', en: 'Art. 21 NIS2' },
-    desc: {
-      fr: 'DKIM garantit l\'intégrité et l\'authenticité des emails sortants.',
-      en: 'DKIM guarantees the integrity and authenticity of outgoing emails.',
-    },
-    blurred: true,
-    iconName: 'lock',
-    check: (findings) => {
-      const dkim = findingsMatch(findings, { titleWords: ['dkim'], minSev: 2 });
-      return dkim.length > 0 ? 'fail' : 'pass';
-    },
-  },
-  {
-    id: 'dnssec',
-    label: { fr: 'Sécurité DNS (DNSSEC + CAA)', en: 'DNS Security (DNSSEC + CAA)' },
-    regulations: ['NIS2'],
-    regulationsFr: ['NIS2'],
-    regulationsEn: ['NIS2'],
-    article: { fr: 'Art. 21 NIS2', en: 'Art. 21 NIS2' },
-    desc: {
-      fr: 'DNSSEC protège contre la falsification DNS. CAA limite les autorités autorisées à émettre des certificats.',
-      en: 'DNSSEC protects against DNS forgery. CAA restricts the certificate authorities allowed to issue certificates.',
-    },
-    blurred: true,
-    iconName: 'globe',
-    check: (findings) => {
-      const dns = findingsMatch(findings, { titleWords: ['dnssec', 'caa'], minSev: 1 });
-      if (dns.some(f => f.severity === 'MEDIUM' || f.severity === 'HIGH' || f.severity === 'CRITICAL')) return 'warn';
-      return dns.length > 0 ? 'warn' : 'pass';
-    },
-  },
-  {
-    id: 'ports',
-    label: { fr: 'Ports dangereux exposés', en: 'Dangerous Open Ports' },
-    regulations: ['NIS2'],
-    regulationsFr: ['NIS2'],
-    regulationsEn: ['NIS2'],
-    article: { fr: 'Art. 21 NIS2', en: 'Art. 21 NIS2' },
-    desc: {
-      fr: 'RDP, SMB, MySQL, Redis, Elasticsearch ne doivent jamais être accessibles depuis internet.',
-      en: 'RDP, SMB, MySQL, Redis and Elasticsearch must never be accessible from the internet.',
-    },
-    blurred: true,
-    iconName: 'server',
-    check: (findings) => {
-      const ports = findingsMatch(findings, {
-        categories: ['ports'],
-        titleWords: ['rdp', 'smb', 'mysql', 'redis', 'mongo', 'elastic', '3389', '445'],
-        minSev: 3,
-      });
-      return ports.length > 0 ? 'fail' : 'pass';
-    },
-  },
-  {
-    id: 'reputation',
-    label: { fr: 'Réputation et blacklists', en: 'Reputation & Blacklists' },
-    regulations: ['RGPD'],
-    regulationsFr: ['RGPD'],
-    regulationsEn: ['GDPR'],
-    article: { fr: 'Art. 32 RGPD', en: 'Art. 32 GDPR' },
-    desc: {
-      fr: 'Votre domaine/IP ne doit pas figurer sur les listes noires email ou malware.',
-      en: 'Your domain/IP must not appear on email or malware blacklists.',
-    },
-    blurred: true,
-    iconName: 'shield',
-    check: (findings) => {
-      const rep = findingsMatch(findings, { categories: ['reputation'], minSev: 3 });
-      return rep.length > 0 ? 'fail' : 'pass';
-    },
-  },
-  {
-    id: 'credentials',
-    label: { fr: 'Credentials exposés dans le code', en: 'Credentials Exposed in Code' },
-    regulations: ['RGPD'],
-    regulationsFr: ['RGPD'],
-    regulationsEn: ['GDPR'],
-    article: { fr: 'Art. 32 RGPD', en: 'Art. 32 GDPR' },
-    desc: {
-      fr: 'Aucune clé API, token ou secret ne doit être visible dans le source HTML ou JavaScript public.',
-      en: 'No API key, token or secret must be visible in the public HTML or JavaScript source.',
-    },
-    blurred: true,
-    iconName: 'eyeoff',
-    check: (findings) => {
-      const creds = findingsMatch(findings, {
-        titleWords: ['credential', 'secret', 'token', 'api key', 'clé', 'exposed'],
-        minSev: 3,
-      });
-      return creds.length > 0 ? 'fail' : 'pass';
-    },
-  },
-  {
-    id: 'expiry',
-    label: { fr: 'Expiration du domaine', en: 'Domain Expiry' },
-    regulations: ['NIS2'],
-    regulationsFr: ['NIS2'],
-    regulationsEn: ['NIS2'],
-    article: { fr: 'Art. 21 NIS2', en: 'Art. 21 NIS2' },
-    desc: {
-      fr: 'Un domaine expiré rend votre infrastructure inaccessible et peut être récupéré par un acteur malveillant.',
-      en: 'An expired domain makes your infrastructure unreachable and can be seized by a malicious actor.',
-    },
-    blurred: true,
-    iconName: 'globe',
-    check: (findings) => {
-      const exp = findingsMatch(findings, { titleWords: ['domain', 'expir', 'renouvell'], minSev: 2 });
-      if (exp.some(f => f.severity === 'CRITICAL')) return 'fail';
-      if (exp.length > 0) return 'warn';
-      return 'pass';
-    },
-  },
-  {
-    id: 'versions',
-    label: { fr: 'Logiciels et versions vulnérables', en: 'Vulnerable Software Versions' },
-    regulations: ['NIS2'],
-    regulationsFr: ['NIS2'],
-    regulationsEn: ['NIS2'],
-    article: { fr: 'Art. 21 NIS2', en: 'Art. 21 NIS2' },
-    desc: {
-      fr: 'CMS, serveurs et frameworks doivent être à jour. Les versions connues avec CVE doivent être mises à jour.',
-      en: 'CMS, servers and frameworks must be kept up to date. Versions with known CVEs must be updated.',
-    },
-    blurred: true,
-    iconName: 'triangle',
-    check: (findings) => {
-      const cve = findingsMatch(findings, { categories: ['technologies'], minSev: 3 });
-      if (cve.some(f => f.severity === 'CRITICAL')) return 'fail';
-      if (cve.length > 0) return 'warn';
-      return 'pass';
-    },
-  },
-];
-
-// Icon lookup
-function criterionIcon(name: CriterionData['iconName'], size = 16): React.ReactNode {
-  switch (name) {
-    case 'lock':      return <Lock      size={size} />;
-    case 'shield':    return <Shield    size={size} />;
-    case 'mail':      return <Mail      size={size} />;
-    case 'globe':     return <Globe     size={size} />;
-    case 'server':    return <Server    size={size} />;
-    case 'filecheck': return <FileCheck size={size} />;
-    case 'eyeoff':    return <EyeOff    size={size} />;
-    case 'triangle':  return <AlertTriangle size={size} />;
-  }
-}
-
-// ─── Score ────────────────────────────────────────────────────────────────────
-
-function computeComplianceResults(
-  findings: Finding[],
-  criteria: Criterion[],
-): { criteria: (Criterion & { status: ComplianceStatus })[]; score: number; fails: number; warns: number } {
-  const withStatus = criteria.map(c => ({ ...c, status: c.check(findings) }));
-  const passes = withStatus.filter(c => c.status === 'pass').length;
-  const fails  = withStatus.filter(c => c.status === 'fail').length;
-  const warns  = withStatus.filter(c => c.status === 'warn').length;
-  return { criteria: withStatus, score: Math.round((passes / criteria.length) * 100), fails, warns };
-}
+// Criteria data is now computed by the backend (compliance_mapper.py)
+// and returned in result.compliance.criteria
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -468,7 +144,10 @@ function RegBadge({ label }: { label: string }) {
   );
 }
 
-function CriterionRow({ c }: { c: Criterion & { status: ComplianceStatus } }) {
+function CriterionRow({ c, lang }: { c: ComplianceCriterion; lang: 'fr' | 'en' }) {
+  const label   = lang === 'en' ? c.label_en : c.label_fr;
+  const desc    = lang === 'en' ? c.desc_en  : c.desc_fr;
+  const article = lang === 'en' ? c.article_en : c.article_fr;
   const borderColor = c.status === 'fail' ? 'border-red-500/20' : c.status === 'warn' ? 'border-amber-500/20' : c.status === 'pass' ? 'border-green-500/15' : 'border-slate-800';
   const bg          = c.status === 'fail' ? 'bg-red-500/5' : c.status === 'warn' ? 'bg-amber-500/5' : c.status === 'pass' ? 'bg-green-500/5' : 'bg-slate-900/30';
   return (
@@ -476,11 +155,11 @@ function CriterionRow({ c }: { c: Criterion & { status: ComplianceStatus } }) {
       <StatusIcon status={c.status} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center flex-wrap gap-1.5 mb-1">
-          <span className="text-white text-sm font-semibold">{c.label}</span>
+          <span className="text-white text-sm font-semibold">{label}</span>
           {c.regulations.map(r => <RegBadge key={r} label={r} />)}
         </div>
-        <p className="text-slate-500 text-xs leading-relaxed">{c.desc}</p>
-        <p className="text-slate-600 text-[10px] mt-1 font-mono">{c.article}</p>
+        <p className="text-slate-500 text-xs leading-relaxed">{desc}</p>
+        <p className="text-slate-600 text-[10px] mt-1 font-mono">{article}</p>
       </div>
     </div>
   );
@@ -506,19 +185,7 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
   const inputRef   = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
-  // Rebuild localised criteria when lang changes
-  const CRITERIA = useMemo<Criterion[]>(() =>
-    CRITERIA_DATA.map(cd => ({
-      id:          cd.id,
-      label:       cd.label[lang] ?? cd.label.fr,
-      regulations: lang === 'en' ? cd.regulationsEn : cd.regulationsFr,
-      article:     cd.article[lang] ?? cd.article.fr,
-      desc:        cd.desc[lang] ?? cd.desc.fr,
-      blurred:     cd.blurred,
-      icon:        criterionIcon(cd.iconName),
-      check:       cd.check,
-    })),
-  [lang]);
+  // Criteria are now returned from the backend in result.compliance.criteria
 
   const cleanDomain = (v: string) =>
     v.trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].toLowerCase();
@@ -555,19 +222,22 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
     }
   }
 
-  const compliance       = result ? computeComplianceResults(result.findings as Finding[], CRITERIA) : null;
-  const visibleCriteria  = compliance?.criteria.filter(c => !c.blurred) ?? [];
-  const blurredCriteria  = compliance?.criteria.filter(c => c.blurred)  ?? [];
-  const passCount        = compliance?.criteria.filter(c => c.status === 'pass').length ?? 0;
+  const compliance       = result?.compliance ?? null;
+  const allCriteria      = compliance?.criteria ?? [];
+  const visibleCriteria  = allCriteria.filter(c => VISIBLE_CRITERIA_IDS.has(c.id));
+  const blurredCriteria  = allCriteria.filter(c => !VISIBLE_CRITERIA_IDS.has(c.id));
+  const passCount        = allCriteria.filter(c => c.status === 'pass').length;
+  const overallScore     = compliance ? Math.round((compliance.nis2_score + compliance.rgpd_score) / 2) : 0;
+  const disclaimer       = compliance ? (lang === 'en' ? compliance.disclaimer_en : compliance.disclaimer_fr) : '';
 
   const scoreColor = !compliance ? '#94a3b8'
-    : compliance.score >= 80 ? '#4ade80'
-    : compliance.score >= 50 ? '#fbbf24'
+    : overallScore >= 80 ? '#4ade80'
+    : overallScore >= 50 ? '#fbbf24'
     : '#f87171';
 
   const scoreLabel = !compliance ? ''
-    : compliance.score >= 80 ? t.scoreCompliant
-    : compliance.score >= 50 ? t.scorePartial
+    : compliance.overall_level === 'bon' ? t.scoreCompliant
+    : compliance.overall_level === 'insuffisant' ? t.scorePartial
     : t.scoreNonCompliant;
 
   return (
@@ -677,10 +347,10 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
                 <div>
                   <p className="text-slate-400 text-sm mb-1">{t.resultFor} <span className="text-white font-mono font-bold">{cleanDomain(domain)}</span></p>
                   <h2 className="text-2xl font-black text-white">{scoreLabel}</h2>
-                  <p className="text-slate-500 text-sm mt-0.5">{passCount} / {CRITERIA.length} {t.scoreCriteria}</p>
+                  <p className="text-slate-500 text-sm mt-0.5">{passCount} / {allCriteria.length} {t.scoreCriteria}</p>
                 </div>
                 <div className="flex items-baseline gap-1 shrink-0">
-                  <span className="text-5xl font-black font-mono" style={{ color: scoreColor }}>{compliance.score}</span>
+                  <span className="text-5xl font-black font-mono" style={{ color: scoreColor }}>{overallScore}</span>
                   <span className="text-slate-500 text-lg font-mono">/100</span>
                 </div>
               </div>
@@ -694,25 +364,29 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
                   </span>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
-                  {visibleCriteria.map(c => <CriterionRow key={c.id} c={c} />)}
+                  {visibleCriteria.map(c => <CriterionRow key={c.id} c={c} lang={lang} />)}
                 </div>
               </div>
 
               {/* Blurred section */}
               <div className="relative">
                 <div className="grid grid-cols-1 gap-3 blur-sm pointer-events-none select-none" aria-hidden>
-                  {blurredCriteria.map(c => (
-                    <div key={c.id} className="flex items-start gap-3 p-4 rounded-xl border border-slate-800 bg-slate-900/30">
-                      <div className="w-[18px] h-[18px] rounded-full bg-slate-700 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex items-center flex-wrap gap-1.5 mb-1">
-                          <span className="text-white text-sm font-semibold">{c.label}</span>
-                          {c.regulations.map(r => <RegBadge key={r} label={r} />)}
+                  {blurredCriteria.map(c => {
+                    const label = lang === 'en' ? c.label_en : c.label_fr;
+                    const desc  = lang === 'en' ? c.desc_en  : c.desc_fr;
+                    return (
+                      <div key={c.id} className="flex items-start gap-3 p-4 rounded-xl border border-slate-800 bg-slate-900/30">
+                        <div className="w-[18px] h-[18px] rounded-full bg-slate-700 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <div className="flex items-center flex-wrap gap-1.5 mb-1">
+                            <span className="text-white text-sm font-semibold">{label}</span>
+                            {c.regulations.map(r => <RegBadge key={r} label={r} />)}
+                          </div>
+                          <p className="text-slate-500 text-xs">{desc}</p>
                         </div>
-                        <p className="text-slate-500 text-xs">{c.desc}</p>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl px-6 py-8"
@@ -742,8 +416,16 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
                 </div>
               </div>
 
+              {/* Disclaimer */}
+              {disclaimer && (
+                <div className="mt-6 flex items-start gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                  <Info size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-slate-400 text-xs leading-relaxed">{disclaimer}</p>
+                </div>
+              )}
+
               {/* Info footer */}
-              <div className="mt-10 p-5 rounded-2xl border border-slate-800 bg-slate-900/30">
+              <div className="mt-6 p-5 rounded-2xl border border-slate-800 bg-slate-900/30">
                 <h4 className="text-white font-bold text-sm mb-3">{t.footerTitle}</h4>
                 <p className="text-slate-500 text-xs leading-relaxed">{t.footerDesc}</p>
               </div>
