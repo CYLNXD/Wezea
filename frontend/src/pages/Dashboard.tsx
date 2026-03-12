@@ -2540,6 +2540,15 @@ export default function Dashboard({ onGoLogin, onGoRegister, onGoHistory, onGoAd
 
         </AnimatePresence>
 
+        {/* ── Disclaimer — visible après les résultats ─────────────────────── */}
+        {scanner.status === 'success' && scanner.result && (
+          <p className="text-slate-600 text-[11px] leading-relaxed mt-6 text-center max-w-2xl mx-auto">
+            {lang === 'fr'
+              ? 'Ce diagnostic est généré automatiquement par un scan passif. Il est fourni à titre informatif et ne constitue pas un audit de sécurité complet. Il ne saurait remplacer l\'intervention d\'un professionnel agréé en cybersécurité.'
+              : 'This report is generated automatically via a passive scan. It is provided for informational purposes only and does not constitute a comprehensive security audit. It cannot replace the services of a certified cybersecurity professional.'}
+          </p>
+        )}
+
         {/* ══════════════════════════════════════════════════════════════════════
             SECTIONS MARKETING — visibles uniquement en état idle
         ══════════════════════════════════════════════════════════════════════ */}

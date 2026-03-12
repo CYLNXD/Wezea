@@ -310,8 +310,18 @@ export default function PublicScanPage({ uuid, onGoHome }: Props) {
           <p className="text-slate-600 text-xs mt-3">Gratuit · Sans inscription · 5 scans/jour</p>
         </div>
 
+        {/* ── Disclaimer ──────────────────────────────────────────────────── */}
+        <p className="text-slate-600 text-[11px] leading-relaxed mt-8 px-2 text-center">
+          Ce rapport est généré automatiquement par un scan passif de l'empreinte publique du domaine.
+          Il est fourni à titre informatif uniquement et ne constitue pas un audit de sécurité complet
+          (test d'intrusion, audit de code, revue d'architecture, etc.). Il ne saurait remplacer
+          l'intervention d'un professionnel agréé en cybersécurité. Wezea ne peut être tenu responsable
+          des décisions prises sur la base de ce rapport.
+          {' '}<button onClick={onGoHome} className="text-slate-500 hover:text-cyan-400 transition underline">Mentions légales</button>
+        </p>
+
         {/* ── Footer ─────────────────────────────────────────────────────── */}
-        <p className="text-center text-slate-700 text-xs mt-8 font-mono">
+        <p className="text-center text-slate-700 text-xs mt-4 font-mono">
           Rapport généré par{' '}
           <button onClick={onGoHome} className="text-slate-500 hover:text-cyan-400 transition">
             wezea.net

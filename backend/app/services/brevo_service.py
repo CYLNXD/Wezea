@@ -156,6 +156,11 @@ def _base_html(content: str) -> str:
     <a href="{FRONTEND_URL}" class="logo">We<span>zea</span></a>
     {content}
     <div class="footer">
+      <p style="color:#475569;font-size:11px;line-height:1.6;margin-bottom:10px;">
+        Les informations fournies par Wezea sont &agrave; titre informatif uniquement et ne constituent
+        pas un audit de s&eacute;curit&eacute; complet. Elles ne sauraient remplacer l'intervention
+        d'un professionnel agr&eacute;&eacute; en cybers&eacute;curit&eacute;.
+      </p>
       <p>
         &copy; 2026 Wezea &middot; BCE 0811.380.056<br/>
         <a href="{FRONTEND_URL}?legal=mentions">Mentions l&eacute;gales</a> &middot;
@@ -940,6 +945,11 @@ async def send_weekly_monitoring_digest(
       </p>
     </div>
     <div class="footer">
+      <p style="color:#475569;font-size:11px;line-height:1.6;margin-bottom:10px;">
+        Les informations fournies par Wezea sont à titre informatif uniquement et ne constituent
+        pas un audit de sécurité complet. Elles ne sauraient remplacer l'intervention
+        d'un professionnel agréé en cybersécurité.
+      </p>
       <p>
         &copy; 2026 Wezea &middot; BCE 0811.380.056<br/>
         <a href="{FRONTEND_URL}?legal=mentions">Mentions légales</a> &middot;
