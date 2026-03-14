@@ -71,3 +71,4 @@ diagnose.sh
 *.key
 *.pem
 *.p12
+frontend/tsconfig.tsbuildinfo
