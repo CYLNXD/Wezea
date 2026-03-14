@@ -1,19 +1,14 @@
 // ─── ContactPage — Formulaire de support ──────────────────────────────────────
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, CheckCircle, AlertCircle, MessageSquare, Mail, User, Tag } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { useLanguage } from '../i18n/LanguageContext';
 import PageNavbar from '../components/PageNavbar';
 
-interface Props {
-  onBack: () => void;
-  onGoClientSpace?: () => void;
-  onGoHistory?: () => void;
-  onGoAdmin?: () => void;
-}
-
-export default function ContactPage({ onBack, onGoClientSpace, onGoHistory, onGoAdmin }: Props) {
+export default function ContactPage() {
+  const navigate = useNavigate();
   const { lang, t } = useLanguage();
 
   const SUBJECTS = [
@@ -82,12 +77,8 @@ export default function ContactPage({ onBack, onGoClientSpace, onGoHistory, onGo
 
       {/* Nav */}
       <PageNavbar
-        onBack={onBack}
         title={lang === 'fr' ? 'Contacter le support' : 'Contact support'}
         icon={<MessageSquare size={14} />}
-        onGoClientSpace={onGoClientSpace}
-        onGoHistory={onGoHistory}
-        onGoAdmin={onGoAdmin}
       />
 
       <div className="max-w-2xl mx-auto px-4 py-12">
@@ -127,7 +118,7 @@ export default function ContactPage({ onBack, onGoClientSpace, onGoHistory, onGo
                 {t('contact_success_body')}
               </p>
               <button
-                onClick={onBack}
+                onClick={() => navigate('/')}
                 className="sku-btn-ghost text-sm px-5 py-2 rounded-xl border border-slate-600/50 hover:border-slate-500 transition-all"
               >
                 {t('contact_success_back')}

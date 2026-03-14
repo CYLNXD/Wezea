@@ -1,5 +1,6 @@
 // ─── PartnerPage — Programme partenaire Wezea ────────────────────────────────
 import { useState, type ReactNode, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Handshake, FileText, Activity, Percent,
@@ -8,12 +9,6 @@ import {
 import { useLanguage } from '../i18n/LanguageContext';
 import { apiClient } from '../lib/api';
 import WezeaLogo from '../components/WezeaLogo';
-
-interface Props {
-  onGoBack: () => void;
-  onGoRegister?: () => void;
-  onGoLogin?: () => void;
-}
 
 // ── SkuIcon (local) ──────────────────────────────────────────────────────────
 function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: string; size?: number }) {
@@ -39,7 +34,8 @@ function SkuIcon({ children, color, size = 36 }: { children: ReactNode; color: s
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
-export default function PartnerPage({ onGoBack, onGoRegister, onGoLogin }: Props) {
+export default function PartnerPage() {
+  const navigate = useNavigate();
   const { lang } = useLanguage();
 
   const [form, setForm] = useState({
@@ -112,26 +108,22 @@ export default function PartnerPage({ onGoBack, onGoRegister, onGoLogin }: Props
       {/* ── Navbar ── */}
       <nav className="sticky top-0 z-40 border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-xl px-4 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <button onClick={onGoBack} className="flex items-center gap-2 group">
+          <button onClick={() => navigate('/')} className="flex items-center gap-2 group">
             <WezeaLogo size="md" showSub />
           </button>
           <div className="flex items-center gap-3">
-            {onGoLogin && (
-              <button
-                onClick={onGoLogin}
-                className="text-sm text-slate-400 hover:text-white transition"
-              >
-                {lang === 'fr' ? 'Connexion' : 'Login'}
-              </button>
-            )}
-            {onGoRegister && (
-              <button
-                onClick={onGoRegister}
-                className="sku-btn-primary text-xs px-4 py-2 rounded-xl"
-              >
-                {lang === 'fr' ? 'Créer un compte' : 'Sign up'}
-              </button>
-            )}
+            <button
+              onClick={() => navigate('/login')}
+              className="text-sm text-slate-400 hover:text-white transition"
+            >
+              {lang === 'fr' ? 'Connexion' : 'Login'}
+            </button>
+            <button
+              onClick={() => navigate('/register')}
+              className="sku-btn-primary text-xs px-4 py-2 rounded-xl"
+            >
+              {lang === 'fr' ? 'Créer un compte' : 'Sign up'}
+            </button>
           </div>
         </div>
       </nav>

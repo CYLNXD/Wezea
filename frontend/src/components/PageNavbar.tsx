@@ -3,6 +3,7 @@
 // Inclut : bouton ← Retour, dropdown utilisateur complet, nav links optionnels
 //
 import { useState, useRef, useEffect, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronDown } from 'lucide-react';
 import WezeaLogo from './WezeaLogo';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,21 +11,15 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { apiClient } from '../lib/api';
 
 interface PageNavbarProps {
-  onBack:    () => void;
   title:     string;
   icon?:     ReactNode;
   actions?:  ReactNode;
-  // Navigation optionnelle vers d'autres sous-pages
-  onGoClientSpace?: (tab?: string, section?: string) => void;
-  onGoHistory?:     () => void;   // accepté pour compatibilité, non utilisé dans le dropdown
-  onGoAdmin?:       () => void;
-  onGoContact?:     () => void;
 }
 
 export default function PageNavbar({
-  onBack, title, icon, actions,
-  onGoClientSpace, onGoAdmin, onGoContact,
+  title, icon, actions,
 }: PageNavbarProps) {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { lang, setLang } = useLanguage();
 
@@ -84,7 +79,7 @@ export default function PageNavbar({
 
           {/* ← Retour */}
           <button
-            onClick={onBack}
+            onClick={() => navigate('/')}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 border border-white/6 hover:border-white/12 transition-all shrink-0 group"
             aria-label={lang === 'fr' ? 'Retour' : 'Back'}
           >
@@ -98,7 +93,7 @@ export default function PageNavbar({
           <div className="w-px h-4 bg-white/8 shrink-0" />
 
           {/* Logo */}
-          <button onClick={onBack} className="shrink-0 group" aria-label="Wezea">
+          <button onClick={() => navigate('/')} className="shrink-0 group" aria-label="Wezea">
             <WezeaLogo size="md" showSub className="group-hover:opacity-90 transition-opacity" />
           </button>
 
@@ -210,15 +205,13 @@ export default function PageNavbar({
                       <p className="px-3 pb-1 text-[9px] font-mono text-slate-600 uppercase tracking-widest">
                         {lang === 'fr' ? 'Navigation' : 'Navigate'}
                       </p>
-                      {onGoClientSpace && (
-                        <DropItem
-                          icon={<svg width="10" height="10" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>}
-                          iconBg="linear-gradient(150deg,rgba(34,211,238,.18),rgba(34,211,238,.05))"
-                          iconBorder="1px solid rgba(34,211,238,.22)"
-                          label={lang === 'fr' ? 'Mon espace' : 'My space'}
-                          onClick={() => { closeAll(); onGoClientSpace(); }}
-                        />
-                      )}
+                      <DropItem
+                        icon={<svg width="10" height="10" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>}
+                        iconBg="linear-gradient(150deg,rgba(34,211,238,.18),rgba(34,211,238,.05))"
+                        iconBorder="1px solid rgba(34,211,238,.22)"
+                        label={lang === 'fr' ? 'Mon espace' : 'My space'}
+                        onClick={() => { closeAll(); navigate('/espace-client'); }}
+                      />
                       {!user.google_id && (
                         <DropItem
                           icon={<svg width="10" height="10" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
@@ -232,22 +225,20 @@ export default function PageNavbar({
 
                     {/* Aide + Admin */}
                     <div className="pt-1.5 pb-1 border-b border-white/6">
-                      {onGoContact && (
-                        <DropItem
-                          icon={<svg width="10" height="10" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>}
-                          iconBg="linear-gradient(150deg,rgba(96,165,250,.18),rgba(96,165,250,.05))"
-                          iconBorder="1px solid rgba(96,165,250,.22)"
-                          label={lang === 'fr' ? 'Contacter le support' : 'Contact support'}
-                          onClick={() => { closeAll(); onGoContact(); }}
-                        />
-                      )}
-                      {user.is_admin && onGoAdmin && (
+                      <DropItem
+                        icon={<svg width="10" height="10" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>}
+                        iconBg="linear-gradient(150deg,rgba(96,165,250,.18),rgba(96,165,250,.05))"
+                        iconBorder="1px solid rgba(96,165,250,.22)"
+                        label={lang === 'fr' ? 'Contacter le support' : 'Contact support'}
+                        onClick={() => { closeAll(); navigate('/contact'); }}
+                      />
+                      {user.is_admin && (
                         <DropItem
                           icon={<svg width="10" height="10" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>}
                           iconBg="linear-gradient(150deg,rgba(148,163,184,.18),rgba(148,163,184,.05))"
                           iconBorder="1px solid rgba(148,163,184,.22)"
                           label="Admin"
-                          onClick={() => { closeAll(); onGoAdmin(); }}
+                          onClick={() => { closeAll(); navigate('/admin'); }}
                         />
                       )}
                     </div>

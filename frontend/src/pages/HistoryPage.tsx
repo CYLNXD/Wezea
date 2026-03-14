@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Shield, Clock, Globe, Trash2, ChevronRight, FileDown, Share2, Check, X, Search, TrendingUp, TrendingDown, Eye, Link2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -49,13 +50,6 @@ function riskLabel(risk: string, lang: string) {
   return 'Low';
 }
 
-interface Props {
-  onBack: () => void;
-  onLoadScan?: (scanUuid: string) => void;
-  onGoAdmin?: () => void;
-  onGoClientSpace?: () => void;
-  onGoContact?: () => void;
-}
 
 // ── OG card image used by all platform previews ────────────────────────────
 
@@ -210,7 +204,8 @@ function WhatsAppCard({ scan, lang }: { scan: ScanSummary; lang: string }) {
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientSpace, onGoContact }: Props) {
+export default function HistoryPage() {
+  const navigate = useNavigate();
   const { lang } = useLanguage();
 
   const [scans,        setScans]        = useState<ScanSummary[]>([]);
@@ -335,11 +330,7 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
         }}
       />
       <PageNavbar
-        onBack={onBack}
         title={lang === 'fr' ? 'Historique des scans' : 'Scan history'}
-        onGoAdmin={onGoAdmin}
-        onGoClientSpace={onGoClientSpace}
-        onGoContact={onGoContact}
         icon={
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -409,7 +400,7 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
               <p className="text-slate-500 text-sm">
                 {lang === 'fr' ? 'Aucun scan enregistré' : 'No scans yet'}
               </p>
-              <button onClick={onBack} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition">
+              <button onClick={() => navigate('/')} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition">
                 {lang === 'fr' ? '→ Lancer un scan' : '→ Run a scan'}
               </button>
             </div>
@@ -439,7 +430,7 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -20 }}
                       className={`group flex items-center gap-4 p-4 rounded-xl border ${scoreBg(scan.security_score)} cursor-pointer hover:border-opacity-50 transition-all ${isPreviewing ? 'rounded-b-none border-b-0' : ''}`}
-                      onClick={() => onLoadScan?.(scan.scan_uuid)}
+                      onClick={() => navigate('/', { state: { scanUuid: scan.scan_uuid } })}
                     >
                       {/* Score + delta tendance */}
                       <div className="flex flex-col items-center min-w-[3.5rem]">
@@ -544,7 +535,7 @@ export default function HistoryPage({ onBack, onLoadScan, onGoAdmin, onGoClientS
                         <ChevronRight
                           size={16}
                           className="text-slate-600 group-hover:text-slate-400 transition ml-1"
-                          onClick={() => onLoadScan?.(scan.scan_uuid)}
+                          onClick={() => navigate('/', { state: { scanUuid: scan.scan_uuid } })}
                         />
                       </div>
                     </motion.div>

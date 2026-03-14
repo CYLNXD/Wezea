@@ -331,10 +331,10 @@ class TestDeliverLeadReport:
         from app.main import _deliver_lead_report
         mock_cls, mock_add, mock_send, mock_gen = self._mocks()
 
-        with patch("app.main.AuditManager", mock_cls), \
-             patch("app.main.brevo_service.add_lead_contact", mock_add), \
-             patch("app.main.brevo_service.send_lead_report_email", mock_send), \
-             patch("app.main.report_service.generate_pdf", mock_gen):
+        with patch("app.routers.scan_router.AuditManager", mock_cls), \
+             patch("app.routers.scan_router.brevo_service.add_lead_contact", mock_add), \
+             patch("app.routers.scan_router.brevo_service.send_lead_report_email", mock_send), \
+             patch("app.routers.scan_router.report_service.generate_pdf", mock_gen):
             await _deliver_lead_report("lead@example.com", "example.com", "lead-123")
 
         mock_add.assert_awaited_once_with("lead@example.com", "example.com")
@@ -348,10 +348,10 @@ class TestDeliverLeadReport:
         from app.main import _deliver_lead_report
         mock_cls, mock_add, mock_send, mock_gen = self._mocks()
 
-        with patch("app.main.AuditManager", mock_cls), \
-             patch("app.main.brevo_service.add_lead_contact", mock_add), \
-             patch("app.main.brevo_service.send_lead_report_email", mock_send), \
-             patch("app.main.report_service.generate_pdf", mock_gen):
+        with patch("app.routers.scan_router.AuditManager", mock_cls), \
+             patch("app.routers.scan_router.brevo_service.add_lead_contact", mock_add), \
+             patch("app.routers.scan_router.brevo_service.send_lead_report_email", mock_send), \
+             patch("app.routers.scan_router.report_service.generate_pdf", mock_gen):
             await _deliver_lead_report("lead@example.com", "example.com", "lead-456")
 
         kwargs = mock_send.call_args.kwargs
@@ -366,7 +366,7 @@ class TestDeliverLeadReport:
         """Une exception dans le pipeline n'est pas propagée (tâche de fond)."""
         from app.main import _deliver_lead_report
 
-        with patch("app.main.brevo_service.add_lead_contact",
+        with patch("app.routers.scan_router.brevo_service.add_lead_contact",
                    AsyncMock(side_effect=Exception("Brevo down"))):
             # Ne doit pas lever d'exception
             await _deliver_lead_report("lead@example.com", "example.com", "lead-789")
@@ -423,7 +423,7 @@ def _patch_session_local(db_session):
     mock_sl = MagicMock(return_value=db_session)
     # Ne pas fermer le db_session partagé quand l'endpoint appelle db.close()
     db_session.close = MagicMock()
-    return patch("app.main.SessionLocal", mock_sl)
+    return patch("app.routers.scan_router.SessionLocal", mock_sl)
 
 
 class TestScanLimits:
@@ -502,7 +502,7 @@ class TestScanEndpoint:
         mock_manager.run = AsyncMock(return_value=mock_result)
         mock_manager_cls = MagicMock(return_value=mock_manager)
 
-        with patch("app.main.AuditManager", mock_manager_cls), \
+        with patch("app.routers.scan_router.AuditManager", mock_manager_cls), \
              _patch_session_local(db_session):
             resp = client.post("/scan", json={"domain": "example.com"})
 
@@ -521,7 +521,7 @@ class TestScanEndpoint:
         mock_manager.run = AsyncMock(return_value=mock_result)
         mock_manager_cls = MagicMock(return_value=mock_manager)
 
-        with patch("app.main.AuditManager", mock_manager_cls), \
+        with patch("app.routers.scan_router.AuditManager", mock_manager_cls), \
              _patch_session_local(db_session):
             resp = client.post("/scan", json={"domain": "example.com"},
                                headers={"Authorization": f"Bearer {token}"})
@@ -543,7 +543,7 @@ class TestScanEndpoint:
         mock_manager.run = AsyncMock(return_value=mock_result)
         mock_manager_cls = MagicMock(return_value=mock_manager)
 
-        with patch("app.main.AuditManager", mock_manager_cls), \
+        with patch("app.routers.scan_router.AuditManager", mock_manager_cls), \
              _patch_session_local(db_session):
             resp = client.post("/scan", json={"domain": "example.com"},
                                headers={"Authorization": f"Bearer {u.api_key}"})
@@ -558,7 +558,7 @@ class TestScanEndpoint:
         mock_manager.run = AsyncMock(side_effect=asyncio.TimeoutError())
         mock_manager_cls = MagicMock(return_value=mock_manager)
 
-        with patch("app.main.AuditManager", mock_manager_cls), \
+        with patch("app.routers.scan_router.AuditManager", mock_manager_cls), \
              _patch_session_local(db_session):
             resp = client.post("/scan", json={"domain": "example.com"})
 
@@ -572,7 +572,7 @@ class TestScanEndpoint:
         mock_manager.run = AsyncMock(side_effect=RuntimeError("internal scan error"))
         mock_manager_cls = MagicMock(return_value=mock_manager)
 
-        with patch("app.main.AuditManager", mock_manager_cls), \
+        with patch("app.routers.scan_router.AuditManager", mock_manager_cls), \
              _patch_session_local(db_session):
             resp = client.post("/scan", json={"domain": "example.com"})
 
@@ -582,15 +582,15 @@ class TestScanEndpoint:
 
     def test_scan_generic_exception_debug_mode_exposes_message(self, client, db_session):
         """AuditManager exception + _DEBUG=True → message exposé (line 597)."""
-        import app.main as main_mod
+        import app.routers.scan_router as scan_mod
 
         mock_manager = AsyncMock()
         mock_manager.run = AsyncMock(side_effect=RuntimeError("secret error info"))
         mock_manager_cls = MagicMock(return_value=mock_manager)
 
-        with patch("app.main.AuditManager", mock_manager_cls), \
+        with patch("app.routers.scan_router.AuditManager", mock_manager_cls), \
              _patch_session_local(db_session), \
-             patch.object(main_mod, "_DEBUG", True):
+             patch.object(scan_mod, "_DEBUG", True):
             resp = client.post("/scan", json={"domain": "example.com"})
 
         assert resp.status_code == 500
@@ -621,7 +621,7 @@ class TestGeneratePdfEndpoint:
         """Chemin nominal : generate_pdf OK → 200 application/pdf (lines 844-879)."""
         fake_pdf = b"%PDF-1.4 fake content"
 
-        with patch("app.main.report_service.generate_pdf", return_value=fake_pdf):
+        with patch("app.routers.scan_router.report_service.generate_pdf", return_value=fake_pdf):
             resp = client.post("/generate-pdf", json=_VALID_PDF_BODY)
 
         assert resp.status_code == 200
@@ -630,7 +630,7 @@ class TestGeneratePdfEndpoint:
 
     def test_runtime_error_returns_503(self, client, db_session):
         """RuntimeError (WeasyPrint manquant) → 503 (lines 862-868)."""
-        with patch("app.main.report_service.generate_pdf",
+        with patch("app.routers.scan_router.report_service.generate_pdf",
                    side_effect=RuntimeError("WeasyPrint non installé")):
             resp = client.post("/generate-pdf", json=_VALID_PDF_BODY)
 
@@ -641,7 +641,7 @@ class TestGeneratePdfEndpoint:
 
     def test_generic_exception_returns_500(self, client, db_session):
         """Exception générique → 500 (lines 869-873)."""
-        with patch("app.main.report_service.generate_pdf",
+        with patch("app.routers.scan_router.report_service.generate_pdf",
                    side_effect=ValueError("unexpected error")):
             resp = client.post("/generate-pdf", json=_VALID_PDF_BODY)
 
@@ -673,7 +673,7 @@ class TestGeneratePdfEndpoint:
         token = create_access_token(u.id, u.email, "pro")
 
         fake_pdf = b"%PDF white-label"
-        with patch("app.main.report_service.generate_pdf", return_value=fake_pdf):
+        with patch("app.routers.scan_router.report_service.generate_pdf", return_value=fake_pdf):
             resp = client.post("/generate-pdf", json=_VALID_PDF_BODY,
                                headers={"Authorization": f"Bearer {token}"})
 
@@ -684,11 +684,11 @@ class TestGeneratePdfEndpoint:
 
     def test_runtime_error_debug_mode_exposes_message(self, client, db_session):
         """RuntimeError + _DEBUG=True → message exposé (line 871)."""
-        import app.main as main_mod
+        import app.routers.scan_router as scan_mod
 
-        with patch("app.main.report_service.generate_pdf",
+        with patch("app.routers.scan_router.report_service.generate_pdf",
                    side_effect=RuntimeError("weasyprint missing")), \
-             patch.object(main_mod, "_DEBUG", True):
+             patch.object(scan_mod, "_DEBUG", True):
             resp = client.post("/generate-pdf", json=_VALID_PDF_BODY)
 
         assert resp.status_code == 503
@@ -697,11 +697,11 @@ class TestGeneratePdfEndpoint:
 
     def test_generic_exception_debug_mode_exposes_message(self, client, db_session):
         """Exception générique + _DEBUG=True → message exposé (line 877)."""
-        import app.main as main_mod
+        import app.routers.scan_router as scan_mod
 
-        with patch("app.main.report_service.generate_pdf",
+        with patch("app.routers.scan_router.report_service.generate_pdf",
                    side_effect=ValueError("internal pdf crash")), \
-             patch.object(main_mod, "_DEBUG", True):
+             patch.object(scan_mod, "_DEBUG", True):
             resp = client.post("/generate-pdf", json=_VALID_PDF_BODY)
 
         assert resp.status_code == 500

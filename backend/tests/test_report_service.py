@@ -809,8 +809,18 @@ class TestGeneratePdf:
             with pytest.raises(RuntimeError, match="WeasyPrint"):
                 generate_pdf(self._scan_data(), "fr")
 
+    def _ensure_weasyprint_mock(self):
+        """Ensure weasyprint is importable (mock it if system libs are missing)."""
+        import sys
+        if "weasyprint" not in sys.modules:
+            mock_wp = MagicMock()
+            sys.modules["weasyprint"] = mock_wp
+            sys.modules["weasyprint.text"] = mock_wp.text
+            sys.modules["weasyprint.text.fonts"] = mock_wp.text.fonts
+
     def test_jinja2_render_error_raises_runtime(self):
         """Erreur Jinja2 render → RuntimeError."""
+        self._ensure_weasyprint_mock()
         from app.services.report_service import generate_pdf
         from unittest.mock import patch, MagicMock
 
@@ -831,6 +841,7 @@ class TestGeneratePdf:
 
     def test_weasyprint_write_pdf_error_raises_runtime(self):
         """Erreur WeasyPrint.write_pdf → RuntimeError."""
+        self._ensure_weasyprint_mock()
         from app.services.report_service import generate_pdf
         from unittest.mock import patch, MagicMock
 
@@ -852,6 +863,7 @@ class TestGeneratePdf:
 
     def test_generate_pdf_success_returns_bytes(self):
         """Chemin nominal : template render OK + write_pdf OK → retourne les bytes PDF (line 228)."""
+        self._ensure_weasyprint_mock()
         from app.services.report_service import generate_pdf
         from unittest.mock import patch, MagicMock
 

@@ -1,5 +1,6 @@
 // ─── LegalPage — Mentions légales, CGV, CGU, Confidentialité, Cookies ──────────
 import { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Scale, Shield, ShoppingCart, FileText, Cookie } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -7,15 +8,6 @@ import PageNavbar from '../components/PageNavbar';
 import { analyticsOptIn, analyticsOptOut, getConsentStatus } from '../lib/analytics';
 
 export type LegalSection = 'mentions' | 'confidentialite' | 'cgv' | 'cgu' | 'cookies';
-
-interface Props {
-  onBack:   () => void;
-  section?: LegalSection;
-  onGoClientSpace?: () => void;
-  onGoHistory?: () => void;
-  onGoAdmin?: () => void;
-  onGoContact?: () => void;
-}
 
 const SECTIONS: { id: LegalSection; label: string; icon: React.ReactNode }[] = [
   { id: 'mentions',       label: 'Mentions légales',        icon: <Scale size={14} /> },
@@ -439,9 +431,11 @@ function Cookies() {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-export default function LegalPage({ onBack, section = 'mentions', onGoClientSpace, onGoHistory, onGoAdmin, onGoContact }: Props) {
+export default function LegalPage() {
+  const { section } = useParams<{ section?: string }>();
+  const validSection = (section && ['mentions', 'confidentialite', 'cgv', 'cgu', 'cookies'].includes(section) ? section : 'mentions') as LegalSection;
   const { lang } = useLanguage();
-  const [active, setActive] = useState<LegalSection>(section);
+  const [active, setActive] = useState<LegalSection>(validSection);
 
   const content: Record<LegalSection, React.ReactNode> = {
     mentions:        <Mentions />,
@@ -458,13 +452,8 @@ export default function LegalPage({ onBack, section = 'mentions', onGoClientSpac
 
       {/* Nav */}
       <PageNavbar
-        onBack={onBack}
         title={lang === 'fr' ? 'Informations légales' : 'Legal information'}
         icon={<Scale size={14} />}
-        onGoClientSpace={onGoClientSpace}
-        onGoHistory={onGoHistory}
-        onGoAdmin={onGoAdmin}
-        onGoContact={onGoContact}
       />
 
       <div className="max-w-4xl mx-auto px-4 py-8">

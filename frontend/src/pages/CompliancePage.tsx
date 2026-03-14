@@ -1,5 +1,6 @@
 // ─── CompliancePage.tsx — Funnel NIS2 / RGPD (fr + en) ───────────────────────
 import { useState, useRef, FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Lock, CheckCircle2,
@@ -167,13 +168,8 @@ function CriterionRow({ c, lang }: { c: ComplianceCriterion; lang: 'fr' | 'en' }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-interface Props {
-  onGoBack:     () => void;
-  onGoRegister: () => void;
-  onGoLogin:    () => void;
-}
-
-export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Props) {
+export default function CompliancePage() {
+  const navigate = useNavigate();
   const { lang } = useLanguage();
   const t = T[lang] ?? T.fr;
 
@@ -246,7 +242,7 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
       {/* ── Navbar ──────────────────────────────────────────────────────────── */}
       <nav className="sticky top-0 z-50 border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <button onClick={onGoBack} className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors text-sm">
+          <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors text-sm">
             <ArrowLeft size={15} /> {t.back}
           </button>
           <div className="flex items-center gap-2">
@@ -254,7 +250,7 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
             <span className="text-slate-600 text-sm">/</span>
             <span className="text-slate-400 text-sm">{t.navTitle}</span>
           </div>
-          <button onClick={onGoLogin} className="text-sm text-slate-400 hover:text-white transition-colors">
+          <button onClick={() => navigate('/login')} className="text-sm text-slate-400 hover:text-white transition-colors">
             {t.login}
           </button>
         </div>
@@ -402,14 +398,14 @@ export default function CompliancePage({ onGoBack, onGoRegister, onGoLogin }: Pr
                     <p className="text-slate-400 text-sm mb-1 leading-relaxed">{t.blurDesc}</p>
                     <p className="text-slate-600 text-xs mb-5">{t.blurNoCc}</p>
                     <button
-                      onClick={onGoRegister}
+                      onClick={() => navigate('/register')}
                       className="w-full py-3 rounded-xl font-bold text-sm text-white mb-3 flex items-center justify-center gap-2"
                       style={{ background: 'linear-gradient(135deg, #22d3ee 0%, #818cf8 100%)' }}
                     >
                       {t.blurCta(blurredCriteria.length)}
                       <ChevronRight size={16} />
                     </button>
-                    <button onClick={onGoLogin} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
+                    <button onClick={() => navigate('/login')} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
                       {t.blurLogin}
                     </button>
                   </div>
