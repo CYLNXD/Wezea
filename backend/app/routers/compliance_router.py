@@ -4,14 +4,17 @@ Compliance Router — Rapport NIS2/RGPD actionable
 GET   /compliance/report?domain=X&lang=fr   → Rapport combiné tech + org + progress
 GET   /compliance/checklist?domain=X        → Items checklist avec état (Starter+)
 PATCH /compliance/checklist                 → Toggle item (Starter+)
+GET   /compliance/export?domain=X&lang=fr   → PDF conformité (Starter+)
 """
 
+import io
 import json
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -221,3 +224,82 @@ def toggle_checklist_item(
     db.commit()
 
     return {"status": "ok", "item_id": body.item_id, "checked": body.checked}
+
+
+# ── GET /compliance/export ────────────────────────────────────────────────────
+
+
+@router.get("/export")
+def export_compliance_pdf(
+    domain: str = Query(..., min_length=1),
+    lang: str = Query("fr", pattern="^(fr|en)$"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Génère un PDF de conformité NIS2/RGPD pour le domaine donné (Starter+)."""
+    _require_paid(current_user)
+
+    # Réutilise la logique de get_compliance_report
+    scan = _get_latest_scan(domain, current_user.id, db)
+    findings = _parse_findings(scan)
+    compliance = _mapper.analyze(findings)
+    result = compliance.to_dict()
+
+    # Ajouter les items organisationnels
+    checklist_items = (
+        db.query(ComplianceChecklist)
+        .filter(
+            ComplianceChecklist.user_id == current_user.id,
+            ComplianceChecklist.domain == domain,
+        )
+        .all()
+    )
+    checked_map = {c.item_id: {"checked": c.checked, "notes": c.notes or ""} for c in checklist_items}
+
+    from app.compliance_mapper import ORGANIZATIONAL_ITEMS as _ORG_ITEMS
+    org_items = []
+    for item in _ORG_ITEMS:
+        state = checked_map.get(item["id"], {"checked": False, "notes": ""})
+        org_items.append({
+            "id": item["id"],
+            "label": item[f"label_{lang}"] if lang in ("fr", "en") else item["label_fr"],
+            "description": item[f"desc_{lang}"] if lang in ("fr", "en") else item["desc_fr"],
+            "nis2_articles": item["nis2_articles"],
+            "rgpd_articles": item["rgpd_articles"],
+            "checked": state["checked"],
+            "notes": state["notes"],
+        })
+
+    tech_total = len([c for c in result.get("criteria", []) if c["status"] != "not_assessable"])
+    tech_pass = len([c for c in result.get("criteria", []) if c["status"] == "pass"])
+    org_total = len(_ORG_ITEMS)
+    org_pass = len([i for i in org_items if i["checked"]])
+
+    result["organizational_items"] = org_items
+    result["progress"] = {
+        "tech_total": tech_total,
+        "tech_pass": tech_pass,
+        "org_total": org_total,
+        "org_pass": org_pass,
+        "total": tech_total + org_total,
+        "completed": tech_pass + org_pass,
+    }
+    result["domain"] = domain
+    result["has_scan"] = scan is not None
+
+    # Générer le PDF
+    try:
+        from app.services.report_service import generate_compliance_pdf
+        pdf_bytes = generate_compliance_pdf(result, lang=lang)
+    except RuntimeError as exc:
+        logger.error("Compliance PDF generation error: %s", exc)
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    safe_domain = domain.replace(".", "_")
+    filename = f"compliance_{safe_domain}_{lang}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

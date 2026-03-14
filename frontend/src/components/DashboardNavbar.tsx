@@ -93,13 +93,13 @@ export default function DashboardNavbar({
           )}
 
           {/* Blog — toujours visible, traitement légèrement plus visible */}
-          <a
-            href="/blog/"
+          <button
+            onClick={() => navigate('/blog')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/8 transition-all"
           >
             <BookOpen size={12} />
             Blog
-          </a>
+          </button>
 
           {/* Conformité NIS2 — lien vers la landing page */}
           <button

@@ -123,6 +123,7 @@ class TestApplyMigrations:
             "016_login_attempts_index", "017_partners", "018_user_referral",
             "019_partner_reward_tracking",
             "020_compliance_checklists",
+            "021_blog_articles",
         }
         assert expected == versions
 

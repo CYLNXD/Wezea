@@ -11,7 +11,7 @@ from sqlalchemy import func, distinct
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User, ScanHistory, Payment, BlogLink
+from app.models import User, ScanHistory, Payment, BlogLink, BlogArticle
 from app.routers.auth_router import get_current_user
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -354,6 +354,125 @@ def delete_blog_link(
     if not link:
         raise HTTPException(status_code=404, detail="Lien introuvable")
     db.delete(link)
+    db.commit()
+
+
+# ─── Blog Articles ─────────────────────────────────────────────────────────────
+
+class ArticleCreate(BaseModel):
+    slug:             str
+    title:            str
+    content_md:       str
+    meta_description: Optional[str] = None
+    category:         Optional[str] = None
+    tags:             Optional[str] = None
+    author:           Optional[str] = "Wezea"
+    reading_time_min: Optional[int] = 5
+    is_published:     Optional[bool] = False
+
+
+class ArticleUpdate(BaseModel):
+    slug:             Optional[str] = None
+    title:            Optional[str] = None
+    content_md:       Optional[str] = None
+    meta_description: Optional[str] = None
+    category:         Optional[str] = None
+    tags:             Optional[str] = None
+    author:           Optional[str] = None
+    reading_time_min: Optional[int] = None
+    is_published:     Optional[bool] = None
+
+
+class ArticleView(BaseModel):
+    id:               int
+    slug:             str
+    title:            str
+    meta_description: Optional[str]
+    content_md:       str
+    category:         Optional[str]
+    tags:             Optional[str]
+    author:           Optional[str]
+    reading_time_min: Optional[int]
+    is_published:     bool
+    published_at:     Optional[datetime]
+    created_at:       Optional[datetime]
+    updated_at:       Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/articles", response_model=List[ArticleView])
+def list_articles(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return db.query(BlogArticle).order_by(BlogArticle.created_at.desc()).all()
+
+
+@router.post("/articles", response_model=ArticleView, status_code=201)
+def create_article(
+    body: ArticleCreate,
+    db:   Session = Depends(get_db),
+    _:    User = Depends(require_admin),
+):
+    existing = db.query(BlogArticle).filter(BlogArticle.slug == body.slug.strip()).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Slug déjà utilisé")
+    article = BlogArticle(
+        slug=body.slug.strip(),
+        title=body.title.strip(),
+        content_md=body.content_md,
+        meta_description=body.meta_description,
+        category=body.category,
+        tags=body.tags,
+        author=(body.author or "Wezea").strip(),
+        reading_time_min=body.reading_time_min or 5,
+        is_published=body.is_published or False,
+        published_at=datetime.now(timezone.utc) if body.is_published else None,
+    )
+    db.add(article)
+    db.commit()
+    db.refresh(article)
+    return article
+
+
+@router.put("/articles/{article_id}", response_model=ArticleView)
+def update_article(
+    article_id: int,
+    body: ArticleUpdate,
+    db:   Session = Depends(get_db),
+    _:    User = Depends(require_admin),
+):
+    article = db.query(BlogArticle).filter(BlogArticle.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article introuvable")
+    data = body.model_dump(exclude_none=True)
+    if "slug" in data:
+        dup = db.query(BlogArticle).filter(
+            BlogArticle.slug == data["slug"].strip(),
+            BlogArticle.id != article_id,
+        ).first()
+        if dup:
+            raise HTTPException(status_code=409, detail="Slug déjà utilisé")
+    if "is_published" in data and data["is_published"] and not article.is_published:
+        article.published_at = datetime.now(timezone.utc)
+    for field, value in data.items():
+        setattr(article, field, value.strip() if isinstance(value, str) else value)
+    db.commit()
+    db.refresh(article)
+    return article
+
+
+@router.delete("/articles/{article_id}", status_code=204)
+def delete_article(
+    article_id: int,
+    db:   Session = Depends(get_db),
+    _:    User = Depends(require_admin),
+):
+    article = db.query(BlogArticle).filter(BlogArticle.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article introuvable")
+    db.delete(article)
     db.commit()
 
 

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, CheckCircle2, XCircle, AlertTriangle,
-  ChevronDown, ChevronUp, FileText, Loader2,
+  ChevronDown, ChevronUp, FileText, Loader2, Download,
 } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -132,6 +132,7 @@ export default function ComplianceDashboard({ domain, userPlan }: Props) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'tech' | 'org'>('tech');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const fetchReport = useCallback(() => {
     setLoading(true);
@@ -204,15 +205,42 @@ export default function ComplianceDashboard({ domain, userPlan }: Props) {
           <h2 className="text-lg font-bold text-white">{t.title}</h2>
           <p className="text-sm text-slate-500 font-mono">{domain}</p>
         </div>
-        <span
-          className="text-sm font-bold px-3 py-1 rounded-full"
-          style={{
-            color: scoreColor(Math.round((report.nis2_score + report.rgpd_score) / 2)),
-            background: `${scoreColor(Math.round((report.nis2_score + report.rgpd_score) / 2))}15`,
-          }}
-        >
-          {levelLabel}
-        </span>
+        <div className="flex items-center gap-2">
+          {isPaid && (
+            <button
+              onClick={async () => {
+                setPdfLoading(true);
+                try {
+                  const res = await apiClient.get('/compliance/export', {
+                    params: { domain, lang },
+                    responseType: 'blob',
+                  });
+                  const url = URL.createObjectURL(res.data);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `compliance_${domain.replace(/\./g, '_')}_${lang}.pdf`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch { /* silencieux */ }
+                setPdfLoading(false);
+              }}
+              disabled={pdfLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 hover:bg-indigo-500/25 transition-all disabled:opacity-50"
+            >
+              {pdfLoading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+              {t.exportPdf}
+            </button>
+          )}
+          <span
+            className="text-sm font-bold px-3 py-1 rounded-full"
+            style={{
+              color: scoreColor(Math.round((report.nis2_score + report.rgpd_score) / 2)),
+              background: `${scoreColor(Math.round((report.nis2_score + report.rgpd_score) / 2))}15`,
+            }}
+          >
+            {levelLabel}
+          </span>
+        </div>
       </div>
 
       {/* Progress bar */}

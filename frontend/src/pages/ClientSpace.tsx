@@ -883,9 +883,18 @@ export default function ClientSpace() {
 
   const ALLOWED_EVENTS = ['scan.completed', 'alert.triggered', 'score.dropped'];
 
-  const tabs: { id: Tab; label: string; icon: JSX.Element }[] = [
+  // Badge counts for tabs
+  const monitoringAlertCount = domains.filter(d =>
+    d.is_active && (
+      d.last_risk_level === 'CRITICAL' ||
+      d.last_risk_level === 'HIGH' ||
+      (d.last_ssl_expiry_days !== null && d.last_ssl_expiry_days <= 14)
+    )
+  ).length;
+
+  const tabs: { id: Tab; label: string; icon: JSX.Element; badge?: number }[] = [
     { id: 'overview',   label: lang === 'fr' ? 'Vue d\'ensemble' : 'Overview', icon: <BarChart2 size={14} /> },
-    { id: 'monitoring', label: lang === 'fr' ? 'Monitoring' : 'Monitoring',    icon: <Globe size={14} /> },
+    { id: 'monitoring', label: lang === 'fr' ? 'Monitoring' : 'Monitoring',    icon: <Globe size={14} />, badge: monitoringAlertCount },
     { id: 'conformite', label: lang === 'fr' ? 'Conformité' : 'Compliance',  icon: <BookOpen size={14} /> },
     ...(user?.plan && (user.plan === 'dev') || user?.is_admin ? [{
       id: 'apps' as const,
@@ -937,6 +946,11 @@ export default function ClientSpace() {
             >
               {t.icon}
               {t.label}
+              {(t.badge ?? 0) > 0 && (
+                <span className="ml-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center">
+                  {t.badge}
+                </span>
+              )}
             </button>
           ))}
         </div>

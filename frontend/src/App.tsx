@@ -1,17 +1,21 @@
 // ─── App.tsx — Racine React ────────────────────────────────────────────────────
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from './i18n/LanguageContext';
 import Dashboard from './pages/Dashboard';
-import LoginPage from './pages/LoginPage';
-import HistoryPage from './pages/HistoryPage';
-import AdminPage from './pages/AdminPage';
-import ClientSpace from './pages/ClientSpace';
-import ContactPage from './pages/ContactPage';
-import LegalPage from './pages/LegalPage';
-import PublicScanPage from './pages/PublicScanPage';
-import CompliancePage from './pages/CompliancePage';
-import PartnerPage from './pages/PartnerPage';
+
+// ── Lazy-loaded pages (code splitting) ──────────────────────────────────────────
+const LoginPage      = lazy(() => import('./pages/LoginPage'));
+const HistoryPage    = lazy(() => import('./pages/HistoryPage'));
+const AdminPage      = lazy(() => import('./pages/AdminPage'));
+const ClientSpace    = lazy(() => import('./pages/ClientSpace'));
+const ContactPage    = lazy(() => import('./pages/ContactPage'));
+const LegalPage      = lazy(() => import('./pages/LegalPage'));
+const PublicScanPage = lazy(() => import('./pages/PublicScanPage'));
+const CompliancePage = lazy(() => import('./pages/CompliancePage'));
+const PartnerPage    = lazy(() => import('./pages/PartnerPage'));
+const BlogPage       = lazy(() => import('./pages/BlogPage'));
+const BlogArticlePage = lazy(() => import('./pages/BlogArticlePage'));
 import CookieBanner from './components/CookieBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LanguageProvider } from './i18n/LanguageContext';
@@ -147,6 +151,14 @@ function ScrollToTop() {
   return null;
 }
 
+function PageSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+    </div>
+  );
+}
+
 export default function App() {
   // Initialise le cookie d'identification anonyme et restaure le consentement analytics
   useEffect(() => {
@@ -166,23 +178,27 @@ export default function App() {
         {/* Bandeau de consentement RGPD — s'affiche uniquement si aucun choix n'a été fait */}
         <CookieBanner />
 
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/login" element={<LoginPage initialMode="login" />} />
-          <Route path="/register" element={<LoginPage initialMode="register" />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/espace-client" element={<ClientSpace />} />
-          <Route path="/espace-client/:tab" element={<ClientSpace />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/mentions-legales" element={<LegalPage />} />
-          <Route path="/mentions-legales/:section" element={<LegalPage />} />
-          <Route path="/r/:uuid" element={<PublicScanPage />} />
-          <Route path="/conformite-nis2" element={<CompliancePage />} />
-          <Route path="/partenaires" element={<PartnerPage />} />
-          {/* Fallback — redirect to dashboard */}
-          <Route path="*" element={<Dashboard />} />
-        </Routes>
+        <Suspense fallback={<PageSpinner />}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/login" element={<LoginPage initialMode="login" />} />
+            <Route path="/register" element={<LoginPage initialMode="register" />} />
+            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/espace-client" element={<ClientSpace />} />
+            <Route path="/espace-client/:tab" element={<ClientSpace />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/mentions-legales" element={<LegalPage />} />
+            <Route path="/mentions-legales/:section" element={<LegalPage />} />
+            <Route path="/r/:uuid" element={<PublicScanPage />} />
+            <Route path="/conformite-nis2" element={<CompliancePage />} />
+            <Route path="/partenaires" element={<PartnerPage />} />
+            <Route path="/blog" element={<BlogPage />} />
+            <Route path="/blog/:slug" element={<BlogArticlePage />} />
+            {/* Fallback — redirect to dashboard */}
+            <Route path="*" element={<Dashboard />} />
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
     </LanguageProvider>

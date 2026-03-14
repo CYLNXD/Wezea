@@ -745,14 +745,14 @@ def start_scheduler() -> bool:
 
     _scheduler = BackgroundScheduler(timezone="UTC")
 
-    # Chaque lundi à 06:00 UTC — monitoring des domaines surveillés
+    # Chaque jour à 06:00 UTC — monitoring des domaines surveillés
+    # (run_weekly_monitoring + _should_scan_now filtrent par scan_frequency)
     _scheduler.add_job(
         run_weekly_monitoring,
         trigger="cron",
-        day_of_week="mon",
         hour=6,
         minute=0,
-        id="weekly_monitoring",
+        id="daily_monitoring",
         replace_existing=True,
         misfire_grace_time=3600,  # 1h de tolérance si le serveur était down
     )
