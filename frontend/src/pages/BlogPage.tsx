@@ -7,7 +7,8 @@ import PageNavbar from '../components/PageNavbar';
 
 const CATEGORIES = [
   { value: '', label: { fr: 'Tous', en: 'All' } },
-  { value: 'dns', label: { fr: 'DNS', en: 'DNS' } },
+  { value: 'security', label: { fr: 'Cybersécurité', en: 'Cybersecurity' } },
+  { value: 'dns', label: { fr: 'DNS & Email', en: 'DNS & Email' } },
   { value: 'ssl', label: { fr: 'SSL / TLS', en: 'SSL / TLS' } },
   { value: 'headers', label: { fr: 'Headers HTTP', en: 'HTTP Headers' } },
   { value: 'ports', label: { fr: 'Ports & Services', en: 'Ports & Services' } },
@@ -62,6 +63,7 @@ export default function BlogPage() {
   }, [category]);
 
   const catColor: Record<string, string> = {
+    security: '#818cf8',
     dns: '#22d3ee',
     ssl: '#4ade80',
     headers: '#a78bfa',

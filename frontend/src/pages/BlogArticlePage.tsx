@@ -113,7 +113,7 @@ export default function BlogArticlePage() {
   }
 
   const catColor: Record<string, string> = {
-    dns: '#22d3ee', ssl: '#4ade80', headers: '#a78bfa',
+    security: '#818cf8', dns: '#22d3ee', ssl: '#4ade80', headers: '#a78bfa',
     ports: '#f87171', compliance: '#fbbf24',
   };
   const color = catColor[article.category || ''] || '#94a3b8';
