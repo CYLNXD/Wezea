@@ -9,10 +9,12 @@ import {
 import { useLanguage } from '../i18n/LanguageContext';
 import { SEVERITY_CONFIG } from '../types/scanner';
 import type { Finding, Severity } from '../types/scanner';
+import RemediationGuide from './RemediationGuide';
 
 interface Props {
   finding: Finding;
   index:   number;
+  onUpgrade?: () => void;
 }
 
 const SEVERITY_ICONS: Record<Severity, React.ReactNode> = {
@@ -43,7 +45,7 @@ const CATEGORY_KEYS: Record<string, string> = {
   'Sous-domaines & Certificats':   'cat_subdomains',
 };
 
-export function FindingCard({ finding, index }: Props) {
+export function FindingCard({ finding, index, onUpgrade }: Props) {
   const { t } = useLanguage();
   const [expanded, setExpanded] = useState(
     finding.severity === 'CRITICAL' || finding.severity === 'HIGH'
@@ -163,6 +165,11 @@ export function FindingCard({ finding, index }: Props) {
                   <p className="text-cyan-200 text-xs leading-relaxed">
                     {finding.recommendation}
                   </p>
+                  {/* Guide de remédiation pas-à-pas */}
+                  <RemediationGuide
+                    findingTitle={finding.title ?? finding.message ?? ''}
+                    onUpgrade={onUpgrade}
+                  />
                 </div>
               </div>
 
@@ -180,9 +187,10 @@ interface GroupProps {
   title:    string;
   findings: Finding[];
   startIdx: number;
+  onUpgrade?: () => void;
 }
 
-export function FindingGroup({ title, findings, startIdx }: GroupProps) {
+export function FindingGroup({ title, findings, startIdx, onUpgrade }: GroupProps) {
   if (findings.length === 0) return null;
 
   const hasCritical = findings.some(f => f.severity === 'CRITICAL');
@@ -203,7 +211,7 @@ export function FindingGroup({ title, findings, startIdx }: GroupProps) {
         <span className="flex-1 h-px bg-current opacity-15" />
       </h3>
       {findings.map((f, i) => (
-        <FindingCard key={(f.title ?? f.message ?? '') + i} finding={f} index={startIdx + i} />
+        <FindingCard key={(f.title ?? f.message ?? '') + i} finding={f} index={startIdx + i} onUpgrade={onUpgrade} />
       ))}
     </div>
   );

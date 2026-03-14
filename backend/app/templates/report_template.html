@@ -1112,6 +1112,33 @@ p.lead {
   position: relative;
 }
 .phase-item:last-child { border-bottom: none; }
+/* Guide de remédiation intégré dans le plan d'action */
+.guide-steps {
+  margin-top: 4pt;
+  padding: 4pt 8pt;
+  background: rgba(34, 211, 238, 0.04);
+  border-left: 2pt solid #22d3ee;
+  border-radius: 0 4pt 4pt 0;
+}
+.guide-meta {
+  font-size: 7pt;
+  color: #22d3ee;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 3pt;
+}
+.guide-step {
+  font-size: 7.5pt;
+  color: #cbd5e1;
+  line-height: 1.4;
+  padding: 1pt 0;
+}
+.guide-where {
+  color: #64748b;
+  font-style: italic;
+}
 .phase-bullet {
   width: 12pt;
   height: 12pt;
@@ -1513,14 +1540,14 @@ p.lead {
         {% for action in all_actions[:5] %}
         <div class="op-action-item no-break">
           <div class="op-action-num">{{ loop.index }}</div>
-          <div class="op-action-text">{{ action }}</div>
+          <div class="op-action-text">{{ action.text }}</div>
         </div>
         {% endfor %}
       {% else %}
         {% for action in actions.optimize[:4] %}
         <div class="op-action-item no-break">
           <div class="op-action-num">{{ loop.index }}</div>
-          <div class="op-action-text">{{ action }}</div>
+          <div class="op-action-text">{{ action.text }}</div>
         </div>
         {% endfor %}
       {% endif %}
@@ -2133,7 +2160,17 @@ p.lead {
         {% for action in actions.urgent %}
         <div class="phase-item">
           <div class="phase-bullet urgent">!</div>
-          <div>{{ action }}</div>
+          <div>
+            {{ action.text }}
+            {% if action.guide %}
+            <div class="guide-steps">
+              <span class="guide-meta">{{ action.guide.difficulty }} · ~{{ action.guide.estimated_time_min }} min · {{ action.guide.steps | length }} {% if lang == 'en' %}steps{% else %}étapes{% endif %}</span>
+              {% for step in action.guide.steps %}
+              <div class="guide-step">{{ step.order }}. {{ step.action }}{% if step.where %} <span class="guide-where">({{ step.where }})</span>{% endif %}</div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
         </div>
         {% endfor %}
         {% if not actions.urgent %}
@@ -2155,7 +2192,17 @@ p.lead {
         {% for action in actions.important %}
         <div class="phase-item">
           <div class="phase-bullet important">2</div>
-          <div>{{ action }}</div>
+          <div>
+            {{ action.text }}
+            {% if action.guide %}
+            <div class="guide-steps">
+              <span class="guide-meta">{{ action.guide.difficulty }} · ~{{ action.guide.estimated_time_min }} min · {{ action.guide.steps | length }} {% if lang == 'en' %}steps{% else %}étapes{% endif %}</span>
+              {% for step in action.guide.steps %}
+              <div class="guide-step">{{ step.order }}. {{ step.action }}{% if step.where %} <span class="guide-where">({{ step.where }})</span>{% endif %}</div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
         </div>
         {% endfor %}
         {% if not actions.important %}
@@ -2177,7 +2224,17 @@ p.lead {
         {% for action in actions.optimize %}
         <div class="phase-item">
           <div class="phase-bullet optimize">3</div>
-          <div>{{ action }}</div>
+          <div>
+            {{ action.text }}
+            {% if action.guide %}
+            <div class="guide-steps">
+              <span class="guide-meta">{{ action.guide.difficulty }} · ~{{ action.guide.estimated_time_min }} min · {{ action.guide.steps | length }} {% if lang == 'en' %}steps{% else %}étapes{% endif %}</span>
+              {% for step in action.guide.steps %}
+              <div class="guide-step">{{ step.order }}. {{ step.action }}{% if step.where %} <span class="guide-where">({{ step.where }})</span>{% endif %}</div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
         </div>
         {% endfor %}
         <div class="phase-item">

@@ -699,40 +699,66 @@ def _hacker_scenarios(findings: list[dict], lang: str = "fr") -> list[dict]:
     return result
 
 
-def _build_action_plan(findings: list[dict], lang: str = "fr") -> dict[str, list[str]]:
+def _build_action_plan(findings: list[dict], lang: str = "fr") -> dict[str, list]:
     """
     Génère un plan d'action en 3 phases depuis les findings.
     Retourne : { "urgent": [...], "important": [...], "optimize": [...] }
+    Chaque item est un dict : { "text": str, "guide": dict|None }
+    avec guide = { "title": str, "difficulty": str, "estimated_time_min": int, "steps": list[dict] }
     """
+    from app.remediation_guides import get_guide_for_finding
+
     action_key = "action_en" if lang == "en" else "action_fr"
+    title_key  = "title_en" if lang == "en" else "title_fr"
+    act_key    = "action_en" if lang == "en" else "action_fr"
+    where_key  = "where_en" if lang == "en" else "where_fr"
+    verify_key = "verify_en" if lang == "en" else "verify_fr"
     default_optimize = DEFAULT_OPTIMIZE_ACTIONS_EN if lang == "en" else DEFAULT_OPTIMIZE_ACTIONS_FR
 
-    urgent: list[str]    = []
-    important: list[str] = []
-    optimize: list[str]  = list(default_optimize[:2])  # actions génériques de base
+    urgent: list[dict]    = []
+    important: list[dict] = []
+    optimize: list[dict]  = [{"text": a, "guide": None} for a in default_optimize[:2]]
 
     seen_actions: set[str] = set()
 
     for finding in findings:
         title = finding.get("title", "")
-        # Cherche la première clé correspondante dans le mapping
         for key, info in FINDING_ACTIONS.items():
             if key.lower() in title.lower():
                 action = info[action_key]
                 if action not in seen_actions:
                     seen_actions.add(action)
+                    # Look up remediation guide for this finding
+                    guide = get_guide_for_finding(title)
+                    guide_data = None
+                    if guide:
+                        guide_data = {
+                            "title": getattr(guide, title_key),
+                            "difficulty": guide.difficulty,
+                            "estimated_time_min": guide.estimated_time_min,
+                            "steps": [
+                                {
+                                    "order": s.order,
+                                    "action": getattr(s, act_key),
+                                    "where": getattr(s, where_key),
+                                    "verify": getattr(s, verify_key),
+                                }
+                                for s in guide.steps
+                            ],
+                        }
+                    item = {"text": action, "guide": guide_data}
                     if info["phase"] == "urgent":
-                        urgent.append(action)
+                        urgent.append(item)
                     elif info["phase"] == "important":
-                        important.append(action)
+                        important.append(item)
                     else:
-                        optimize.append(action)
+                        optimize.append(item)
                 break
 
     # Compléter optimize si peu d'items
     for extra in default_optimize[2:]:
         if extra not in seen_actions and len(optimize) < 5:
-            optimize.append(extra)
+            optimize.append({"text": extra, "guide": None})
 
     return {"urgent": urgent, "important": important, "optimize": optimize}
 

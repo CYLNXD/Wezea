@@ -447,6 +447,86 @@ COMPLIANCE_CRITERIA: list[dict[str, Any]] = [
 ]
 
 
+# ── Mesures organisationnelles (manuelles) ───────────────────────────────────
+# Items non détectables par un scan externe — cochés manuellement par l'utilisateur.
+# Chaque item est lié à des articles NIS2/RGPD.
+
+ORGANIZATIONAL_ITEMS: list[dict[str, Any]] = [
+    {
+        "id": "org_incident_plan",
+        "label_fr": "Plan de réponse aux incidents",
+        "label_en": "Incident response plan",
+        "desc_fr": "Document décrivant les procédures de détection, signalement et réponse aux incidents de sécurité.",
+        "desc_en": "Document describing detection, reporting and response procedures for security incidents.",
+        "nis2_articles": ["21-2-b"],
+        "rgpd_articles": ["33"],
+    },
+    {
+        "id": "org_training",
+        "label_fr": "Formation des employés à la cybersécurité",
+        "label_en": "Employee cybersecurity training",
+        "desc_fr": "Programme de sensibilisation régulier couvrant le phishing, les mots de passe et la sécurité email.",
+        "desc_en": "Regular awareness program covering phishing, passwords and email security.",
+        "nis2_articles": ["21-2-g"],
+        "rgpd_articles": [],
+    },
+    {
+        "id": "org_access_control",
+        "label_fr": "Politique de contrôle d'accès",
+        "label_en": "Access control policy",
+        "desc_fr": "Règles définissant qui a accès à quoi, avec le principe du moindre privilège.",
+        "desc_en": "Rules defining who has access to what, following the principle of least privilege.",
+        "nis2_articles": ["21-2-i"],
+        "rgpd_articles": ["25", "32"],
+    },
+    {
+        "id": "org_mfa",
+        "label_fr": "Authentification multi-facteurs (MFA)",
+        "label_en": "Multi-factor authentication (MFA)",
+        "desc_fr": "MFA activée sur tous les comptes administrateurs et les accès critiques.",
+        "desc_en": "MFA enabled on all admin accounts and critical access.",
+        "nis2_articles": ["21-2-j"],
+        "rgpd_articles": ["32"],
+    },
+    {
+        "id": "org_backup",
+        "label_fr": "Politique de sauvegarde et restauration",
+        "label_en": "Backup and recovery policy",
+        "desc_fr": "Sauvegardes régulières testées, avec procédure de restauration documentée.",
+        "desc_en": "Regular tested backups with documented recovery procedures.",
+        "nis2_articles": ["21-2-a"],
+        "rgpd_articles": ["32"],
+    },
+    {
+        "id": "org_vendor_mgmt",
+        "label_fr": "Gestion de la sécurité des fournisseurs",
+        "label_en": "Supply chain security management",
+        "desc_fr": "Évaluation de la sécurité des prestataires et sous-traitants ayant accès à vos systèmes.",
+        "desc_en": "Security assessment of third-party vendors with access to your systems.",
+        "nis2_articles": ["21-2-e"],
+        "rgpd_articles": ["32"],
+    },
+    {
+        "id": "org_encryption_at_rest",
+        "label_fr": "Chiffrement des données au repos",
+        "label_en": "Encryption of data at rest",
+        "desc_fr": "Les données sensibles stockées sont chiffrées (disques, bases de données, sauvegardes).",
+        "desc_en": "Stored sensitive data is encrypted (disks, databases, backups).",
+        "nis2_articles": ["21-2-h"],
+        "rgpd_articles": ["32"],
+    },
+    {
+        "id": "org_bcp",
+        "label_fr": "Plan de continuité d'activité (PCA)",
+        "label_en": "Business continuity plan (BCP)",
+        "desc_fr": "Plan documentant comment maintenir les opérations critiques en cas d'incident majeur.",
+        "desc_en": "Plan documenting how to maintain critical operations during a major incident.",
+        "nis2_articles": ["21-2-a"],
+        "rgpd_articles": [],
+    },
+]
+
+
 # ── Disclaimer ──────────────────────────────────────────────────────────────
 
 DISCLAIMER_FR = (

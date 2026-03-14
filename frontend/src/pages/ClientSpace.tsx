@@ -29,6 +29,7 @@ import MonitoringTab from '../components/clientspace/MonitoringTab';
 import HistoryTab from '../components/clientspace/HistoryTab';
 import DeveloperTab from '../components/clientspace/DeveloperTab';
 import SettingsTab from '../components/clientspace/SettingsTab';
+import ComplianceDashboard from '../components/ComplianceDashboard';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -104,7 +105,7 @@ interface ScanDetail {
   scan_duration:   number;
 }
 
-type Tab = 'overview' | 'monitoring' | 'apps' | 'history' | 'settings' | 'developer';
+type Tab = 'overview' | 'monitoring' | 'conformite' | 'apps' | 'history' | 'settings' | 'developer';
 
 interface WebhookItem {
   id:            number;
@@ -204,12 +205,56 @@ function RiskBadge({ level }: { level: string | null }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Wrapper — Conformité avec sélecteur de domaine
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ComplianceTabWrapper({ domains, userPlan, lang }: {
+  domains: MonitoredDomain[];
+  userPlan: string;
+  lang: string;
+}) {
+  const [selectedDomain, setSelectedDomain] = useState(domains[0]?.domain ?? '');
+
+  if (domains.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <SkuIcon color="#818cf8" size={52}>
+          <BookOpen size={24} className="text-indigo-300" />
+        </SkuIcon>
+        <p className="text-slate-400 mt-4 text-sm">
+          {lang === 'fr'
+            ? 'Ajoutez un domaine dans l\'onglet Monitoring pour accéder au rapport de conformité.'
+            : 'Add a domain in the Monitoring tab to access the compliance report.'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {domains.length > 1 && (
+        <select
+          value={selectedDomain}
+          onChange={e => setSelectedDomain(e.target.value)}
+          className="sku-inset text-sm w-full max-w-xs"
+        >
+          {domains.map(d => (
+            <option key={d.domain} value={d.domain}>{d.domain}</option>
+          ))}
+        </select>
+      )}
+      <ComplianceDashboard domain={selectedDomain} userPlan={userPlan} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Composant principal
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ClientSpace() {
   const { tab: routeTab } = useParams<{ tab?: string }>();
-  const VALID_TABS: Tab[] = ['overview', 'monitoring', 'apps', 'history', 'settings', 'developer'];
+  const VALID_TABS: Tab[] = ['overview', 'monitoring', 'conformite', 'apps', 'history', 'settings', 'developer'];
   const initialTab = (routeTab && VALID_TABS.includes(routeTab as Tab) ? routeTab : undefined) as Tab | undefined;
   const { user, deleteAccount, getPortalUrl, logout, refreshUser } = useAuth();
   const { lang } = useLanguage();
@@ -841,6 +886,7 @@ export default function ClientSpace() {
   const tabs: { id: Tab; label: string; icon: JSX.Element }[] = [
     { id: 'overview',   label: lang === 'fr' ? 'Vue d\'ensemble' : 'Overview', icon: <BarChart2 size={14} /> },
     { id: 'monitoring', label: lang === 'fr' ? 'Monitoring' : 'Monitoring',    icon: <Globe size={14} /> },
+    { id: 'conformite', label: lang === 'fr' ? 'Conformité' : 'Compliance',  icon: <BookOpen size={14} /> },
     ...(user?.plan && (user.plan === 'dev') || user?.is_admin ? [{
       id: 'apps' as const,
       label: lang === 'fr' ? 'Applications' : 'Applications',
@@ -991,6 +1037,17 @@ export default function ClientSpace() {
                   toggleCheck={toggleCheck}
                   setDomains={setDomains}
                   setPricingModalOpen={setPricingModalOpen}
+                  lang={lang}
+                />
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════
+                  TAB — CONFORMITÉ NIS2/RGPD
+              ══════════════════════════════════════════════════════════════ */}
+              {tab === 'conformite' && (
+                <ComplianceTabWrapper
+                  domains={domains}
+                  userPlan={user?.plan ?? 'free'}
                   lang={lang}
                 />
               )}
