@@ -217,6 +217,11 @@ def _apply_migrations():
             # Table gérée par l'ORM (Base.metadata.create_all)
             _mark_applied("020_compliance_checklists")
 
+        # ── 021 : Articles de blog ────────────────────────────────────────────
+        if not _applied("021_blog_articles"):
+            # Table gérée par l'ORM (Base.metadata.create_all)
+            _mark_applied("021_blog_articles")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente

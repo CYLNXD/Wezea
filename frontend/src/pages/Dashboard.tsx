@@ -70,6 +70,7 @@ export default function Dashboard() {
   const [faqOpen, setFaqOpen]           = useState<number | null>(null);
   const [newsletterConfirmed, setNewsletterConfirmed] = useState(false);
   const [previousScore,  setPreviousScore]  = useState<number | null>(null);
+  const [previousFindingsCount, setPreviousFindingsCount] = useState<number | null>(null);
   const [domainHistory,  setDomainHistory]  = useState<number[]>([]);
   const [blogLinks,      setBlogLinks]      = useState<Array<{ id: number; match_keyword: string; article_title: string; article_url: string }>>([]);
   const [stickyDismissed, setStickyDismissed] = useState(false);
@@ -248,7 +249,7 @@ export default function Dashboard() {
       // Comparaison avec le scan précédent du même domaine + sparkline historique
       if (user) {
         apiClient.get('/scans/history').then(res => {
-          const scans: Array<{ domain: string; security_score: number; created_at: string }> = res.data;
+          const scans: Array<{ domain: string; security_score: number; findings_count: number; created_at: string }> = res.data;
           // Tri newest-first : [0]=actuel, [1]=précédent
           const byNewest = scans
             .filter(s => s.domain === scanner.result!.domain)
@@ -256,12 +257,14 @@ export default function Dashboard() {
           // Tri chronologique (oldest-first) pour la sparkline
           const byOldest = [...byNewest].reverse();
           setPreviousScore(byNewest.length >= 2 ? byNewest[1].security_score : null);
+          setPreviousFindingsCount(byNewest.length >= 2 ? byNewest[1].findings_count : null);
           setDomainHistory(byOldest.map(s => s.security_score));
-        }).catch(() => { setPreviousScore(null); setDomainHistory([]); });
+        }).catch(() => { setPreviousScore(null); setPreviousFindingsCount(null); setDomainHistory([]); });
       }
     }
     if (scanner.status === 'scanning') {
       setPreviousScore(null);   // reset à chaque nouveau scan
+      setPreviousFindingsCount(null);
       setDomainHistory([]);
       // Délai 500ms : laisse le temps à AnimatePresence de terminer l'exit du panel
       // résultats (~150ms) + début de l'enter de ScanConsole (~400ms opacity+y anim)
@@ -517,6 +520,7 @@ export default function Dashboard() {
             <DashboardResults
               scanResult={scanner.result}
               previousScore={previousScore}
+              previousFindingsCount={previousFindingsCount}
               domainHistory={domainHistory}
               publicStats={publicStats}
               blogLinks={blogLinks}

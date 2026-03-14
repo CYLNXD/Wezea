@@ -1,4 +1,4 @@
-import { Globe, AlertTriangle, Plus } from 'lucide-react';
+import { Globe, AlertTriangle, Plus, ShieldAlert, Lock } from 'lucide-react';
 import SkuIcon from '../SkuIcon';
 import type { MonitoredDomain, ScanHistoryItem, Tab } from './types';
 import { scoreColor, scoreBorder, RiskBadge, Sparkline } from './helpers';
@@ -85,6 +85,55 @@ export default function OverviewTab({
           </p>
         </div>
       </div>
+
+      {/* Alerts section */}
+      {(() => {
+        const alerts = domains.filter(d => d.is_active && (
+          d.last_risk_level === 'CRITICAL' || d.last_risk_level === 'HIGH' ||
+          (d.last_ssl_expiry_days !== null && d.last_ssl_expiry_days <= 14)
+        ));
+        if (alerts.length === 0) return null;
+        return (
+          <div className="sku-card rounded-xl p-4" style={{ borderColor: 'rgba(248,113,113,0.25)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <SkuIcon color="#f87171" size={28}><ShieldAlert size={14} className="text-red-300" /></SkuIcon>
+              <h3 className="text-sm font-bold text-red-300">
+                {lang === 'fr'
+                  ? `${alerts.length} domaine${alerts.length > 1 ? 's' : ''} nécessite${alerts.length > 1 ? 'nt' : ''} votre attention`
+                  : `${alerts.length} domain${alerts.length > 1 ? 's' : ''} need${alerts.length === 1 ? 's' : ''} attention`}
+              </h3>
+            </div>
+            <div className="flex flex-col gap-2">
+              {alerts.map(d => (
+                <button
+                  key={d.domain}
+                  onClick={() => setTab('monitoring')}
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/10 hover:bg-red-500/10 transition-all text-left"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Globe size={12} className="text-slate-500 shrink-0" />
+                    <span className="text-white text-xs font-mono font-semibold truncate">{d.domain}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {(d.last_risk_level === 'CRITICAL' || d.last_risk_level === 'HIGH') && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        d.last_risk_level === 'CRITICAL' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'
+                      }`}>
+                        {d.last_risk_level}
+                      </span>
+                    )}
+                    {d.last_ssl_expiry_days !== null && d.last_ssl_expiry_days <= 14 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 flex items-center gap-1">
+                        <Lock size={8} /> SSL {d.last_ssl_expiry_days}j
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Domain cards */}
       {domains.length === 0 ? (

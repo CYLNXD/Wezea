@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<style>
+/* ── Base ─────────────────────────────────────── */
+:root {
+  --font:      'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Courier New', monospace;
+  --ink-1: #0f0f0f;
+  --ink-2: #374151;
+  --ink-3: #6b7280;
+  --ink-4: #9ca3af;
+  --bg-card:   #ffffff;
+  --bg-light:  #f9fafb;
+  --border:    #e5e7eb;
+  --red:    #ef4444;
+  --orange: #f97316;
+  --amber:  #f59e0b;
+  --green:  #22c55e;
+  --cyan:   #0ea5e9;
+}
+
+@page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+@page cover { margin: 0; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); color: var(--ink-1); font-size: 10pt; line-height: 1.5; }
+h1 { font-size: 22pt; }
+h2 { font-size: 14pt; color: var(--ink-1); margin: 0 0 10px; }
+h3 { font-size: 11pt; color: var(--ink-2); margin: 0 0 6px; }
+
+.page-break { page-break-before: always; }
+
+/* ── Cover ───────────────────────────────────── */
+.cover {
+  page: cover;
+  width: 210mm; height: 297mm;
+  background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 50%, #312e81 100%);
+  color: white;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  text-align: center;
+  padding: 40mm 30mm;
+}
+.cover h1 { font-size: 26pt; margin-bottom: 6mm; }
+.cover .subtitle { font-size: 13pt; opacity: 0.8; margin-bottom: 20mm; }
+.cover .domain { font-size: 18pt; font-family: var(--font-mono); margin-bottom: 4mm; }
+.cover .date { font-size: 10pt; opacity: 0.6; }
+
+/* ── Scores ──────────────────────────────────── */
+.scores-grid { display: flex; gap: 12px; margin-bottom: 16px; }
+.score-box {
+  flex: 1; text-align: center; padding: 16px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-light);
+}
+.score-value { font-size: 32pt; font-weight: 800; font-family: var(--font-mono); }
+.score-label { font-size: 8pt; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-3); margin-top: 4px; }
+
+.level-badge {
+  display: inline-block; padding: 4px 14px; border-radius: 20px;
+  font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.level-bon       { background: #dcfce7; color: #166534; }
+.level-insuffisant { background: #fef3c7; color: #92400e; }
+.level-critique  { background: #fee2e2; color: #991b1b; }
+
+/* ── Progress ────────────────────────────────── */
+.progress-bar-bg {
+  width: 100%; height: 10px; border-radius: 5px;
+  background: #e5e7eb; margin: 8px 0;
+}
+.progress-bar-fill {
+  height: 10px; border-radius: 5px;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+}
+
+/* ── Table ────────────────────────────────────── */
+.criteria-table {
+  width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9pt;
+}
+.criteria-table th {
+  background: var(--bg-light); text-align: left; padding: 8px 10px;
+  font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--ink-3); border-bottom: 2px solid var(--border);
+}
+.criteria-table td {
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.criteria-table tr:nth-child(even) { background: var(--bg-light); }
+
+/* Status pills */
+.status-pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  font-size: 7pt; font-weight: 700; text-transform: uppercase;
+}
+.status-pass { background: #dcfce7; color: #166534; }
+.status-warn { background: #fef3c7; color: #92400e; }
+.status-fail { background: #fee2e2; color: #991b1b; }
+.status-unknown { background: #f3f4f6; color: #6b7280; }
+.status-checked { background: #dcfce7; color: #166534; }
+.status-unchecked { background: #fee2e2; color: #991b1b; }
+
+/* ── Action plan ─────────────────────────────── */
+.action-item {
+  padding: 8px 12px; margin: 4px 0;
+  border-left: 3px solid var(--amber);
+  background: var(--bg-light); border-radius: 0 4px 4px 0;
+  font-size: 9pt;
+}
+.action-item.urgent { border-left-color: var(--red); }
+.action-item.pass   { border-left-color: var(--green); }
+
+/* ── Footer / Disclaimer ─────────────────────── */
+.disclaimer {
+  margin-top: 20px; padding: 12px;
+  background: var(--bg-light); border: 1px solid var(--border); border-radius: 6px;
+  font-size: 7pt; color: var(--ink-4); line-height: 1.4;
+}
+
+.footer { text-align: center; font-size: 7pt; color: var(--ink-4); margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ COUVERTURE ═══════════════ -->
+<div class="cover">
+  <h1>{{ title }}</h1>
+  <p class="subtitle">{{ subtitle }}</p>
+  <p class="domain">{{ domain }}</p>
+  <p class="date">{{ generated_date }}</p>
+</div>
+
+<!-- ═══════════════ SYNTHÈSE ═══════════════ -->
+<div class="page-break"></div>
+
+<h2>{{ section_summary }}</h2>
+
+<div class="scores-grid">
+  <div class="score-box">
+    <div class="score-value" style="color: {{ nis2_color }};">{{ nis2_score }}</div>
+    <div class="score-label">NIS2</div>
+  </div>
+  <div class="score-box">
+    <div class="score-value" style="color: {{ rgpd_color }};">{{ rgpd_score }}</div>
+    <div class="score-label">RGPD</div>
+  </div>
+</div>
+
+<p style="text-align:center; margin: 12px 0;">
+  {{ level_label }} :
+  <span class="level-badge level-{{ overall_level }}">{{ overall_level_display }}</span>
+</p>
+
+<h3>{{ progress_label }}</h3>
+<p style="font-size:9pt; color: var(--ink-3);">
+  {{ progress_completed }} / {{ progress_total }} {{ progress_suffix }}
+</p>
+<div class="progress-bar-bg">
+  <div class="progress-bar-fill" style="width: {{ progress_pct }}%;"></div>
+</div>
+
+<!-- ═══════════════ CRITÈRES TECHNIQUES ═══════════════ -->
+<div class="page-break"></div>
+
+<h2>{{ section_tech }}</h2>
+
+<table class="criteria-table">
+  <thead>
+    <tr>
+      <th style="width:5%">#</th>
+      <th style="width:35%">{{ col_criterion }}</th>
+      <th style="width:12%">{{ col_status }}</th>
+      <th style="width:48%">{{ col_articles }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in criteria %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ c.label }}</td>
+      <td><span class="status-pill status-{{ c.status }}">{{ c.status_display }}</span></td>
+      <td style="font-size:8pt; color:var(--ink-3);">{{ c.articles }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- ═══════════════ MESURES ORGANISATIONNELLES ═══════════════ -->
+<div class="page-break"></div>
+
+<h2>{{ section_org }}</h2>
+
+<table class="criteria-table">
+  <thead>
+    <tr>
+      <th style="width:5%">#</th>
+      <th style="width:40%">{{ col_measure }}</th>
+      <th style="width:12%">{{ col_status }}</th>
+      <th style="width:43%">{{ col_notes }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in org_items %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>
+        {{ item.label }}
+        <br><span style="font-size:7pt; color:var(--ink-4);">{{ item.articles }}</span>
+      </td>
+      <td>
+        <span class="status-pill status-{{ 'checked' if item.checked else 'unchecked' }}">
+          {{ checked_label if item.checked else unchecked_label }}
+        </span>
+      </td>
+      <td style="font-size:8pt; color:var(--ink-3);">{{ item.notes or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- ═══════════════ PLAN D'ACTION ═══════════════ -->
+<div class="page-break"></div>
+
+<h2>{{ section_actions }}</h2>
+
+{% if action_items %}
+  {% for item in action_items %}
+  <div class="action-item {{ 'urgent' if item.priority == 'urgent' else ('pass' if item.priority == 'pass' else '') }}">
+    <strong>{{ item.label }}</strong>
+    {% if item.detail %}<br><span style="font-size:8pt; color:var(--ink-3);">{{ item.detail }}</span>{% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+  <p style="color: var(--green); font-size: 10pt;">{{ no_actions }}</p>
+{% endif %}
+
+<!-- ═══════════════ DISCLAIMER ═══════════════ -->
+<div class="disclaimer">
+  {{ disclaimer }}
+</div>
+
+<div class="footer">
+  {{ footer_text }}
+</div>
+
+</body>
+</html>

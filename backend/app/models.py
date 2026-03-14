@@ -368,3 +368,22 @@ class ComplianceChecklist(Base):
     __table_args__ = (
         Index("ix_compliance_user_domain_item", "user_id", "domain", "item_id", unique=True),
     )
+
+
+class BlogArticle(Base):
+    """Articles de blog technique — gérés par l'admin, publiés sur /blog."""
+    __tablename__ = "blog_articles"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    slug             = Column(String(200), unique=True, nullable=False, index=True)
+    title            = Column(String(300), nullable=False)
+    meta_description = Column(String(500), nullable=True)
+    content_md       = Column(Text, nullable=False)
+    category         = Column(String(50), nullable=True)
+    tags             = Column(Text, nullable=True)       # JSON array
+    author           = Column(String(100), default="Wezea")
+    reading_time_min = Column(Integer, default=5)
+    is_published     = Column(Boolean, default=False)
+    published_at     = Column(DateTime(timezone=True), nullable=True)
+    created_at       = Column(DateTime(timezone=True), default=utcnow)
+    updated_at       = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

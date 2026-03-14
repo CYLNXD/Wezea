@@ -9,7 +9,7 @@ from sqlalchemy import func
 
 from app.database import get_db
 from app.limiter import limiter
-from app.models import ScanHistory, BlogLink
+from app.models import ScanHistory, BlogLink, BlogArticle
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -208,6 +208,71 @@ def public_blog_links(request: Request, db: Session = Depends(get_db)):
         }
         for lnk in links
     ]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Blog articles (publics)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/articles", summary="Liste des articles publiés")
+@limiter.limit("60/minute")
+def public_articles(
+    request: Request,
+    db: Session = Depends(get_db),
+    category: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+):
+    q = db.query(BlogArticle).filter(BlogArticle.is_published == True)  # noqa: E712
+    if category:
+        q = q.filter(BlogArticle.category == category)
+    total = q.count()
+    articles = q.order_by(BlogArticle.published_at.desc()).offset(offset).limit(min(limit, 50)).all()
+    return {
+        "total": total,
+        "articles": [
+            {
+                "id": a.id,
+                "slug": a.slug,
+                "title": a.title,
+                "meta_description": a.meta_description,
+                "category": a.category,
+                "tags": a.tags,
+                "author": a.author,
+                "reading_time_min": a.reading_time_min,
+                "published_at": a.published_at.isoformat() if a.published_at else None,
+            }
+            for a in articles
+        ],
+    }
+
+
+@router.get("/articles/{slug}", summary="Article par slug")
+@limiter.limit("60/minute")
+def public_article_by_slug(
+    slug: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    article = db.query(BlogArticle).filter(
+        BlogArticle.slug == slug,
+        BlogArticle.is_published == True,  # noqa: E712
+    ).first()
+    if not article:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Article introuvable")
+    return {
+        "id": article.id,
+        "slug": article.slug,
+        "title": article.title,
+        "meta_description": article.meta_description,
+        "content_md": article.content_md,
+        "category": article.category,
+        "tags": article.tags,
+        "author": article.author,
+        "reading_time_min": article.reading_time_min,
+        "published_at": article.published_at.isoformat() if article.published_at else None,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

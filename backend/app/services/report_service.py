@@ -269,6 +269,194 @@ def generate_pdf(
         raise RuntimeError(f"Erreur de génération PDF : {exc}") from exc
 
 
+def generate_compliance_pdf(
+    compliance_data: dict[str, Any],
+    lang: str = "fr",
+) -> bytes:
+    """
+    Génère un PDF de conformité NIS2/RGPD à partir des données de compliance.
+
+    Args:
+        compliance_data: Dict issu de GET /compliance/report (criteria + org_items + progress)
+        lang: Langue ("fr" | "en")
+
+    Returns:
+        bytes: Contenu binaire du PDF
+    """
+    try:
+        from weasyprint import HTML
+        from weasyprint.text.fonts import FontConfiguration
+    except (ImportError, OSError) as exc:
+        logger.error("WeasyPrint init error: %s", exc)
+        raise RuntimeError(f"WeasyPrint indisponible : {exc}") from exc
+
+    env = _build_jinja_env()
+    template = env.get_template("compliance_report_template.html")
+    context = _build_compliance_context(compliance_data, lang)
+
+    try:
+        html_content = template.render(**context)
+    except Exception as exc:
+        logger.error("Erreur rendu Jinja2 compliance : %s", exc)
+        raise RuntimeError(f"Erreur de rendu du template : {exc}") from exc
+
+    try:
+        font_config = FontConfiguration()
+        pdf_bytes = HTML(
+            string=html_content,
+            base_url=TEMPLATES_DIR,
+        ).write_pdf(font_config=font_config)
+        return pdf_bytes
+    except Exception as exc:
+        logger.error("Erreur WeasyPrint compliance : %s", exc)
+        raise RuntimeError(f"Erreur de génération PDF : {exc}") from exc
+
+
+def _build_compliance_context(data: dict[str, Any], lang: str = "fr") -> dict[str, Any]:
+    """Construit le contexte Jinja2 pour le template compliance."""
+    from datetime import datetime, timezone
+
+    is_fr = lang == "fr"
+
+    nis2_score = data.get("nis2_score", 0)
+    rgpd_score = data.get("rgpd_score", 0)
+    overall_level = data.get("overall_level", "insuffisant")
+
+    def _score_color(score: int) -> str:
+        if score >= 80:
+            return "#22c55e"
+        if score >= 50:
+            return "#f59e0b"
+        return "#ef4444"
+
+    # Criteria with display labels
+    criteria = []
+    for c in data.get("criteria", []):
+        status = c.get("status", "unknown")
+        label = c.get(f"label_{lang}", c.get("label_fr", ""))
+        articles_list = []
+        for reg in c.get("regulations", []):
+            art = c.get(f"article_{lang}", c.get("article_fr", ""))
+            if art:
+                articles_list.append(f"{reg} — {art}")
+        criteria.append({
+            "label": label,
+            "status": status,
+            "status_display": {
+                "pass": "OK" if not is_fr else "OK",
+                "warn": "Warning" if not is_fr else "Attention",
+                "fail": "Fail" if not is_fr else "Non conforme",
+                "unknown": "N/A",
+                "not_assessable": "N/A",
+            }.get(status, status),
+            "articles": " | ".join(articles_list) if articles_list else "—",
+        })
+
+    # Org items
+    org_items = []
+    for item in data.get("organizational_items", []):
+        articles_parts = []
+        for art in item.get("nis2_articles", []):
+            articles_parts.append(f"NIS2 {art}")
+        for art in item.get("rgpd_articles", []):
+            articles_parts.append(f"RGPD {art}")
+        org_items.append({
+            "label": item.get("label", ""),
+            "checked": item.get("checked", False),
+            "notes": item.get("notes", ""),
+            "articles": " | ".join(articles_parts) if articles_parts else "—",
+        })
+
+    # Action items (fail criteria + unchecked org)
+    action_items = []
+    for c in criteria:
+        if c["status"] == "fail":
+            action_items.append({
+                "label": c["label"],
+                "detail": "Critère technique non conforme" if is_fr else "Non-compliant technical criterion",
+                "priority": "urgent",
+            })
+        elif c["status"] == "warn":
+            action_items.append({
+                "label": c["label"],
+                "detail": "Critère partiellement conforme" if is_fr else "Partially compliant criterion",
+                "priority": "warn",
+            })
+    for item in org_items:
+        if not item["checked"]:
+            action_items.append({
+                "label": item["label"],
+                "detail": "Mesure organisationnelle non implémentée" if is_fr else "Organizational measure not implemented",
+                "priority": "urgent",
+            })
+
+    progress = data.get("progress", {})
+    total = progress.get("total", 0)
+    completed = progress.get("completed", 0)
+
+    level_display = {
+        "bon": "Bon" if is_fr else "Good",
+        "insuffisant": "Insuffisant" if is_fr else "Insufficient",
+        "critique": "Critique" if is_fr else "Critical",
+    }.get(overall_level, overall_level)
+
+    now = datetime.now(timezone.utc)
+
+    return {
+        "lang": lang,
+        # Cover
+        "title": "Rapport de Conformité NIS2 & RGPD" if is_fr else "NIS2 & GDPR Compliance Report",
+        "subtitle": "Analyse technique et organisationnelle" if is_fr else "Technical and organizational analysis",
+        "domain": data.get("domain", "—"),
+        "generated_date": now.strftime("%d/%m/%Y" if is_fr else "%Y-%m-%d"),
+        # Summary
+        "section_summary": "Synthèse" if is_fr else "Summary",
+        "nis2_score": nis2_score,
+        "rgpd_score": rgpd_score,
+        "nis2_color": _score_color(nis2_score),
+        "rgpd_color": _score_color(rgpd_score),
+        "level_label": "Niveau global" if is_fr else "Overall level",
+        "overall_level": overall_level,
+        "overall_level_display": level_display,
+        "progress_label": "Progression" if is_fr else "Progress",
+        "progress_completed": completed,
+        "progress_total": total,
+        "progress_pct": round(completed / total * 100) if total > 0 else 0,
+        "progress_suffix": "critères conformes" if is_fr else "criteria compliant",
+        # Tech criteria
+        "section_tech": "Critères techniques" if is_fr else "Technical criteria",
+        "col_criterion": "Critère" if is_fr else "Criterion",
+        "col_status": "Statut" if is_fr else "Status",
+        "col_articles": "Articles réglementaires" if is_fr else "Regulatory articles",
+        "criteria": criteria,
+        # Org items
+        "section_org": "Mesures organisationnelles" if is_fr else "Organizational measures",
+        "col_measure": "Mesure" if is_fr else "Measure",
+        "col_notes": "Notes" if is_fr else "Notes",
+        "checked_label": "Fait" if is_fr else "Done",
+        "unchecked_label": "À faire" if is_fr else "To do",
+        "org_items": org_items,
+        # Action plan
+        "section_actions": "Plan d'action conformité" if is_fr else "Compliance action plan",
+        "action_items": action_items,
+        "no_actions": "Toutes les mesures sont conformes." if is_fr else "All measures are compliant.",
+        # Disclaimer
+        "disclaimer": (
+            "Ce rapport est fourni à titre informatif uniquement. Il ne constitue pas un avis juridique. "
+            "L'évaluation technique est basée sur les données disponibles au moment du scan. "
+            "Les mesures organisationnelles sont déclaratives. "
+            "Consultez un expert en conformité pour une évaluation complète."
+        ) if is_fr else (
+            "This report is provided for informational purposes only. It does not constitute legal advice. "
+            "The technical assessment is based on data available at the time of the scan. "
+            "Organizational measures are self-declared. "
+            "Consult a compliance expert for a comprehensive assessment."
+        ),
+        "footer_text": f"Généré par Wezea — {now.strftime('%d/%m/%Y %H:%M UTC')}" if is_fr
+            else f"Generated by Wezea — {now.strftime('%Y-%m-%d %H:%M UTC')}",
+    }
+
+
 # ── Construction du contexte Jinja2 ──────────────────────────────────────────
 
 def _build_context(

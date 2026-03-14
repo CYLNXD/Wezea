@@ -141,8 +141,9 @@ function groupFindings(findings: Finding[]) {
 export interface DashboardResultsProps {
   scanResult: ScanResult;
   // Score comparison
-  previousScore:   number | null;
-  domainHistory:   number[];
+  previousScore:        number | null;
+  previousFindingsCount: number | null;
+  domainHistory:        number[];
   // Public stats for maturity widget
   publicStats:     { total_scans: number; industry_avg?: number } | null;
   // Blog links for recommendations
@@ -169,6 +170,7 @@ export interface DashboardResultsProps {
 export default function DashboardResults({
   scanResult: r,
   previousScore,
+  previousFindingsCount,
   domainHistory,
   publicStats,
   blogLinks,
@@ -423,6 +425,50 @@ export default function DashboardResults({
             </div>
           </div>
         </motion.div>
+
+        {/* ── Comparaison avant/après — évolution entre scans ────── */}
+        {previousScore !== null && previousFindingsCount !== null && (() => {
+          const scoreDelta = r.security_score - previousScore;
+          const findingsDelta = r.findings.length - previousFindingsCount;
+          const improved = scoreDelta > 0;
+          const fewer = findingsDelta < 0;
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="sku-card rounded-xl p-4"
+              style={{ borderColor: improved ? 'rgba(74,222,128,0.15)' : scoreDelta < 0 ? 'rgba(248,113,113,0.15)' : 'rgba(255,255,255,0.06)' }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <SkuIcon color={improved ? '#4ade80' : scoreDelta < 0 ? '#f87171' : '#94a3b8'} size={28}>
+                  {improved ? <TrendingUp size={14} className="text-green-300" /> : scoreDelta < 0 ? <TrendingDown size={14} className="text-red-300" /> : <Database size={14} className="text-slate-400" />}
+                </SkuIcon>
+                <span className="text-xs font-semibold text-slate-300">
+                  {lang === 'fr' ? 'Évolution vs scan précédent' : 'Change vs previous scan'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="text-center p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <div className={`text-xl font-black font-mono ${improved ? 'text-green-400' : scoreDelta < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                    {scoreDelta > 0 ? '+' : ''}{scoreDelta}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider mt-1">
+                    {lang === 'fr' ? 'Points' : 'Points'}
+                  </div>
+                </div>
+                <div className="text-center p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <div className={`text-xl font-black font-mono ${fewer ? 'text-green-400' : findingsDelta > 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                    {findingsDelta > 0 ? '+' : ''}{findingsDelta}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider mt-1">
+                    {lang === 'fr' ? 'Findings' : 'Findings'}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })()}
 
         {/* ── Maturité de sécurité — benchmark industrie ────────── */}
         {publicStats?.industry_avg !== undefined && (() => {
