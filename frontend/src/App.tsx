@@ -1,5 +1,6 @@
 // ─── App.tsx — Racine React ────────────────────────────────────────────────────
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from './i18n/LanguageContext';
 import Dashboard from './pages/Dashboard';
 import LoginPage from './pages/LoginPage';
@@ -11,17 +12,12 @@ import LegalPage from './pages/LegalPage';
 import PublicScanPage from './pages/PublicScanPage';
 import CompliancePage from './pages/CompliancePage';
 import PartnerPage from './pages/PartnerPage';
-import type { LegalSection } from './pages/LegalPage';
 import CookieBanner from './components/CookieBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { AuthProvider } from './contexts/AuthContext';
-import { initClientId, } from './lib/api';
+import { initClientId } from './lib/api';
 import { restoreConsent } from './lib/analytics';
-
-type Page = 'dashboard' | 'login' | 'history' | 'admin' | 'clientspace' | 'contact' | 'legal' | 'public-scan' | 'compliance' | 'partners';
-type ClientSpaceTab = 'overview' | 'monitoring' | 'apps' | 'history' | 'settings' | 'developer';
-type SettingsSection = 'profile' | 'billing' | 'whitelabel' | 'danger';
 
 // ── SEO — meta tags par page ──────────────────────────────────────────────────
 const DEFAULT_META = {
@@ -60,19 +56,6 @@ const COMPLIANCE_META_EN = {
   twDesc:     '12 NIS2 and GDPR criteria analysed in 60 seconds. Free, no installation, no server access.',
 } as const;
 
-// Composant interne pour les mises à jour de meta (doit être dans le LanguageProvider)
-function MetaUpdater({ page }: { page: Page }) {
-  const { lang } = useLanguage();
-  useEffect(() => {
-    if (page === 'compliance') {
-      applyMeta(lang === 'en' ? COMPLIANCE_META_EN : COMPLIANCE_META);
-    } else {
-      applyMeta(DEFAULT_META);
-    }
-  }, [page, lang]);
-  return null;
-}
-
 interface MetaConfig {
   title: string; desc: string; keywords: string; canonical: string;
   ogTitle: string; ogDesc: string; ogUrl: string;
@@ -93,189 +76,115 @@ function applyMeta(m: MetaConfig): void {
   set('meta[name="twitter:description"]', 'content', m.twDesc);
 }
 
+// Composant interne pour les mises à jour de meta (doit être dans le LanguageProvider + Router)
+function MetaUpdater() {
+  const { lang } = useLanguage();
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (pathname === '/conformite-nis2') {
+      applyMeta(lang === 'en' ? COMPLIANCE_META_EN : COMPLIANCE_META);
+    } else {
+      applyMeta(DEFAULT_META);
+    }
+  }, [pathname, lang]);
+  return null;
+}
+
+// ── Gère les legacy query params et les redirige vers les bonnes routes ──────
+function LegacyRedirects() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    // Seulement sur la racine — ne pas interférer avec les autres routes
+    if (pathname !== '/') return;
+
+    const page = searchParams.get('page');
+    if (page === 'contact') {
+      navigate('/contact', { replace: true });
+      return;
+    }
+
+    const legal = searchParams.get('legal');
+    if (legal) {
+      navigate(`/mentions-legales/${legal}`, { replace: true });
+      return;
+    }
+
+    // Reset token — redirige vers /login avec le token en query
+    const rt = searchParams.get('reset_token');
+    if (rt) {
+      navigate(`/login?reset_token=${encodeURIComponent(rt)}`, { replace: true });
+      return;
+    }
+  }, [pathname, searchParams, navigate]);
+
+  return null;
+}
+
+// ── Capture le code referral depuis ?ref=wza_XXXX ────────────────────────────
+function ReferralCapture() {
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref && /^wza_[A-Z0-9]{6}$/i.test(ref)) {
+      const code = ref.toUpperCase();
+      localStorage.setItem('wezea_referral_code', code);
+    }
+  }, [searchParams]);
+
+  return null;
+}
+
+// ── Scroll to top on route change ────────────────────────────────────────────
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 export default function App() {
-  const [page, setPage]               = useState<Page>('dashboard');
-  const [legalSection, setLegalSection] = useState<LegalSection>('mentions');
-  const [loginMode, setLoginMode]       = useState<'login' | 'register'>('login');
-  const [publicScanUuid, setPublicScanUuid]   = useState<string | null>(null);
-  const [pendingScanUuid, setPendingScanUuid] = useState<string | null>(null);
-  const [resetToken, setResetToken]     = useState<string | null>(null);
-  const [referralCode, setReferralCode] = useState<string | null>(null);
-  const [csTab, setCsTab]                   = useState<ClientSpaceTab | undefined>(undefined);
-  const [csSection, setCsSection]           = useState<SettingsSection | undefined>(undefined);
-
-  const goClientSpace = (tab?: ClientSpaceTab, section?: SettingsSection) => {
-    setCsTab(tab);
-    setCsSection(section);
-    setPage('clientspace');
-  };
-
   // Initialise le cookie d'identification anonyme et restaure le consentement analytics
   useEffect(() => {
     initClientId();
     restoreConsent(); // réactive PostHog si l'utilisateur avait déjà accepté
   }, []);
 
-  // Les meta OG/Twitter/canonical sont gérées par <MetaUpdater> (à l'intérieur du LanguageProvider)
-
-  // Détecte les routes /r/{uuid} pour les rapports publics
-  useEffect(() => {
-    // Détecte la page de conformité NIS2/RGPD
-    if (window.location.pathname === '/conformite-nis2') {
-      setPage('compliance');
-      return;
-    }
-
-    // Détecte la page partenaire
-    if (window.location.pathname === '/partenaires') {
-      setPage('partners');
-      return;
-    }
-
-    const path = window.location.pathname;
-    const match = path.match(/^\/r\/([a-f0-9-]{36})$/i);
-    if (match) {
-      setPublicScanUuid(match[1]);
-      setPage('public-scan');
-      return;
-    }
-
-    // Gère le paramètre ?page=contact dans l'URL (lien depuis le PDF)
-    const params = new URLSearchParams(window.location.search);
-    const p = params.get('page');
-    if (p === 'contact') {
-      setPage('contact');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-    const legal = params.get('legal') as LegalSection | null;
-    if (legal) {
-      setLegalSection(legal);
-      setPage('legal');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-
-    // Lien de réinitialisation de mot de passe — ?reset_token=xxx
-    const rt = params.get('reset_token');
-    if (rt) {
-      setResetToken(rt);
-      setPage('login');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-
-    // Code referral partenaire — ?ref=wza_XXXXXX
-    const ref = params.get('ref');
-    if (ref && /^wza_[A-Z0-9]{6}$/i.test(ref)) {
-      const code = ref.toUpperCase();
-      setReferralCode(code);
-      localStorage.setItem('wezea_referral_code', code);
-    } else {
-      // Restaurer depuis localStorage (survit au redirect Google OAuth)
-      const saved = localStorage.getItem('wezea_referral_code');
-      if (saved) setReferralCode(saved);
-    }
-  }, []);
-
   return (
     <ErrorBoundary>
     <LanguageProvider>
-      <MetaUpdater page={page} />
+    <BrowserRouter>
+      <MetaUpdater />
+      <LegacyRedirects />
+      <ReferralCapture />
+      <ScrollToTop />
       <AuthProvider>
         {/* Bandeau de consentement RGPD — s'affiche uniquement si aucun choix n'a été fait */}
-        <CookieBanner
-          onOpenCookies={() => { setLegalSection('cookies'); setPage('legal'); }}
-        />
+        <CookieBanner />
 
-        {page === 'dashboard' && (
-          <Dashboard
-            onGoLogin={()        => { setLoginMode('login');    setPage('login'); }}
-            onGoRegister={()     => { setLoginMode('register'); setPage('login'); }}
-            onGoHistory={()      => setPage('history')}
-            onGoAdmin={()        => setPage('admin')}
-            onGoClientSpace={(tab?, section?) => goClientSpace(tab as ClientSpaceTab | undefined, section as SettingsSection | undefined)}
-            onGoContact={()      => setPage('contact')}
-            onGoLegal={(s)       => { setLegalSection((s ?? 'mentions') as LegalSection); setPage('legal'); }}
-            onGoCompliance={()   => { window.history.pushState({}, '', '/conformite-nis2'); setPage('compliance'); }}
-            initialScanUuid={pendingScanUuid}
-            onScanUuidConsumed={() => setPendingScanUuid(null)}
-          />
-        )}
-        {page === 'login' && (
-          <LoginPage
-            onBack={() => { setPage('dashboard'); setResetToken(null); }}
-            initialMode={loginMode}
-            resetToken={resetToken}
-            referralCode={referralCode}
-          />
-        )}
-        {page === 'history' && (
-          <HistoryPage
-            onBack={() => setPage('dashboard')}
-            onLoadScan={(uuid) => { setPendingScanUuid(uuid); setPage('dashboard'); }}
-            onGoAdmin={() => setPage('admin')}
-            onGoClientSpace={() => goClientSpace()}
-            onGoContact={() => setPage('contact')}
-          />
-        )}
-        {page === 'admin' && (
-          <AdminPage
-            onBack={() => setPage('dashboard')}
-            onGoHistory={() => setPage('history')}
-            onGoClientSpace={() => goClientSpace()}
-            onGoContact={() => setPage('contact')}
-          />
-        )}
-        {page === 'clientspace' && (
-          <ClientSpace
-            onBack={() => setPage('dashboard')}
-            onGoHistory={() => setPage('history')}
-            onGoAdmin={() => setPage('admin')}
-            onGoContact={() => setPage('contact')}
-            initialTab={csTab}
-            initialSettingsSection={csSection}
-          />
-        )}
-        {page === 'contact' && (
-          <ContactPage
-            onBack={() => setPage('dashboard')}
-            onGoClientSpace={() => goClientSpace()}
-            onGoHistory={() => setPage('history')}
-            onGoAdmin={() => setPage('admin')}
-          />
-        )}
-        {page === 'legal' && (
-          <LegalPage
-            section={legalSection}
-            onBack={() => setPage('dashboard')}
-            onGoClientSpace={() => goClientSpace()}
-            onGoHistory={() => setPage('history')}
-            onGoAdmin={() => setPage('admin')}
-            onGoContact={() => setPage('contact')}
-          />
-        )}
-        {page === 'public-scan' && publicScanUuid && (
-          <PublicScanPage
-            uuid={publicScanUuid}
-            onGoHome={() => {
-              window.history.replaceState({}, '', '/');
-              setPage('dashboard');
-            }}
-          />
-        )}
-        {page === 'compliance' && (
-          <CompliancePage
-            onGoBack={() => { window.history.replaceState({}, '', '/'); setPage('dashboard'); }}
-            onGoRegister={() => { setLoginMode('register'); setPage('login'); }}
-            onGoLogin={() => { setLoginMode('login'); setPage('login'); }}
-          />
-        )}
-        {page === 'partners' && (
-          <PartnerPage
-            onGoBack={() => { window.history.replaceState({}, '', '/'); setPage('dashboard'); }}
-            onGoRegister={() => { setLoginMode('register'); setPage('login'); }}
-            onGoLogin={() => { setLoginMode('login'); setPage('login'); }}
-          />
-        )}
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/login" element={<LoginPage initialMode="login" />} />
+          <Route path="/register" element={<LoginPage initialMode="register" />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/espace-client" element={<ClientSpace />} />
+          <Route path="/espace-client/:tab" element={<ClientSpace />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/mentions-legales" element={<LegalPage />} />
+          <Route path="/mentions-legales/:section" element={<LegalPage />} />
+          <Route path="/r/:uuid" element={<PublicScanPage />} />
+          <Route path="/conformite-nis2" element={<CompliancePage />} />
+          <Route path="/partenaires" element={<PartnerPage />} />
+          {/* Fallback — redirect to dashboard */}
+          <Route path="*" element={<Dashboard />} />
+        </Routes>
       </AuthProvider>
+    </BrowserRouter>
     </LanguageProvider>
     </ErrorBoundary>
   );

@@ -1,4 +1,5 @@
 import { useState, useEffect, FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Shield, Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle, KeyRound, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,13 +7,16 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { apiClient } from '../lib/api';
 
 interface Props {
-  onBack:       () => void;
   initialMode?: 'login' | 'register';
-  resetToken?:  string | null;
-  referralCode?: string | null;
 }
 
-export default function LoginPage({ onBack, initialMode, resetToken, referralCode }: Props) {
+export default function LoginPage({ initialMode }: Props) {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const resetToken = searchParams.get('reset_token');
+  const referralCode = localStorage.getItem('wezea_referral_code');
+  const goBack = () => navigate('/');
+
   const { register, googleLogin, loginWithToken } = useAuth();
   const { lang } = useLanguage();
 
@@ -37,10 +41,16 @@ export default function LoginPage({ onBack, initialMode, resetToken, referralCod
   const [mfaToken,     setMfaToken]     = useState('');
   const [totpCode,     setTotpCode]     = useState('');
 
-  // Si un reset_token est passé en prop → afficher directement la vue reset
+  // Si un reset_token est dans l'URL → afficher directement la vue reset et nettoyer l'URL
   useEffect(() => {
-    if (resetToken) setSubView('reset');
-  }, [resetToken]);
+    if (resetToken) {
+      setSubView('reset');
+      // Clean the URL without triggering a re-render loop
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('reset_token');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isLogin = mode === 'login';
 
@@ -76,7 +86,7 @@ export default function LoginPage({ onBack, initialMode, resetToken, referralCod
               setLoading(false);
               return;
             }
-            onBack();
+            goBack();
           } catch (err: any) {
             setError(err?.response?.data?.detail || err?.message || 'Erreur Google');
           } finally {
@@ -147,7 +157,7 @@ export default function LoginPage({ onBack, initialMode, resetToken, referralCod
       } else {
         await register(email, password, refCode || undefined);
       }
-      onBack();
+      goBack();
     } catch (err: any) {
       setError(err.message || 'Une erreur est survenue');
     } finally {
@@ -166,7 +176,7 @@ export default function LoginPage({ onBack, initialMode, resetToken, referralCod
         mfa_token: mfaToken,
       });
       loginWithToken(data.access_token, data.user);
-      onBack();
+      goBack();
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
       setSubError(detail || (lang === 'fr' ? 'Code invalide.' : 'Invalid code.'));
@@ -655,7 +665,7 @@ export default function LoginPage({ onBack, initialMode, resetToken, referralCod
 
         {/* Back */}
         <button
-          onClick={onBack}
+          onClick={goBack}
           className="mt-4 w-full text-slate-500 hover:text-slate-300 text-sm font-medium transition text-center"
         >
           ← {lang === 'fr' ? 'Retour au scanner' : 'Back to scanner'}

@@ -1,5 +1,6 @@
 // ─── PublicScanPage.tsx — Rapport de scan partagé (sans authentification) ─────
 import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Globe, Clock, AlertTriangle, CheckCircle, XCircle, Info, Shield } from 'lucide-react';
 import WezeaLogo from '../components/WezeaLogo';
 
@@ -78,17 +79,16 @@ function severityBorder(severity: string): string {
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface Props {
-  uuid:     string;
-  onGoHome: () => void;
-}
-
-export default function PublicScanPage({ uuid, onGoHome }: Props) {
+export default function PublicScanPage() {
+  const { uuid } = useParams<{ uuid: string }>();
+  const navigate = useNavigate();
+  const goHome = () => navigate('/');
   const [scan,    setScan]    = useState<PublicScan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
+    if (!uuid) return;
     fetch(`${BASE_URL}/public/scan/${uuid}`)
       .then(r => {
         if (!r.ok) {
@@ -129,7 +129,7 @@ export default function PublicScanPage({ uuid, onGoHome }: Props) {
           <h1 className="text-white font-bold text-xl mb-2">Rapport indisponible</h1>
           <p className="text-slate-400 text-sm mb-6">{error ?? 'Ce rapport de sécurité n\'est pas accessible.'}</p>
           <button
-            onClick={onGoHome}
+            onClick={goHome}
             className="px-6 py-2.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition"
           >
             Scanner votre domaine gratuitement →
@@ -153,11 +153,11 @@ export default function PublicScanPage({ uuid, onGoHome }: Props) {
       {/* ── Navbar ───────────────────────────────────────────────────────── */}
       <nav className="border-b border-slate-800/60 bg-slate-950/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <button onClick={onGoHome} className="group">
+          <button onClick={goHome} className="group">
             <WezeaLogo size="md" showSub className="group-hover:opacity-90 transition-opacity" />
           </button>
           <button
-            onClick={onGoHome}
+            onClick={goHome}
             className="px-4 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition"
           >
             Scanner mon domaine →
@@ -302,7 +302,7 @@ export default function PublicScanPage({ uuid, onGoHome }: Props) {
             SPF, DMARC, SSL, ports ouverts, CVE — rapport complet en moins de 60 secondes.
           </p>
           <button
-            onClick={onGoHome}
+            onClick={goHome}
             className="px-7 py-2.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition"
           >
             Scanner maintenant →
@@ -317,13 +317,13 @@ export default function PublicScanPage({ uuid, onGoHome }: Props) {
           (test d'intrusion, audit de code, revue d'architecture, etc.). Il ne saurait remplacer
           l'intervention d'un professionnel agréé en cybersécurité. Wezea ne peut être tenu responsable
           des décisions prises sur la base de ce rapport.
-          {' '}<button onClick={onGoHome} className="text-slate-500 hover:text-cyan-400 transition underline">Mentions légales</button>
+          {' '}<button onClick={goHome} className="text-slate-500 hover:text-cyan-400 transition underline">Mentions légales</button>
         </p>
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <p className="text-center text-slate-700 text-xs mt-4 font-mono">
           Rapport généré par{' '}
-          <button onClick={onGoHome} className="text-slate-500 hover:text-cyan-400 transition">
+          <button onClick={goHome} className="text-slate-500 hover:text-cyan-400 transition">
             wezea.net
           </button>
         </p>

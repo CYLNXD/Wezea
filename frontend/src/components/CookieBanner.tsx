@@ -1,13 +1,10 @@
 // ─── CookieBanner.tsx — Bandeau de consentement RGPD ─────────────────────────
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { analyticsOptIn, analyticsOptOut, getConsentStatus } from '../lib/analytics';
 
-interface CookieBannerProps {
-  /** Callback pour ouvrir la page politique des cookies */
-  onOpenCookies?: () => void;
-}
-
-export default function CookieBanner({ onOpenCookies }: CookieBannerProps) {
+export default function CookieBanner() {
+  const navigate = useNavigate();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -72,7 +69,7 @@ export default function CookieBanner({ onOpenCookies }: CookieBannerProps) {
           Wezea utilise des cookies analytiques (PostHog) pour améliorer l'expérience et mesurer l'usage du scanner.
           Ces données restent anonymisées et ne sont jamais revendues.{' '}
           <button
-            onClick={onOpenCookies}
+            onClick={() => navigate('/mentions-legales/cookies')}
             style={{
               background: 'none',
               border: 'none',

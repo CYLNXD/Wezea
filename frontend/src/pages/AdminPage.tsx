@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import PageNavbar from '../components/PageNavbar';
 import SkuIcon from '../components/SkuIcon';
 
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UserAdmin {
@@ -52,12 +53,7 @@ interface BlogLink {
   article_url: string;
 }
 
-interface Props {
-  onBack?: () => void;
-  onGoHistory?: () => void;
-  onGoClientSpace?: () => void;
-  onGoContact?: () => void;
-}
+/* Props removed — all navigation via useNavigate() */
 
 interface PartnerAdmin {
   id: number;
@@ -910,7 +906,7 @@ function BlogLinksTab({ links, onRefresh }: { links: BlogLink[]; onRefresh: () =
 
 // ─── Main AdminPage ───────────────────────────────────────────────────────────
 
-export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoContact }: Props) {
+export default function AdminPage() {
   const [tab,        setTab]        = useState<Tab>('metrics');
   const [metrics,    setMetrics]    = useState<Metrics | null>(null);
   const [users,      setUsers]      = useState<UserAdmin[]>([]);
@@ -1025,12 +1021,8 @@ export default function AdminPage({ onBack, onGoHistory, onGoClientSpace, onGoCo
 
       {/* Nav */}
       <PageNavbar
-        onBack={onBack ?? (() => {})}
         title="Admin"
         icon={<Shield size={14} />}
-        onGoHistory={onGoHistory}
-        onGoClientSpace={onGoClientSpace}
-        onGoContact={onGoContact}
         actions={
           <button
             onClick={fetchData}
