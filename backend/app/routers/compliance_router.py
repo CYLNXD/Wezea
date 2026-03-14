@@ -55,12 +55,11 @@ def _get_latest_scan(domain: str, user_id: int, db: Session) -> Optional[ScanHis
 
 
 def _parse_findings(scan: ScanHistory) -> list[dict]:
-    """Extrait les findings du scan_details_json."""
-    if not scan or not scan.scan_details_json:
+    """Extrait les findings du findings_json (pas scan_details_json qui ne contient pas les findings)."""
+    if not scan or not scan.findings_json:
         return []
     try:
-        data = json.loads(scan.scan_details_json)
-        return data.get("findings", [])
+        return json.loads(scan.findings_json)
     except (json.JSONDecodeError, TypeError):
         return []
 
