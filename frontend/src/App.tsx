@@ -14,8 +14,7 @@ const LegalPage      = lazy(() => import('./pages/LegalPage'));
 const PublicScanPage = lazy(() => import('./pages/PublicScanPage'));
 const CompliancePage = lazy(() => import('./pages/CompliancePage'));
 const PartnerPage    = lazy(() => import('./pages/PartnerPage'));
-const BlogPage       = lazy(() => import('./pages/BlogPage'));
-const BlogArticlePage = lazy(() => import('./pages/BlogArticlePage'));
+// Blog pages not used — static HTML blog in /public/blog/
 import CookieBanner from './components/CookieBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LanguageProvider } from './i18n/LanguageContext';
@@ -193,8 +192,7 @@ export default function App() {
             <Route path="/r/:uuid" element={<PublicScanPage />} />
             <Route path="/conformite-nis2" element={<CompliancePage />} />
             <Route path="/partenaires" element={<PartnerPage />} />
-            <Route path="/blog" element={<BlogPage />} />
-            <Route path="/blog/:slug" element={<BlogArticlePage />} />
+            {/* Blog is served as static HTML from /blog/index.html — no React route needed */}
             {/* Fallback — redirect to dashboard */}
             <Route path="*" element={<Dashboard />} />
           </Routes>
