@@ -122,6 +122,7 @@ class TestApplyMigrations:
             "013_user_integrations", "014_api_key_hash", "015_mfa",
             "016_login_attempts_index", "017_partners", "018_user_referral",
             "019_partner_reward_tracking",
+            "020_compliance_checklists",
         }
         assert expected == versions
 

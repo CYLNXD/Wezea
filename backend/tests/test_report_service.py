@@ -371,20 +371,27 @@ class TestBuildActionPlan:
         findings = [{"title": "SPF manquant", "severity": "HIGH", "penalty": 20}]
         plan = _build_action_plan(findings, "fr")
         assert len(plan["urgent"]) == 1
-        assert "SPF" in plan["urgent"][0]
+        assert "SPF" in plan["urgent"][0]["text"]
+
+    def test_spf_has_guide(self):
+        findings = [{"title": "SPF manquant", "severity": "HIGH", "penalty": 20}]
+        plan = _build_action_plan(findings, "fr")
+        guide = plan["urgent"][0]["guide"]
+        assert guide is not None
+        assert guide["difficulty"] == "easy"
+        assert len(guide["steps"]) >= 2
 
     def test_dkim_goes_to_important(self):
         findings = [{"title": "DKIM non détecté", "severity": "MEDIUM", "penalty": 8}]
         plan = _build_action_plan(findings, "fr")
         assert len(plan["important"]) >= 1
-        assert "DKIM" in plan["important"][0]
+        assert "DKIM" in plan["important"][0]["text"]
 
     def test_ssh_goes_to_optimize(self):
         findings = [{"title": "SSH (port 22) exposé", "severity": "INFO", "penalty": 0}]
         plan = _build_action_plan(findings, "fr")
-        # Action SSH doit apparaître dans optimize (pas urgent ni important)
         all_optimize = plan["optimize"]
-        assert any("SSH" in a or "clés" in a or "key" in a for a in all_optimize)
+        assert any("SSH" in a["text"] or "clés" in a["text"] or "key" in a["text"] for a in all_optimize)
 
     def test_deduplication_same_finding_twice(self):
         """Deux findings avec la même clé → une seule action dans urgent."""
@@ -393,17 +400,15 @@ class TestBuildActionPlan:
             {"title": "SPF manquant", "severity": "HIGH", "penalty": 20},
         ]
         plan = _build_action_plan(findings, "fr")
-        # L'action SPF ne doit apparaître qu'une seule fois
-        spf_actions = [a for a in plan["urgent"] if "SPF" in a]
+        spf_actions = [a for a in plan["urgent"] if "SPF" in a["text"]]
         assert len(spf_actions) == 1
 
     def test_lang_en_returns_english_actions(self):
         findings = [{"title": "SPF manquant", "severity": "HIGH", "penalty": 20}]
         plan = _build_action_plan(findings, "en")
         assert len(plan["urgent"]) == 1
-        # L'action anglaise doit être en anglais
-        assert "SPF" in plan["urgent"][0]
-        assert "DNS" in plan["urgent"][0] or "record" in plan["urgent"][0].lower()
+        assert "SPF" in plan["urgent"][0]["text"]
+        assert "DNS" in plan["urgent"][0]["text"] or "record" in plan["urgent"][0]["text"].lower()
 
     def test_multiple_findings_multiple_phases(self):
         """SPF (urgent) + DKIM (important) + SSH (optimize) → toutes phases remplies."""
@@ -419,7 +424,6 @@ class TestBuildActionPlan:
 
     def test_optimize_capped_at_five(self):
         """La phase optimize ne doit pas dépasser 5 actions."""
-        # Générer beaucoup de findings → optimize ne doit pas exploser
         findings = [
             {"title": "SSH (port 22) exposé", "severity": "INFO", "penalty": 0},
         ]
@@ -429,69 +433,81 @@ class TestBuildActionPlan:
     def test_dmarc_urgent(self):
         findings = [{"title": "DMARC manquant", "severity": "HIGH", "penalty": 15}]
         plan = _build_action_plan(findings, "fr")
-        assert any("DMARC" in a for a in plan["urgent"])
+        assert any("DMARC" in a["text"] for a in plan["urgent"])
 
     def test_ssl_expired_urgent(self):
         findings = [{"title": "Certificat SSL expiré", "severity": "CRITICAL", "penalty": 30}]
         plan = _build_action_plan(findings, "fr")
-        assert any("SSL" in a or "certif" in a.lower() for a in plan["urgent"])
+        assert any("SSL" in a["text"] or "certif" in a["text"].lower() for a in plan["urgent"])
 
     # ── Nouveaux checks (session 30) ──────────────────────────────────────────
 
     def test_dnssec_goes_to_optimize(self):
         findings = [{"title": "DNSSEC non activé", "severity": "LOW", "penalty": 3}]
         plan = _build_action_plan(findings, "fr")
-        assert any("DNSSEC" in a for a in plan["optimize"])
+        assert any("DNSSEC" in a["text"] for a in plan["optimize"])
 
     def test_dnssec_en(self):
         findings = [{"title": "DNSSEC not enabled", "severity": "LOW", "penalty": 3}]
         plan = _build_action_plan(findings, "en")
-        assert any("DNSSEC" in a for a in plan["optimize"])
+        assert any("DNSSEC" in a["text"] for a in plan["optimize"])
 
     def test_caa_goes_to_optimize(self):
         findings = [{"title": "CAA record missing", "severity": "LOW", "penalty": 2}]
         plan = _build_action_plan(findings, "fr")
-        assert any("CAA" in a for a in plan["optimize"])
+        assert any("CAA" in a["text"] for a in plan["optimize"])
 
     def test_pfs_goes_to_important(self):
         findings = [{"title": "Perfect Forward Secrecy missing (PFS) — AES256", "severity": "MEDIUM", "penalty": 8}]
         plan = _build_action_plan(findings, "fr")
-        assert any("ECDHE" in a or "PFS" in a for a in plan["important"])
+        assert any("ECDHE" in a["text"] or "PFS" in a["text"] for a in plan["important"])
 
     def test_weak_cipher_goes_to_important(self):
         findings = [{"title": "Cipher faible accepté : DES-CBC3-SHA", "severity": "HIGH", "penalty": 12}]
         plan = _build_action_plan(findings, "fr")
-        assert any("cipher" in a.lower() or "3DES" in a or "RC4" in a for a in plan["important"])
+        assert any("cipher" in a["text"].lower() or "3DES" in a["text"] or "RC4" in a["text"] for a in plan["important"])
 
     def test_http_redirect_goes_to_urgent(self):
         findings = [{"title": "Pas de redirection HTTP → HTTPS", "severity": "HIGH", "penalty": 10}]
         plan = _build_action_plan(findings, "fr")
-        assert any("HTTP" in a and "HTTPS" in a for a in plan["urgent"])
+        assert any("HTTP" in a["text"] and "HTTPS" in a["text"] for a in plan["urgent"])
 
     def test_mta_sts_goes_to_optimize(self):
         findings = [{"title": "MTA-STS non configuré", "severity": "LOW", "penalty": 2}]
         plan = _build_action_plan(findings, "fr")
-        assert any("MTA-STS" in a for a in plan["optimize"])
+        assert any("MTA-STS" in a["text"] for a in plan["optimize"])
 
     def test_permissions_policy_goes_to_optimize(self):
         findings = [{"title": "Permissions-Policy absent", "severity": "LOW", "penalty": 2}]
         plan = _build_action_plan(findings, "fr")
-        assert any("Permissions-Policy" in a for a in plan["optimize"])
+        assert any("Permissions-Policy" in a["text"] for a in plan["optimize"])
 
     def test_domain_expired_goes_to_urgent(self):
         findings = [{"title": "Domaine expiré depuis 5 jours !", "severity": "CRITICAL", "penalty": 50}]
         plan = _build_action_plan(findings, "fr")
-        assert any("domaine" in a.lower() or "domain" in a.lower() for a in plan["urgent"])
+        assert any("domaine" in a["text"].lower() or "domain" in a["text"].lower() for a in plan["urgent"])
 
     def test_domain_expires_soon_goes_to_urgent(self):
         findings = [{"title": "Domaine expire dans 10 jours — URGENT", "severity": "CRITICAL", "penalty": 30}]
         plan = _build_action_plan(findings, "fr")
-        assert any("expir" in a.lower() or "domaine" in a.lower() for a in plan["urgent"])
+        assert any("expir" in a["text"].lower() or "domaine" in a["text"].lower() for a in plan["urgent"])
 
     def test_domain_expired_en(self):
         findings = [{"title": "Domain expired 5 days ago!", "severity": "CRITICAL", "penalty": 50}]
         plan = _build_action_plan(findings, "en")
-        assert any("domain" in a.lower() for a in plan["urgent"])
+        assert any("domain" in a["text"].lower() for a in plan["urgent"])
+
+    def test_guide_absent_for_unknown_finding(self):
+        findings = [{"title": "SSH (port 22) exposé", "severity": "INFO", "penalty": 0}]
+        plan = _build_action_plan(findings, "fr")
+        ssh_items = [a for a in plan["optimize"] if "SSH" in a["text"] or "clés" in a["text"]]
+        assert len(ssh_items) >= 1
+        assert ssh_items[0]["guide"] is None  # No guide for SSH
+
+    def test_default_optimize_items_have_no_guide(self):
+        plan = _build_action_plan([], "fr")
+        for item in plan["optimize"]:
+            assert item["guide"] is None
 
 
 # ─── Tests _build_context ─────────────────────────────────────────────────────

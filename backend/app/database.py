@@ -212,6 +212,11 @@ def _apply_migrations():
             _add_column_if_missing(conn, "partners", "referral_reward_used", "BOOLEAN DEFAULT 0")
             _mark_applied("019_partner_reward_tracking")
 
+        # ── 020 : Checklist conformité NIS2/RGPD ───────────────────────────────
+        if not _applied("020_compliance_checklists"):
+            # Table gérée par l'ORM (Base.metadata.create_all)
+            _mark_applied("020_compliance_checklists")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utilitaire : ajouter une colonne si absente

@@ -342,3 +342,29 @@ class Partner(Base):
     notes            = Column(Text, nullable=True)             # notes admin
     created_at       = Column(DateTime(timezone=True), default=utcnow)
     activated_at     = Column(DateTime(timezone=True), nullable=True)
+
+
+class ComplianceChecklist(Base):
+    """État de la checklist conformité NIS2/RGPD par utilisateur et domaine.
+
+    Stocke les mesures organisationnelles (non détectables par scan)
+    cochées manuellement par l'utilisateur : plan de réponse incidents,
+    formation, MFA, backup, etc.
+    """
+    __tablename__ = "compliance_checklists"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    domain     = Column(String(253), nullable=False)
+    item_id    = Column(String(50), nullable=False)
+    checked    = Column(Boolean, default=False, nullable=False)
+    notes      = Column(Text, nullable=True)
+    checked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    user = relationship("User", backref="compliance_checklists")
+
+    __table_args__ = (
+        Index("ix_compliance_user_domain_item", "user_id", "domain", "item_id", unique=True),
+    )
