@@ -12,6 +12,8 @@ Checks couverts :
   6.  Listing de répertoires
   7.  Mode debug / stack traces visibles
   8.  robots.txt révélant des chemins sensibles
+  9.  Mixed content (formulaires/ressources HTTP sur page HTTPS)
+  10. Bibliothèques JavaScript front obsolètes (jQuery, Angular 1.x…)
 
 N'effectue aucun test d'injection actif — lecture seule (DAST passif).
 """
@@ -20,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import http.client
+import re
 import ssl
 from typing import Any
 
@@ -84,6 +87,24 @@ _DEBUG_PATTERNS = [
     "rails.application",
     "activerecord::base",
 ]
+
+# Bibliothèques JS front vulnérables connues
+# (regex_pattern, lib_name, max_safe_version_tuple, severity, penalty, cve_ref)
+_VULNERABLE_JS_LIBS: list[tuple[str, str, tuple[int, ...], str, int, str]] = [
+    (r"jquery[.\-/](\d+\.\d+\.\d+)", "jQuery", (3, 5, 0),
+     "HIGH", 10, "CVE-2020-11022 / CVE-2020-11023 (XSS)"),
+    (r"angular[.\-/](\d+\.\d+\.\d+)", "AngularJS", (2, 0, 0),
+     "HIGH", 10, "Multiple XSS — AngularJS 1.x EOL"),
+    (r"bootstrap[.\-/](\d+\.\d+\.\d+)", "Bootstrap", (4, 6, 0),
+     "MEDIUM", 5, "CVE-2024-6484 / CVE-2019-8331 (XSS)"),
+    (r"lodash[.\-/](\d+\.\d+\.\d+)", "Lodash", (4, 17, 21),
+     "MEDIUM", 5, "CVE-2021-23337 (Prototype Pollution)"),
+]
+
+_RE_FORM_HTTP = re.compile(r"<form[^>]+action\s*=\s*[\"']http://", re.IGNORECASE)
+_RE_RESOURCE_HTTP = re.compile(
+    r"<(?:script|link|img)[^>]+(?:src|href)\s*=\s*[\"']http://", re.IGNORECASE
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -271,6 +292,7 @@ class AppAuditor(BaseAuditor):
             ]
             missing_secure: list[str] = []
             missing_httponly: list[str] = []
+            missing_samesite: list[str] = []
             for cookie in cookies_raw:
                 name = cookie.split("=")[0].strip()
                 cl = cookie.lower()
@@ -278,6 +300,8 @@ class AppAuditor(BaseAuditor):
                     missing_secure.append(name)
                 if "httponly" not in cl:
                     missing_httponly.append(name)
+                if "samesite=" not in cl:
+                    missing_samesite.append(name)
 
             if missing_secure:
                 self._findings.append(Finding(
@@ -311,6 +335,23 @@ class AppAuditor(BaseAuditor):
                         "Ajouter le flag `HttpOnly` à tous les cookies de session. "
                         "Django : `SESSION_COOKIE_HTTPONLY = True` — "
                         "Express : `app.use(session({ cookie: { httpOnly: true } }))`"
+                    ),
+                ))
+            if missing_samesite:
+                self._findings.append(Finding(
+                    category="Cookies",
+                    severity="LOW",
+                    title="Cookies sans attribut SameSite",
+                    technical_detail=f"Cookies concernés : {', '.join(missing_samesite[:5])}",
+                    plain_explanation=(
+                        "Sans l'attribut SameSite, ces cookies sont envoyés avec les requêtes "
+                        "cross-site, ce qui facilite les attaques CSRF (Cross-Site Request Forgery)."
+                    ),
+                    penalty=3,
+                    recommendation=(
+                        "Ajouter `SameSite=Lax` (ou `Strict`) à tous les cookies de session. "
+                        "Django : `SESSION_COOKIE_SAMESITE = 'Lax'` — "
+                        "Express : `app.use(session({ cookie: { sameSite: 'lax' } }))`"
                     ),
                 ))
 
@@ -358,8 +399,111 @@ class AppAuditor(BaseAuditor):
                     ))
                     break
 
+            # ── Mixed content ────────────────────────────────────────────────
+            self._check_mixed_content(body)
+
+            # ── Bibliothèques JS obsolètes ───────────────────────────────────
+            self._check_outdated_js(body)
+
         except Exception:
             pass
+
+    # ── Mixed content ────────────────────────────────────────────────────────
+
+    def _check_mixed_content(self, body: str) -> None:
+        """Détecte les formulaires et ressources chargées en HTTP sur une page HTTPS."""
+        if not body:
+            return
+
+        # Formulaires POST vers HTTP (risque de fuite de données)
+        http_forms = _RE_FORM_HTTP.findall(body)
+        if http_forms:
+            self._findings.append(Finding(
+                category="Mixed Content",
+                severity="MEDIUM",
+                title="Formulaire soumis vers HTTP (non chiffré)",
+                technical_detail=(
+                    f"{len(http_forms)} formulaire(s) avec action='http://…' détecté(s)"
+                ),
+                plain_explanation=(
+                    "Un ou plusieurs formulaires envoient les données utilisateur "
+                    "(identifiants, données personnelles) vers une URL non chiffrée (HTTP). "
+                    "Un attaquant sur le réseau peut intercepter ces données."
+                ),
+                penalty=8,
+                recommendation=(
+                    "Remplacer toutes les URLs `http://` dans les attributs `action` des "
+                    "formulaires par `https://`, ou utiliser des chemins relatifs (`/submit`)."
+                ),
+            ))
+
+        # Ressources externes chargées en HTTP (scripts, CSS, images)
+        http_resources = _RE_RESOURCE_HTTP.findall(body)
+        if http_resources:
+            self._findings.append(Finding(
+                category="Mixed Content",
+                severity="MEDIUM",
+                title="Ressources chargées en HTTP (mixed content)",
+                technical_detail=(
+                    f"{len(http_resources)} ressource(s) <script>/<link>/<img> en http:// détectée(s)"
+                ),
+                plain_explanation=(
+                    "Des scripts, feuilles de style ou images sont chargés via HTTP non chiffré. "
+                    "Un attaquant peut modifier ces ressources en transit et injecter du code "
+                    "malveillant dans la page (attaque man-in-the-middle)."
+                ),
+                penalty=5,
+                recommendation=(
+                    "Charger toutes les ressources externes via HTTPS. "
+                    "Ajouter l'en-tête `Content-Security-Policy: upgrade-insecure-requests` "
+                    "pour forcer la migration automatique."
+                ),
+            ))
+
+    # ── Bibliothèques JS obsolètes ─────────────────────────────────────────
+
+    @staticmethod
+    def _parse_semver(version_str: str) -> tuple[int, ...] | None:
+        """Parse '3.5.1' → (3, 5, 1). Retourne None si invalide."""
+        try:
+            return tuple(int(x) for x in version_str.split("."))
+        except (ValueError, AttributeError):
+            return None
+
+    def _check_outdated_js(self, body: str) -> None:
+        """Détecte les bibliothèques JS front obsolètes/vulnérables dans le HTML."""
+        if not body:
+            return
+
+        detected: list[str] = []
+        for pattern, lib_name, max_safe, severity, penalty, cve_ref in _VULNERABLE_JS_LIBS:
+            match = re.search(pattern, body, re.IGNORECASE)
+            if not match:
+                continue
+            version = self._parse_semver(match.group(1))
+            if version is None:
+                continue
+            if version < max_safe:
+                detected.append(f"{lib_name} {match.group(1)}")
+                self._findings.append(Finding(
+                    category="Bibliothèques obsolètes",
+                    severity=severity,
+                    title=f"{lib_name} {match.group(1)} — version vulnérable",
+                    technical_detail=f"{lib_name} {match.group(1)} < {'.'.join(str(x) for x in max_safe)} — {cve_ref}",
+                    plain_explanation=(
+                        f"La bibliothèque {lib_name} version {match.group(1)} contient des "
+                        "vulnérabilités connues (XSS, injection de code). Un attaquant peut les "
+                        "exploiter pour voler des données utilisateur ou prendre le contrôle de sessions."
+                    ),
+                    penalty=penalty,
+                    recommendation=(
+                        f"Mettre à jour {lib_name} vers la dernière version stable. "
+                        f"Version minimale sécurisée : {'.'.join(str(x) for x in max_safe)}."
+                    ),
+                ))
+
+        if detected:
+            self._details["outdated_js"] = detected
 
     # ── robots.txt ────────────────────────────────────────────────────────────
 
