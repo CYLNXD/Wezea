@@ -327,6 +327,26 @@ class TestEmailSecurityAuditor:
         assert dkim[0].severity == "MEDIUM"
         assert dkim[0].penalty  == 8
 
+    async def test_dkim_found_via_cname_fallback(self):
+        """CNAME on selector._domainkey (OVH style) → DKIM detected, no finding."""
+        auditor = EmailSecurityAuditor("example.com")
+        mock_resolver = MagicMock()
+
+        def _resolve(fqdn, rtype):
+            # NS on _domainkey → fail
+            # TXT on any selector → fail
+            # CNAME on first selector → success (simulates OVH CNAME)
+            if rtype == "CNAME":
+                return [MagicMock()]
+            raise Exception("NXDOMAIN")
+
+        mock_resolver.resolve.side_effect = _resolve
+        with patch("app.extra_checks.dns.resolver.Resolver",
+                   return_value=mock_resolver):
+            findings = await auditor.audit()
+        dkim = [f for f in findings if "DKIM" in f.title]
+        assert len(dkim) == 0
+
     async def test_mx_found_no_finding(self):
         """Enregistrement MX présent → aucun finding MX."""
         auditor = EmailSecurityAuditor("example.com")
