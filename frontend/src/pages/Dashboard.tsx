@@ -1855,7 +1855,7 @@ export default function Dashboard() {
           <span>© {new Date().getFullYear()} WEZEA · BCE 0811.380.056</span>
           <span className="hidden sm:inline text-slate-800">|</span>
           <a href="/agences/" className="hover:text-slate-400 transition-colors">Agences</a>
-          <a href="/blog/" className="hover:text-slate-400 transition-colors">Blog</a>
+          <button onClick={() => navigate('/blog')} className="hover:text-slate-400 transition-colors">Blog</button>
           <button onClick={() => navigate('/mentions-legales/mentions')}       className="hover:text-slate-400 transition-colors">Mentions légales</button>
           <button onClick={() => navigate('/mentions-legales/confidentialite')} className="hover:text-slate-400 transition-colors">Confidentialité & RGPD</button>
           <button onClick={() => navigate('/mentions-legales/cgv')}             className="hover:text-slate-400 transition-colors">CGV</button>
