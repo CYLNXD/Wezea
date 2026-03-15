@@ -323,6 +323,15 @@ class EmailSecurityAuditor(BaseAuditor):
         "zoho",         # Zoho Mail
         "sig1",         # Litmus / various
         "mx",           # Divers hébergeurs
+        # OVH / OVHcloud
+        "ovhmo-selector-1", "ovhmo-selector-2",
+        "ovhmo-selector-3", "ovhmo-selector-4",
+        # Proton Mail
+        "protonmail", "protonmail2", "protonmail3",
+        # Gandi
+        "gm1", "gm2", "gm3",
+        # Ionos / 1&1
+        "key1", "key2",
     ]
 
     async def audit(self) -> list[Finding]:
@@ -442,10 +451,18 @@ class EmailSecurityAuditor(BaseAuditor):
         except Exception:
             pass
 
-        # 2. Sélecteurs courants (format TXT classique)
+        # 2. Sélecteurs courants (format TXT ou CNAME)
         for selector in self.COMMON_DKIM_SELECTORS:
+            fqdn = f"{selector}._domainkey.{self.domain}"
+            # TXT direct (ou suivi automatique de CNAME → TXT)
             try:
-                resolver.resolve(f"{selector}._domainkey.{self.domain}", "TXT")
+                resolver.resolve(fqdn, "TXT")
+                return True
+            except Exception:
+                pass
+            # CNAME explicite (OVH, Proton, etc. — CNAME vers le fournisseur)
+            try:
+                resolver.resolve(fqdn, "CNAME")
                 return True
             except Exception:
                 continue
