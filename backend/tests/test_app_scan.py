@@ -823,7 +823,7 @@ class TestAppAuditorMainResponse:
         from app.app_checks import AppAuditor
 
         auditor = AppAuditor(domain="example.com")
-        headers = FakeHeaders(cookies=["session=abc; Path=/; Secure; HttpOnly"])
+        headers = FakeHeaders(cookies=["session=abc; Path=/; Secure; HttpOnly; SameSite=Lax"])
         with patch.object(auditor, "_fetch_main", return_value=(headers, "", 200)):
             _run(auditor._check_main_response())
 
@@ -1192,3 +1192,275 @@ class TestRegisterAppPlanLimit:
 
         assert resp.status_code == 403
         assert "Limite atteinte" in resp.json()["detail"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section — SameSite cookie check
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestCookieSameSite:
+    """Vérifie la détection de l'attribut SameSite manquant sur les cookies."""
+
+    def test_cookie_missing_samesite_creates_finding(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        headers = FakeHeaders(cookies=["session=abc; Path=/; Secure; HttpOnly"])
+        with patch.object(auditor, "_fetch_main", return_value=(headers, "", 200)):
+            _run(auditor._check_main_response())
+
+        assert any("SameSite" in f.title for f in auditor._findings)
+        f = next(f for f in auditor._findings if "SameSite" in f.title)
+        assert f.severity == "LOW"
+        assert f.penalty == 3
+
+    def test_cookie_with_samesite_lax_is_clean(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        headers = FakeHeaders(cookies=["session=abc; Secure; HttpOnly; SameSite=Lax"])
+        with patch.object(auditor, "_fetch_main", return_value=(headers, "", 200)):
+            _run(auditor._check_main_response())
+
+        assert not any("SameSite" in f.title for f in auditor._findings)
+
+    def test_cookie_with_samesite_strict_is_clean(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        headers = FakeHeaders(cookies=["session=abc; Secure; HttpOnly; SameSite=Strict"])
+        with patch.object(auditor, "_fetch_main", return_value=(headers, "", 200)):
+            _run(auditor._check_main_response())
+
+        assert not any("SameSite" in f.title for f in auditor._findings)
+
+    def test_cookie_with_samesite_none_is_clean(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        headers = FakeHeaders(cookies=["session=abc; Secure; HttpOnly; SameSite=None"])
+        with patch.object(auditor, "_fetch_main", return_value=(headers, "", 200)):
+            _run(auditor._check_main_response())
+
+        assert not any("SameSite" in f.title for f in auditor._findings)
+
+    def test_all_cookie_flags_present_no_findings(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        headers = FakeHeaders(cookies=["sid=xyz; Secure; HttpOnly; SameSite=Lax"])
+        with patch.object(auditor, "_fetch_main", return_value=(headers, "", 200)):
+            _run(auditor._check_main_response())
+
+        cookie_findings = [f for f in auditor._findings if f.category == "Cookies"]
+        assert cookie_findings == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section — Mixed content detection
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestMixedContent:
+    """Détection de formulaires et ressources chargées en HTTP."""
+
+    def test_form_http_action_creates_finding(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<form action="http://evil.com/submit" method="POST"><input></form>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        f = next((f for f in auditor._findings if "Formulaire" in f.title), None)
+        assert f is not None
+        assert f.severity == "MEDIUM"
+        assert f.penalty == 8
+
+    def test_form_https_action_no_finding(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<form action="https://secure.com/submit" method="POST"><input></form>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        assert not any("Mixed Content" == f.category for f in auditor._findings)
+
+    def test_script_http_src_creates_finding(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<script src="http://cdn.example.com/lib.js"></script>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        f = next((f for f in auditor._findings if "mixed content" in f.title.lower()), None)
+        assert f is not None
+        assert f.severity == "MEDIUM"
+        assert f.penalty == 5
+
+    def test_link_http_href_creates_finding(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<link href="http://cdn.example.com/style.css" rel="stylesheet">'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        assert any("mixed content" in f.title.lower() for f in auditor._findings)
+
+    def test_no_mixed_content_clean(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<html><script src="/app.js"></script><link href="/style.css"></html>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        assert not any(f.category == "Mixed Content" for f in auditor._findings)
+
+    def test_empty_body_no_crash(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, "", 200)):
+            _run(auditor._check_main_response())
+
+        assert not any(f.category == "Mixed Content" for f in auditor._findings)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section — Outdated JS libraries detection
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestOutdatedJsLibraries:
+    """Détection de bibliothèques JS front obsolètes/vulnérables."""
+
+    def test_jquery_2_detected_as_high(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<script src="https://cdn.jsdelivr.net/npm/jquery-2.2.4.min.js"></script>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        f = next((f for f in auditor._findings if "jQuery" in f.title), None)
+        assert f is not None
+        assert f.severity == "HIGH"
+        assert f.penalty == 10
+        assert "2.2.4" in f.title
+
+    def test_jquery_3_7_no_finding(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<script src="https://cdn.jsdelivr.net/npm/jquery-3.7.1.min.js"></script>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        assert not any("jQuery" in f.title for f in auditor._findings)
+
+    def test_angular_1_8_detected_as_high(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<script src="/assets/angular-1.8.3.min.js"></script>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        f = next((f for f in auditor._findings if "AngularJS" in f.title), None)
+        assert f is not None
+        assert f.severity == "HIGH"
+        assert "1.8.3" in f.title
+
+    def test_bootstrap_3_detected_as_medium(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<link href="https://cdn/bootstrap-3.4.1.min.css">'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        f = next((f for f in auditor._findings if "Bootstrap" in f.title), None)
+        assert f is not None
+        assert f.severity == "MEDIUM"
+        assert f.penalty == 5
+
+    def test_bootstrap_5_no_finding(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<link href="https://cdn/bootstrap-5.3.2.min.css">'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        assert not any("Bootstrap" in f.title for f in auditor._findings)
+
+    def test_lodash_4_17_20_detected(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<script src="/js/lodash-4.17.20.min.js"></script>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        f = next((f for f in auditor._findings if "Lodash" in f.title), None)
+        assert f is not None
+        assert f.severity == "MEDIUM"
+
+    def test_lodash_4_17_21_no_finding(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<script src="/js/lodash-4.17.21.min.js"></script>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        assert not any("Lodash" in f.title for f in auditor._findings)
+
+    def test_no_js_libraries_clean(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<html><body><h1>Hello</h1></body></html>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        assert not any(f.category == "Bibliothèques obsolètes" for f in auditor._findings)
+
+    def test_unparseable_version_ignored(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<script src="/jquery-abc.def.ghi.min.js"></script>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        assert not any("jQuery" in f.title for f in auditor._findings)
+
+    def test_details_populated_on_detection(self):
+        from app.app_checks import AppAuditor
+
+        auditor = AppAuditor(domain="example.com")
+        body = '<script src="/jquery-2.1.0.min.js"></script>'
+        headers = FakeHeaders()
+        with patch.object(auditor, "_fetch_main", return_value=(headers, body, 200)):
+            _run(auditor._check_main_response())
+
+        assert "outdated_js" in auditor._details
+        assert "jQuery 2.1.0" in auditor._details["outdated_js"]
